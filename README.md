@@ -8,11 +8,11 @@ Source dot files for the shell you use. To switch to zsh on your Mac go to **Sys
 bash
 ----
 
-**.bashrc** file ::
+**.bashrc** file
 
     . ~/bin/dotfiles/bashrc
 
-**.bash_profile** file ::
+**.bash_profile** file
 
     \# Run .bashrc
     if [ -f ~/.bashrc ]; then
@@ -22,6 +22,6 @@ bash
 zsh
 ---
 
-**.zshrc** file ::
+**.zshrc** file
 
     . ~/bin/dotfiles/zshrc
