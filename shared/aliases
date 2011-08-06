@@ -1,0 +1,25 @@
+# List files with colours
+alias l='ls -G'         # default
+alias ls='ls -G'        # default
+alias l.='ls -aG'       # default + hidden
+alias ll='ls -lG'       # vertical
+alias ll.='ls -alG'     # vertical + hidden
+
+# change directory
+alias ..='cd ..'        # up
+alias .='pwd'           # print working directory
+alias cdd='cd -'        # change to last directory
+
+# top processes
+alias tu='top -o cpu'   #cpu
+alias tm='top -o vsize' #memory
+
+# edit/reload aliases 
+alias reload='source ~/bin/dotfiles/shared/aliases'
+alias ea='mate -w ~/bin/dotfiles/shared/aliases && reload'
+
+
+# show top 10 most used shell commands
+function top_commands {
+    history | awk '{ a[$2]++ } END { for(i in a ) { print a[i] " " i } }' | sort -rn | head
+}
