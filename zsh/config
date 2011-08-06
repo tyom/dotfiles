@@ -44,3 +44,5 @@ compinit
 WORDCHARS=${WORDCHARS//[&=\/;\!#%\{]}
 
 bindkey -e
+# Add reverse tab completion
+bindkey '^[[Z' reverse-menu-complete
