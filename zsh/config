@@ -46,3 +46,5 @@ WORDCHARS=${WORDCHARS//[&=\/;\!#%\{]}
 bindkey -e
 # Add reverse tab completion
 bindkey '^[[Z' reverse-menu-complete
+# Fix Fn-Backspace to mean Delete
+bindkey "^[[3~" delete-char
