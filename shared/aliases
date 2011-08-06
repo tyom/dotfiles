@@ -16,8 +16,10 @@ alias tm='top -o vsize' #memory
 
 # edit/reload aliases 
 alias reload='source ~/bin/dotfiles/shared/aliases'
-alias ea='mate -w ~/bin/dotfiles/shared/aliases && reload'
+alias ea='vim ~/bin/dotfiles/shared/aliases && reload'
 
+# git shortcuts
+alias g="git st"
 
 # show top 10 most used shell commands
 function top_commands {
