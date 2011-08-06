@@ -9,9 +9,11 @@ bash
 ----
 
 **.bashrc** file ::
+
     . ~/bin/dotfiles/bashrc
 
 **.bash_profile** file ::
+
     \# Run .bashrc
     if [ -f ~/.bashrc ]; then
         . ~/.bashrc
@@ -21,4 +23,5 @@ zsh
 ---
 
 **.zshrc** file ::
+
     . ~/bin/dotfiles/zshrc
