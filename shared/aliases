@@ -6,7 +6,7 @@ alias ll='ls -lG'       # vertical
 alias ll.='ls -alG'     # vertical + hidden
 
 # change directory
-alias ..='cd ..'        # up
+# alias ..='cd ..'        # up
 alias .='pwd'           # print working directory
 alias cdd='cd -'        # change to last directory
 
