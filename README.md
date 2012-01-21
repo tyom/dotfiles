@@ -14,7 +14,7 @@ bash
 
 **.bash_profile** file
 
-    \# Run .bashrc
+    # Run .bashrc
     if [ -f ~/.bashrc ]; then
         . ~/.bashrc
     fi
