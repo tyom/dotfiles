@@ -23,10 +23,12 @@ alias ea='vim ~/bin/dotfiles/shared/aliases && reload'
 
 # git shortcuts
 concise_logging_format='--pretty=format:%Cblue%h%Creset %cr %Cgreen%an%Creset %s'
-alias s="git st"
+alias s="git st --short"
+alias gs="git st"
 alias d="git diff"
 alias gl="git log -p"
 alias glc='git log "$concise_logging_format"'
+alias glg="glc --graph"
 
 # show top 10 most used shell commands
 function top_commands {
