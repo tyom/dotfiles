@@ -23,7 +23,8 @@ alias ea='vim ~/bin/dotfiles/shared/aliases && reload'
 
 # git shortcuts
 concise_logging_format='--pretty=format:%Cblue%h%Creset %cr %Cgreen%an%Creset %s'
-alias g="git st"
+alias s="git st"
+alias d="git diff"
 alias gl="git log -p"
 alias glc='git log "$concise_logging_format"'
 
