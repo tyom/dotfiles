@@ -10,6 +10,9 @@ alias ll.='ls -alG'     # vertical + hidden
 alias .='pwd'           # print working directory
 alias cdd='cd -'        # change to last directory
 
+# TextMate
+alias m='mate .'
+
 # top processes
 alias tu='top -o cpu'   #cpu
 alias tm='top -o vsize' #memory
@@ -19,9 +22,13 @@ alias reload='source ~/bin/dotfiles/shared/aliases'
 alias ea='vim ~/bin/dotfiles/shared/aliases && reload'
 
 # git shortcuts
+concise_logging_format='--pretty=format:%Cblue%h%Creset %cr %Cgreen%an%Creset %s'
 alias g="git st"
+alias gl="git log -p"
+alias glc='git log "$concise_logging_format"'
 
 # show top 10 most used shell commands
 function top_commands {
     history | awk '{ a[$2]++ } END { for(i in a ) { print a[i] " " i } }' | sort -rn | head
 }
+
