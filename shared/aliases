@@ -27,6 +27,7 @@ alias s="git st"
 alias d="git diff"
 alias gl="git log -p"
 alias glc='git log "$concise_logging_format"'
+alias glg="glc --graph"
 
 # show top 10 most used shell commands
 function top_commands {
