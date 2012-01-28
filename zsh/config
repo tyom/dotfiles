@@ -6,8 +6,6 @@ setopt prompt_subst
 
 source ~/bin/dotfiles/zsh/prompt
 
-# PROMPT='%{$fg[green]%}%n%{$reset_color%}@%{$fg[cyan]%}%m%{$reset_color%} %{$fg_bold[cyan]%}%~%{$reset_color%} ❯ %{$fg[cyan]%}$(vcprompt)%{$reset_color%}'
-
 #############################
 # Other Options
 
