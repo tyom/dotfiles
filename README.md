@@ -1,4 +1,4 @@
-This is a collection of my personal settings and aliases fro bash and zsh shells.
+This is a collection of my personal settings and aliases for bash and zsh shells.
 
 Usage
 =====
@@ -25,3 +25,10 @@ zsh
 **.zshrc** file
 
     . ~/bin/dotfiles/zshrc
+
+vim
+---
+
+    ln -s ~/bin/dotfiles/vimrc .vimrc
+    ln -s ~/bin/dotfiles/vim/ .vim
+

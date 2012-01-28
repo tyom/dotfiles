@@ -1,8 +1,12 @@
+source /usr/local/etc/bash_completion.d/
+
 autoload -U colors
 colors
 setopt prompt_subst
 
-PROMPT='%{$fg[green]%}%n%{$reset_color%}@%{$fg[cyan]%}%m%{$reset_color%} %{$fg_bold[cyan]%}%~%{$reset_color%} ❯ %{$fg[cyan]%}$(vcprompt)%{$reset_color%}'
+source ~/bin/dotfiles/zsh/prompt
+
+# PROMPT='%{$fg[green]%}%n%{$reset_color%}@%{$fg[cyan]%}%m%{$reset_color%} %{$fg_bold[cyan]%}%~%{$reset_color%} ❯ %{$fg[cyan]%}$(vcprompt)%{$reset_color%}'
 
 #############################
 # Other Options

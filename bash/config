@@ -1,3 +1,5 @@
+source /usr/local/etc/bash_completion.d/git-completion.bash
+
 # Colors from http://wiki.archlinux.org/index.php/Color_Bash_Prompt
 # Reset
 Color_Off='\e[0m'       # Text Reset
