@@ -1,3 +1,5 @@
+alias v='vim'
+
 # List files with colours
 alias l='ls -G'         # default
 alias ls='ls -G'        # default
@@ -29,6 +31,7 @@ alias d="git diff"
 alias gl="git log -p"
 alias glc='git log "$concise_logging_format"'
 alias glg="glc --graph"
+alias g="git"
 
 # show top 10 most used shell commands
 function top_commands {
