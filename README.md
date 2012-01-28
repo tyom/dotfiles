@@ -32,3 +32,4 @@ vim
     ln -s ~/bin/dotfiles/vimrc .vimrc
     ln -s ~/bin/dotfiles/vim/ .vim
 
+Install [vim-pathogen](https://github.com/tpope/vim-pathogen).
