@@ -87,3 +87,25 @@ set guifont=Inconsolata:h14
 map <space> /
 map <c-space> ?
 map <silent> <leader><cr> :noh<cr>
+
+
+"""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
+" => Diffs 
+"""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
+function! s:DiffWithSaved()
+    let filetype=&ft
+    diffthis
+    vnew | r # | normal! 1Gdd
+    diffthis
+    exe "setlocal bt=nofile bh=wipe nobl noswf ro ft=" . filetype
+endfunction
+com! DiffSaved call s:DiffWithSaved()
+
+function! s:DiffWithSVNCheckedOut()
+  let filetype=&ft
+  diffthis
+  vnew | exe "%!svn cat " . expand("#:p:h")
+  diffthis
+  exe "setlocal bt=nofile bh=wipe nobl noswf ro ft=" . filetype
+endfunction
+com! DiffSVN call s:DiffWithSVNCheckedOut()
