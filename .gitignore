@@ -1,4 +1,4 @@
 *.swp
 *~
 .netrw*
-ssh/config
+*ssh/config
