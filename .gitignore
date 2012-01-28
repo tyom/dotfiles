@@ -1,2 +1,4 @@
 *.swp
 *~
+.netrw*
+vim/bundle/snipmate/doc/tags
