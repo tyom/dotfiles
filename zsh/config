@@ -1,7 +1,6 @@
 source /usr/local/etc/bash_completion.d/
 
-autoload -U colors
-colors
+# autoload -U colors && colors
 setopt prompt_subst
 
 source ~/bin/dotfiles/zsh/prompt

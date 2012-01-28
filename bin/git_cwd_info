@@ -21,8 +21,9 @@ def git_head_commit_id
   `git rev-parse --short HEAD 2>/dev/null`.strip
 end
 
+# Show cross when current working directory is dirty
 def git_cwd_dirty
-  " %{\e[90m%}✗%{\e[0m%}" unless git_repo_path == '.' || `git ls-files -m`.strip.empty?
+  " %{%F{196}%B%}⨉%{%f%b%}" unless git_repo_path == '.' || `git ls-files -m`.strip.empty?
 end
 
 def rebasing_etc
@@ -36,5 +37,5 @@ def rebasing_etc
 end
 
 if in_git_repo
-  print " %{\e[34m%}#{git_parse_branch}%{\e[90m%}@%{\e[33m%}#{git_head_commit_id}%{\e[0m%}#{rebasing_etc}#{git_cwd_dirty}"
+  print " %{%F{87}%}#{git_parse_branch}%{%f%}%{%F{238}%}@%{%f%}%{%F{214}%}#{git_head_commit_id}%{%f%}#{rebasing_etc}#{git_cwd_dirty}"
 end
