@@ -1,4 +1,4 @@
-alias v='vim'
+alias v='mvim -v'
 
 # List files with colours
 alias l='ls -G'         # default
