@@ -1,7 +1,9 @@
 source /usr/local/etc/bash_completion.d/
 
-# autoload -U colors && colors
 setopt prompt_subst
+
+# Tab completion fix for 'cd ..<TAB>'
+zstyle ':completion:*' special-dirs true
 
 source ~/bin/dotfiles/zsh/prompt
 
