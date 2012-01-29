@@ -46,8 +46,15 @@ compinit
 # Make CTRL-W delete after other chars, not just spaces
 WORDCHARS=${WORDCHARS//[&=\/;\!#%\{]}
 
+
+##############################
+# Key bindings
+
 bindkey -e
 # Add reverse tab completion
 bindkey '^[[Z' reverse-menu-complete
 # Fix Fn-Backspace to mean Delete
 bindkey "^[[3~" delete-char
+# Fix Fn-Left/Fn-Right to go to beginning/end of line
+bindkey '^[[H' beginning-of-line
+bindkey '^[[F' end-of-line
