@@ -59,6 +59,8 @@ Move the line RVM added from your `.profile` to your `~/.zshrc` file
     $ rvm install 1.9.2
     $ rvm --default use 1.9.2 
 
+You should now be all set.
+
 ---
 
 ZHS Variables
