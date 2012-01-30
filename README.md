@@ -45,6 +45,20 @@ Install [vim-pathogen](https://github.com/tpope/vim-pathogen).
 For Command-T plugin to work we need Vim with Ruby support.
 `brew install macvim` will do the trick. I creted an alias for it `v`.
 
+
+RVM (Ruby)
+----------
+
+You need Ruby 1.9+ to get git scripts for prompt to work. In your shell:
+
+    $ bash -s stable < <(curl -s https://raw.github.com/wayneeseguin/rvm/master/binscripts/rvm-installer)
+
+Move the line RVM added from your `.profile` to your `~/.zshrc` file
+
+    $ rvm requirements
+    $ rvm install 1.9.2
+    $ rvm --default use 1.9.2 
+
 ---
 
 ZHS Variables
