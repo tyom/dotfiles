@@ -7,6 +7,8 @@ Usage
 
 Source dot files for the shell you use. To switch to zsh on your Mac go to **System Preferences** > **Users & Groups** and right click on your user name (may require unlocking first), then click **Advanced Options** and select your shell from dropdown menu. 
 
+You want to replace your standard Terminal with the excellent [iTerm2](http://www.iterm2.com/) and enable `xterm-256color` in *Preferences > Profiles > Terminal (Report Terminal Type)* to give nice colours to your prompt.
+
 zsh
 ---
 
@@ -33,8 +35,8 @@ bash
 vim
 ---
 
-    ln -s ~/bin/dotfiles/vimrc .vimrc
-    ln -s ~/bin/dotfiles/vim/ .vim
+    ln -s ~/bin/dotfiles/vimrc ~/.vimrc
+    ln -s ~/bin/dotfiles/vim/ ~/.vim
 
 Install [vim-pathogen](https://github.com/tpope/vim-pathogen).
 
