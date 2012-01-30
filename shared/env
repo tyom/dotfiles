@@ -1,4 +1,2 @@
 # export EDITOR="mate -w"
 export PATH=$PATH:~/bin:~/bin/dotfiles/bin
-
-[[ -s "~/.rvm/scripts/rvm" ]] && source "~/.rvm/scripts/rvm" # Load RVM into a shell session *as a function*
