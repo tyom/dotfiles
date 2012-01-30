@@ -5,8 +5,6 @@ if [ -f ~/bin/bash_completion ] ; then
     . ~/bin/bash_completion
 fi
 
-# source /usr/local/etc/bash_completion.d/
-
 setopt prompt_subst
 
 # Tab completion fix for 'cd ..<TAB>'
