@@ -31,6 +31,7 @@ set shiftwidth=4
 set tabstop=4
 set smarttab
 
+set paste " Disable auto indent on paste
 
 """""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
 " => VIM user interface
