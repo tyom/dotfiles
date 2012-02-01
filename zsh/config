@@ -1,4 +1,9 @@
-source /usr/local/etc/bash_completion.d/
+if [ -f ~/bin/bash_completion ] ; then
+    BASH_COMPLETION=~/bin/dotfiles/bin/bash_completion
+    BASH_COMPLETION_DIR=~/bin/dotfiles/bin/bash_completion.d
+    export BASH_COMPLETION BASH_COMPLETION_DIR
+    . ~/bin/bash_completion
+fi
 
 setopt prompt_subst
 

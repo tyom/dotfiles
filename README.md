@@ -7,6 +7,10 @@ Usage
 
 Source dot files for the shell you use. To switch to zsh on your Mac go to **System Preferences** > **Users & Groups** and right click on your user name (may require unlocking first), then click **Advanced Options** and select your shell from dropdown menu. 
 
+On Ubuntu run `apt-get install zsh`, followed by `chsh` which will prompt you to enter path for your new shell */bin/zsh*
+
+You want to replace your standard Terminal with the excellent [iTerm2](http://www.iterm2.com/) and enable `xterm-256color` in *Preferences > Profiles > Terminal (Report Terminal Type)* to give nice colours to your prompt.
+
 zsh
 ---
 
@@ -33,13 +37,29 @@ bash
 vim
 ---
 
-    ln -s ~/bin/dotfiles/vimrc .vimrc
-    ln -s ~/bin/dotfiles/vim/ .vim
+    ln -s ~/bin/dotfiles/vimrc ~/.vimrc
+    ln -s ~/bin/dotfiles/vim/ ~/.vim
 
 Install [vim-pathogen](https://github.com/tpope/vim-pathogen).
 
 For Command-T plugin to work we need Vim with Ruby support.
 `brew install macvim` will do the trick. I creted an alias for it `v`.
+
+
+RVM (Ruby)
+----------
+
+You need Ruby 1.9+ to get git scripts for prompt to work. In your shell:
+
+    $ bash -s stable < <(curl -s https://raw.github.com/wayneeseguin/rvm/master/binscripts/rvm-installer)
+
+Move the line RVM added from your `.profile` to your `~/.zshrc` file
+
+    $ rvm requirements
+    $ rvm install 1.9.2
+    $ rvm --default use 1.9.2 
+
+You should now be all set.
 
 ---
 
