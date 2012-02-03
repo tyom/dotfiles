@@ -1,8 +1,8 @@
 alias v='mvim -v'
 
 # List files with colours
+alias ls='ls --color=auto'
 alias l='ls -G'         # default
-alias ls='ls -G'        # default
 alias l.='ls -aG'       # default + hidden
 alias ll='ls -lG'       # vertical
 alias ll.='ls -alG'     # vertical + hidden
