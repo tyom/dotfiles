@@ -17,3 +17,4 @@
 [submodule "vim/bundle/NERD-tree"]
 	path = vim/bundle/NERD-tree
 	url = https://github.com/vim-scripts/The-NERD-tree.git
+    ignore = untracked
