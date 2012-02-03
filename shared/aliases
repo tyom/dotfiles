@@ -1,11 +1,29 @@
-alias v='mvim -v'
+# Detect OS
+platform='unknown'
+unamestr=`uname`
+if [[ "$unamestr" == 'Linux' ]]; then
+    platform='linux'
+elif [[ "$unamestr" == 'FreeBSD' ]]; then
+    platform='freebsd'
+elif [[ "$unamestr" == 'Darwin' ]]; then
+    platform='mac'
+fi
 
 # List files with colours
-alias ls='ls -G'
-alias l='ls'         # default
+if [[ $platform == 'linux' ]]; then
+   alias ls='ls --color=auto'
+elif [[ $platform == 'freebsd' || $platform == 'mac' ]]; then
+   alias ls='ls -G'
+fi
+alias l='ls'            # default
 alias l.='ls -aG'       # default + hidden
 alias ll='ls -lG'       # vertical
 alias ll.='ls -alG'     # vertical + hidden
+
+# Alias to MacVim
+if [[ $platform == 'mac' ]]; then
+    alias v='mvim -v'
+fi
 
 # change directory
 # alias ..='cd ..'        # up
