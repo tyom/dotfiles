@@ -5,6 +5,7 @@ if [ -f ~/bin/bash_completion ] ; then
     . ~/bin/bash_completion
 fi
 
+# Evaluate prompt
 setopt prompt_subst
 
 # Tab completion fix for 'cd ..<TAB>'
@@ -47,6 +48,7 @@ LISTMAX=0 # ask to complete if top of list would scroll off screen
 # Load completions for Ruby, Git, etc.
 autoload compinit
 compinit
+
 
 # Make CTRL-W delete after other chars, not just spaces
 WORDCHARS=${WORDCHARS//[&=\/;\!#%\{]}

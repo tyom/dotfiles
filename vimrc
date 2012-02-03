@@ -31,8 +31,6 @@ set shiftwidth=4
 set tabstop=4
 set smarttab
 
-set paste " Disable auto indent on paste
-
 """""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
 " => VIM user interface
 """""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
@@ -52,6 +50,8 @@ set tw=500      "max text width 500
 set listchars=tab:▸\ ,eol:¬
 " Set :set list shortcut to /l
 nmap <leader>l :set list!<CR>
+
+set pastetoggle=<F3>
 
 set ruler       "Always show current position
 
