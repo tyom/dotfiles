@@ -1,4 +1,4 @@
-" Reference: http://amix.dk/vim/vimrc.html
+" Starting point: http://amix.dk/vim/vimrc.html
 
 """""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
 " => General
@@ -22,6 +22,8 @@ set autoread
 " When vimrc is edited, reload it
 autocmd! bufwritepost vimrc source ~/.vimrc
 
+" Show NERD Tree on Vim start
+" autocmd VimEnter * NERDTree
 
 """""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
 " => Text, tab and indent related
@@ -87,7 +89,10 @@ set guifont=Inconsolata:h14
 " Map space to / (search) and c-space to ? (backgwards search)
 map <space> /
 map <c-space> ?
+" Map 'remove search highlight' to <leader>-Enter (leader - \)
 map <silent> <leader><cr> :noh<cr>
+" Map NERD Tree to ESC-Enter
+nmap <silent><esc><cr> :NERDTreeToggle<cr>
 
 
 """""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
