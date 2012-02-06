@@ -18,3 +18,6 @@
 	path = vim/bundle/NERD-tree
 	url = https://github.com/vim-scripts/The-NERD-tree.git
     ignore = untracked
+[submodule "vim/bundle/vim-twig"]
+	path = vim/bundle/vim-twig
+	url = https://github.com/lunaru/vim-twig.git
