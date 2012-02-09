@@ -45,7 +45,7 @@ alias ea='vim ~/bin/dotfiles/shared/aliases && reload'
 concise_logging_format='--pretty=format:%Cblue%h%Creset %cr %Cgreen%an%Creset %s'
 alias s="git st --short"
 alias gs="git st"
-alias d="git diff"
+alias d="git diff --color-words"
 alias gl="git log -p"
 alias glc='git log "$concise_logging_format"'
 alias glg="glc --graph"
