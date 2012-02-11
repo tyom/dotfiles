@@ -19,19 +19,62 @@ filetype indent on
 " Set to auto read when a file is changed from the outside
 set autoread
 
+" Auto hide unsaved buffers without showing warning when :bn :bp
+set hidden
+
 " When vimrc is edited, reload it
 autocmd! bufwritepost vimrc source ~/.vimrc
 
 " Show NERD Tree on Vim start
 " autocmd VimEnter * NERDTree
 
+" Disable toolbar in MacVim
+if has("gui_running")
+  set guioptions=egmrt
+endif
+
 """""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
-" => Text, tab and indent related
+" => Text, tab and indent related (whitespaces)
 """""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
 set expandtab
 set shiftwidth=4
 set tabstop=4
+set softtabstop=4
 set smarttab
+
+" Set tab preferences per file type
+if has("autocmd")
+  filetype on
+  " The fussy ones
+  autocmd FileType make setlocal ts=8 sts=8 sw=8 noexpandtab
+  autocmd FileType yaml setlocal ts=2 sts=2 sw=2 expandtab
+  " Personal prefs
+  autocmd FileType ruby,vim setlocal ts=2 sts=2 sw=2 expandtab
+  " Treat RSS as XML
+  autocmd BufNewFile,BufRead *.rss setfiletype xml
+  
+  " Delete trailing whitespaces when saving files
+  autocmd BufWritePre *.py,*.js,*.html,*.rb :call <SID>StripTrailingWhitespaces()
+endif
+
+" Strip trailing whitespaces function (vimcasts.org)
+function! <SID>StripTrailingWhitespaces()
+    " Preparation: save last search, and cursor position.
+    let _s=@/
+    let l = line(".")
+    let c = col(".")
+    " Do the business:
+    %s/\s\+$//e
+    " Clean up: restore previous search history, and cursor position
+    let @/=_s
+    call cursor(l, c)
+endfunction
+
+" Emulate Textmate indentation (Cmd-[])
+nmap <D-[> <<
+nmap <D-]> >>
+vmap <D-[> <gv
+vmap <D-]> >gv
 
 """""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
 " => VIM user interface
@@ -50,10 +93,10 @@ set tw=500      "max text width 500
 " Use TextMate symbols for invisible characters
 " In .vim/colors/yourtheme.vim use NonText and SpecialKey to set eol and tab colours
 set listchars=tab:▸\ ,eol:¬
-" Set :set list shortcut to /l
+" Set :set list shortcut to \l (show invisibles)
 nmap <leader>l :set list!<CR>
 
-set pastetoggle=<F3>
+set pastetoggle=<F5>
 
 set ruler       "Always show current position
 
@@ -115,3 +158,11 @@ function! s:DiffWithSVNCheckedOut()
   exe "setlocal bt=nofile bh=wipe nobl noswf ro ft=" . filetype
 endfunction
 com! DiffSVN call s:DiffWithSVNCheckedOut()
+
+
+
+" Window navigation
+map <C-h> <C-w>h
+map <C-j> <C-w>j
+map <C-k> <C-w>k
+map <C-l> <C-w>l
