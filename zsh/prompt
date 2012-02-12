@@ -12,8 +12,8 @@ ruby_version() {
 
 # Run <colortest -w -s> to get the list of supported colours
 
-export PROMPT=$'%{%F{green}%}%n%{%f%} at %{%F{cyan%}%m%{%f%} ⫶ %{%F{134}%}$(project_pwd)%{%f%}
-%{%F{136}%}❯%{%f%} '
+export PROMPT=$'%{%F{green}%}%n%{%f%} at %{%F{214%}%m%{%f%} ⫶ %{%F{134}%}$(project_pwd)%{%f%}
+%{%F{231}%}❯%{%f%} '
 export RPROMPT=$'%{%F{238}%}$(ruby_version)%{%f%}$(git_cwd_info)%{%E%}'
 
 # STANDARD VARIABLES
