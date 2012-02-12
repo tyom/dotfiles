@@ -65,6 +65,7 @@ if has("autocmd")
   autocmd FileType ruby,vim setlocal ts=2 sts=2 sw=2 expandtab
   " Treat RSS as XML
   autocmd BufNewFile,BufRead *.rss setfiletype xml
+  autocmd BufNewFile,BufRead *.conf setfiletype config
   
   " Delete trailing whitespaces when saving files
   autocmd BufWritePre *.py,*.js,*.html,*.rb :call <SID>StripTrailingWhitespaces()
