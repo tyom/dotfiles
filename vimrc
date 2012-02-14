@@ -188,10 +188,10 @@ map <C-l> <C-w>l
 """""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
 
 " Mappings
-let mapleader=','
 if exists(":Tabularize")
-  nmap <Leader>a= :Tabularize /=<CR>
-  vmap <Leader>a= :Tabularize /=<CR>
-  nmap <Leader>a: :Tabularize /:\zs<CR>
-  vmap <Leader>a: :Tabularize /:\zs<CR>
+let mapleader=','
+  nmap <Leader>,= :Tabularize /=<CR>
+  vmap <Leader>,= :Tabularize /=<CR>
+  nmap <Leader>,: :Tabularize /:\zs<CR>
+  vmap <Leader>,: :Tabularize /:\zs<CR>
 endif
