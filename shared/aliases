@@ -19,6 +19,7 @@ alias l='ls'            # default
 alias l.='ls -aG'       # default + hidden
 alias ll='ls -lG'       # vertical
 alias ll.='ls -alG'     # vertical + hidden
+alias lls='ls -lSh .'   # sort by size
 
 # Alias to MacVim
 if [[ $platform == 'mac' ]]; then
@@ -51,7 +52,20 @@ alias glc='git log "$concise_logging_format"'
 alias glg="glc --graph"
 alias g="git"
 
+alias pyserver="python -m SimpleHTTPServer"
+
+
 # show top 10 most used shell commands
 function top_commands {
     history | awk '{ a[$2]++ } END { for(i in a ) { print a[i] " " i } }' | sort -rn | head
+}
+
+
+# Show top n biggest files
+function top-20-size { 
+    du -k $@ | sort -rn | head -n 20 | perl -ne '($s,$f)=split(/\t/,$_,2);for(qw(K M G T)){if($s<1024){$x=($s<10?"%.1f":"%3d");printf("$x$_\t%s",$s,$f);last};$s/=1024}' 
+}
+
+function top-size { 
+    du -k $@ | sort -rn | perl -ne '($s,$f)=split(/\t/,$_,2);for(qw(K M G T)){if($s<1024){$x=($s<10?"%.1f":"%3d");printf("$x$_\t%s",$s,$f);last};$s/=1024}' 
 }

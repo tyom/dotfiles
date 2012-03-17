@@ -1,0 +1,135 @@
+#!bash
+
+_padrino(){
+  # Components available  for progect generator:
+  components_orm="mongomapper mongoid activerecord datamapper couchrest mongomatic ohm"
+  components_test="bacon shoulda cucumber testspec riot rspec"
+  components_script="prototype rightjs jquery mootools extcore dojo"
+  components_renderer="erb haml slim liquid"
+  components_stylesheet="sass less scss compass"
+  components_mock="rr mocha"
+
+  admin_themes="amro bec bec-green blue default djime-cerulean kathleene olive orange reidb-greenish ruby warehouse"
+
+  # Remove colon from separators list
+  #   see E13 http://tiswww.case.edu/php/chet/bash/FAQ
+  COMP_WORDBREAKS=${COMP_WORDBREAKS//:}
+  COMPREPLY=()
+  # COMP_CWORD -- index of current argument
+  current_arg="${COMP_WORDS[COMP_CWORD]}"
+  subcommands=""
+
+  # If $XDG_CONFIG_HOME is either not set or empty, a default equal to $HOME/.config should be used.
+  if test -z $XDG_CONFIG_HOME; then
+    config_dir="$HOME/.config"
+  else
+    config_dir=$XDG_CONFIG_HOME
+  fi
+
+  # This directory used to cache slow requests
+  #  like "padrino rake -T" and "padrino g plugin --list"
+  config_dir="$config_dir/padrino"
+  # Create ~/.config/padrino directory if not exists
+  if [ ! -d $config_dir ] ; then
+    mkdir $config_dir
+  fi
+
+  case $COMP_CWORD in
+    1 )
+      # First argument
+      #  Examples:
+      #   - padrino version
+      #   - padrino generate <...>
+      #   - padrino rake <...>
+      #
+      # Populate subcommands array from padrino --help output
+      subcommands=`padrino --help|egrep "padrino\s([a-z]+)\s+\#\s"|cut -d" " -f4` ;;
+    2 )
+      # Second argument
+      #  Examples:
+      #   - padrino rake seed
+      #   - padrino generate plugin <...>
+      #
+      # If previous command was
+      case "${COMP_WORDS[$COMP_CWORD-1]}" in
+        "start" )
+          subcommands="--server --host --port --daemonize --pid --debug --chdir --environment --help" ;;
+        "g" | "gen" | "generate" )
+          subcommands="project plugin controller model migration mailer admin admin_page" ;;
+        "rake" )
+          # padrino rake -T works too slow. So we need some kind of caching
+          project_dir=`pwd`
+          # Remove "/" form path
+          completion_cache="$config_dir/${project_dir//\//_}"
+          if [ -r $completion_cache ] ; then
+            # Reading tasks list from file
+            subcommands=`cat $completion_cache`
+          else
+            # grep "rake "  -- grab lines with rake tasks
+            # cut -d" " -f2 -- pick only tasks name
+            # cut -d"[" -f1 -- remove [app], [query], etc.
+            subcommands=`padrino rake -T|grep "rake "|cut -d" " -f2|cut -d"[" -f1`
+            # If rake tasks exists
+            if [ "$subcommands" ] ; then
+              echo $subcommands > $completion_cache
+            fi
+          fi ;;
+      esac ;;
+    * )
+      # if secons argument was
+      case "${COMP_WORDS[2]}" in
+        "project" | "app" )
+          # Examples:
+          #  - padrino g project foo test rspec <...>
+          #  - padrino g project foo test rspec mock rr <...>
+          subcommands="--orm --test --script --renderer --stylesheet --mock --tiny --dev --template"
+          case "${COMP_WORDS[$COMP_CWORD-1]}" in
+            "--orm" | "-d" )
+              subcommands=$components_orm ;;
+            "--test" | "-t" )
+              subcommands=$components_test ;;
+            "--script" | "-s" )
+              subcommands=$components_script ;;
+            "--renderer" | "-e" )
+              subcommands=$components_renderer ;;
+            "--stylesheet" | "-c" )
+              subcommands=$components_stylesheet ;;
+            "--mock" | "-m" )
+              subcommands=$components_mock ;;
+          esac ;;
+       "plugin" )
+          # Examples:
+          #  - padrino g plugin coffee
+          #  - padrino g plugin 360
+          completion_cache="$config_dir/plugins"
+          # Plugins list may be updated, so there is no need to cache it forever
+          # If completion_cache modified less then 5 days ago
+          if [ -r $completion_cache ] && [ ! `find "$completion_cache" -mmin +7200` ] ; then
+            subcommands=`cat $completion_cache`
+          else
+            subcommands=`padrino g plugin --list|grep "\- \["|cut -d'"' -f2`
+            echo $subcommands > $completion_cache
+          fi ;;
+       "controller" )
+         subcommands="--app --root --destroy" ;;
+       "model" )
+         subcommands="--root --skip_migration --destroy" ;;
+       "migration" )
+         subcommands="--root --destroy" ;;
+       "mailer" )
+         subcommands="--app --root --destroy" ;;
+       "admin" )
+         subcommands="--name --root --theme --skip_migration --destroy"
+          if [ "${COMP_WORDS[$COMP_CWORD-1]}" == "--theme" ] ; then
+              subcommands=$admin_themes
+          fi ;;
+       "admin_page" )
+          # Extract models
+          subcommands=`ls app/models/| cut -d"." -f1` ;;
+      esac ;;
+  esac
+
+  COMPREPLY=( $(compgen -W "$subcommands" -- "$current_arg") )
+  return 0
+}
+complete -F _padrino padrino
