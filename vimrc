@@ -114,6 +114,7 @@ set listchars=tab:▸\ ,eol:¬
 nmap <leader>l :set list!<CR>
 
 set pastetoggle=<F5>
+set paste
 
 set ruler       "Always show current position
 
