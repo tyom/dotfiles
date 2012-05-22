@@ -52,7 +52,7 @@ alias glc='git log "$concise_logging_format"'
 alias glg="glc --graph"
 alias g="git"
 
-alias pyserver="python -m SimpleHTTPServer"
+alias server="python -m SimpleHTTPServer"
 
 
 # show top 10 most used shell commands
