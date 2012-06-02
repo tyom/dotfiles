@@ -5,26 +5,29 @@ This is a collection of my personal settings and aliases for bash and zsh shells
 Usage
 =====
 
-Source dot files for the shell you use. To switch to zsh on your Mac go to **System Preferences** > **Users & Groups** and right click on your user name (may require unlocking first), then click **Advanced Options** and select your shell from dropdown menu. 
+Source dot files for the shell you use. To switch to zsh on your Mac go to **System Preferences** > **Users & Groups** and right click on your user name (may require unlocking first), then click **Advanced Options** and select your shell from drop-down menu. 
 
-On Ubuntu run `apt-get install zsh`, followed by `chsh` which will prompt you to enter path for your new shell */bin/zsh*
+On Ubuntu run `apt-get install zsh`, followed by `chsh -s /bin/zsh`. Restart your shell.
 
 You want to replace your standard Terminal with the excellent [iTerm2](http://www.iterm2.com/) and enable `xterm-256color` in *Preferences > Profiles > Terminal (Report Terminal Type)* to give nice colours to your prompt.
+
+    git clone https://github.com/tyom/dotfiles ~/.dotfiles
+
 
 zsh
 ---
 
 **.zshrc** file
 
-    . ~/bin/dotfiles/zshrc
+    . ~/.dotfiles/zshrc
 
 
-bash
-----
+bash (outdated)
+---------------
 
 **.bashrc** file
 
-    . ~/bin/dotfiles/bashrc
+    . ~/.dotfiles/bashrc
 
 **.bash_profile** file
 
@@ -37,7 +40,7 @@ bash
 vim
 ---
 
-    ln -s ~/bin/dotfiles/vimrc ~/.vimrc && ln -s ~/bin/dotfiles/vim/ ~/.vim
+    ln -s ~/.dotfiles/vimrc ~/.vimrc && ln -s ~/.dotfiles/vim/ ~/.vim
     
 
 Install [vim-pathogen](https://github.com/tpope/vim-pathogen).
