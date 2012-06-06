@@ -1,6 +1,6 @@
 This is a collection of my personal settings and aliases for bash and zsh shells.
 
-![My terminal screenshot](https://raw.github.com/tyom/dotfiles/master/terminal-screenshot.png)
+![My terminal screenshot](https://raw.github.com/tyom/dotfiles/master/imates/terminal-screenshot.png)
 
 Usage
 =====
