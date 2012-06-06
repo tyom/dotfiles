@@ -17,19 +17,17 @@ You want to replace your standard Terminal with the excellent [iTerm2](http://ww
 zsh
 ---
 
-**.zshrc** file
+Type the following in the terminal
 
-    . ~/.dotfiles/zshrc
+    echo ". ~/.dotfiles/zshrc" > .zshrc
 
 
 bash (outdated)
 ---------------
 
-**.bashrc** file
-
-    . ~/.dotfiles/bashrc
-
-**.bash_profile** file
+    echo ". ~/.dotfiles/bashrc" > .zshrc
+    
+Add to **.bash_profile** file
 
     # Run .bashrc
     if [ -f ~/.bashrc ]; then
