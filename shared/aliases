@@ -34,7 +34,7 @@ alias cdd='cd -'        # change to last directory
 # TextMate
 alias m='mate .'
 
-alias sub='subl .'
+alias st='subl .'
 
 # top processes
 alias tu='top -o cpu'   #cpu
