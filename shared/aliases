@@ -51,6 +51,8 @@ alias gl="git log -p"
 alias glc='git log "$concise_logging_format"'
 alias glg="glc --graph"
 alias g="git"
+alias gsu="git submodule update --init --recursive"
+alias gai="git add --patch"
 
 alias server="python -m SimpleHTTPServer"
 
