@@ -3,6 +3,9 @@
 """""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
 " => General
 """""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
+scriptencoding utf-8
+set encoding=utf-8
+
 colorscheme molokai
 
 " Enable mouse scrolling
