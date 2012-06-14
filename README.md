@@ -52,7 +52,7 @@ RVM (Ruby)
 
 You need Ruby 1.9+ to get git scripts for prompt to work. In your shell:
 
-    $ bash -s stable < <(curl -s https://raw.github.com/wayneeseguin/rvm/master/binscripts/rvm-installer)
+    $ curl -L https://get.rvm.io | bash -s stable --ruby
 
 Move the line RVM added from your `.profile` to your `~/.zshrc` file
 
