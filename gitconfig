@@ -11,6 +11,9 @@
   st = status
   ci = commit
   co = checkout
+  unstage = reset HEAD --
+  staged = diff --staged
+  sub = submodule update --init --recursive
 
 [color]
   ui = auto
