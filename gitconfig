@@ -14,6 +14,7 @@
   unstage = reset HEAD --
   staged = diff --staged
   sub = submodule update --init --recursive
+  who = shortlog -s --
 
 [color]
   ui = auto
