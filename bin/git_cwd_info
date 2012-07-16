@@ -16,7 +16,8 @@ end
 def git_parse_branch
 #  @git_parse_branch ||= File.read("#{git_repo_path}/HEAD").strip.scan(/(?<=refs\/heads\/).*$/).first
   # alternative to work with 1.8.7
-  @git_parse_branch ||= File.read("#{git_repo_path}/HEAD").strip.scan(/(refs\/heads\/)(.*)$/).first[1] 
+  match = File.read("#{git_repo_path}/HEAD").strip.scan(/(refs\/heads\/)(.*)$/).first
+  @git_parse_branch ||= match && match[1] 
 end
 
 def git_head_commit_id
