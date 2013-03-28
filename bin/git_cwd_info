@@ -14,7 +14,7 @@ def in_git_repo
 end
 
 def git_parse_branch
-#  @git_parse_branch ||= File.read("#{git_repo_path}/HEAD").strip.scan(/(?<=refs\/heads\/).*$/).first
+  # @git_parse_branch ||= File.read("#{git_repo_path}/HEAD").strip.scan(/(?<=refs\/heads\/).*$/).first
   # alternative to work with 1.8.7
   match = File.read("#{git_repo_path}/HEAD").strip.scan(/(refs\/heads\/)(.*)$/).first
   @git_parse_branch ||= match && match[1] 

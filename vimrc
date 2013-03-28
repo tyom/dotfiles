@@ -9,7 +9,7 @@ set encoding=utf-8
 colorscheme molokai
 
 " Enable mouse scrolling
-set mouse=a
+" set mouse=a
 
 " Sets how many lines of history VIM has to remember
 set history=700
