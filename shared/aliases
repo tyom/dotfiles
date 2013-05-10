@@ -34,7 +34,7 @@ alias cdd='cd -'        # change to last directory
 # TextMate
 alias m='mate .'
 
-alias st='subl .'
+alias e='subl .'
 
 # top processes
 alias tu='top -o cpu'   #cpu
@@ -52,8 +52,15 @@ alias d="git diff --color-words"
 alias gl="git log -p"
 alias glc='git log "$concise_logging_format"'
 alias glg="glc --graph"
-alias g="git"
 alias gai="git add --patch"
+alias gcf="git commit --fixup"
+# rebase
+alias gri="git rebase -i"
+alias grc="git rebase --continue"
+alias gra="git rebase --abort"
+alias gria="git rebase -i --autosquash"
+# local branches freshness
+alias glb="git for-each-ref --sort=-committerdate refs/heads/ --format='%(refname): %(committerdate:relative), %(authorname) - %(subject)' | sed 's/refs\/heads\///g'"
 
 alias server="python -m SimpleHTTPServer"
 

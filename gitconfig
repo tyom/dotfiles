@@ -15,6 +15,7 @@
   staged = diff --staged
   sub = submodule update --init --recursive
   who = shortlog -s --
+  branches = for-each-ref --sort=-committerdate refs/heads/ --format='%(refname): %(committerdate:relative), %(authorname) - %(subject)' | sed 's/refs\/heads\///g'
 
 [color]
   ui = auto
