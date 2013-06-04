@@ -65,6 +65,9 @@ alias gria="git rebase -i --autosquash"
 
 alias server="python -m SimpleHTTPServer"
 
+# Requires Underscore CLI `npm install -g underscore-cli`
+alias pretty="underscore print --color"
+alias u="underscore"
 
 # show top 10 most used shell commands
 function top_commands {
