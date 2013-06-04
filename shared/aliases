@@ -60,7 +60,8 @@ alias grc="git rebase --continue"
 alias gra="git rebase --abort"
 alias gria="git rebase -i --autosquash"
 # local branches freshness
-alias glb="git for-each-ref --sort=-committerdate refs/heads/ --format='%(refname): %(committerdate:relative), %(authorname) - %(subject)' | sed 's/refs\/heads\///g'"
+# see `bin/gbr`
+# alias glb="git for-each-ref --sort=-committerdate refs/heads/ --format='%(refname): %(committerdate:relative), %(authorname) - %(subject)' | sed 's/refs\/heads\///g'"
 
 alias server="python -m SimpleHTTPServer"
 
