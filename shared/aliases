@@ -34,7 +34,9 @@ alias cdd='cd -'        # change to last directory
 # TextMate
 alias m='mate .'
 
-alias e='subl .'
+# Alias Sublime Text's `subl` to `e`
+e() { subl "$@"; }
+alias e.='e .'
 
 # top processes
 alias tu='top -o cpu'   #cpu
