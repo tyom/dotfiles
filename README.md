@@ -28,9 +28,6 @@ vim
 
     ln -s ~/.dotfiles/vimrc ~/.vimrc && ln -s ~/.dotfiles/vim/ ~/.vim
 
-
-Install [vim-pathogen](https://github.com/tpope/vim-pathogen).
-
     git submodule update --init --recursive
 
 For Command-T plugin to work we need Vim with Ruby support.
