@@ -1,15 +1,17 @@
-This is a collection of my personal settings and aliases for bash and zsh shells.
+This is a collection of my personal settings and aliases for zsh.
 
 ![My terminal screenshot](https://raw.github.com/tyom/dotfiles/master/images/terminal-screenshot.png)
 
 Usage
 =====
 
-Source dot files for the shell you use. To switch to zsh on your Mac go to **System Preferences** > **Users & Groups** and right click on your user name (may require unlocking first), then click **Advanced Options** and select your shell from drop-down menu. 
+Source dot files. To switch to zsh on your Mac go to **System Preferences** > **Users & Groups** and right click on your user name (may require unlocking first), then click **Advanced Options** and select your shell from drop-down menu.
 
-On Ubuntu run `apt-get install zsh`, followed by `chsh -s /bin/zsh`. Restart your shell.
+On Ubuntu run `apt-get install zsh`, followed by `chsh -s /bin/zsh`.
 
-You want to replace your standard Terminal with the excellent [iTerm2](http://www.iterm2.com/) and enable `xterm-256color` in *Preferences > Profiles > Terminal (Report Terminal Type)* to give nice colours to your prompt.
+Restart your shell.
+
+You should consider replacing your standard Terminal with the excellent [iTerm2](http://www.iterm2.com/) and enable `xterm-256color` in *Preferences > Profiles > Terminal (Report Terminal Type)* to give nice colours to your prompt.
 
     git clone https://github.com/tyom/dotfiles ~/.dotfiles
 
@@ -21,25 +23,11 @@ Type the following in the terminal
 
     echo ". ~/.dotfiles/zshrc" > .zshrc
 
-
-bash (outdated)
----------------
-
-    echo ". ~/.dotfiles/bashrc" > .zshrc
-    
-Add to **.bash_profile** file
-
-    # Run .bashrc
-    if [ -f ~/.bashrc ]; then
-        . ~/.bashrc
-    fi
-
-
 vim
 ---
 
     ln -s ~/.dotfiles/vimrc ~/.vimrc && ln -s ~/.dotfiles/vim/ ~/.vim
-    
+
 
 Install [vim-pathogen](https://github.com/tpope/vim-pathogen).
 
@@ -60,7 +48,7 @@ Move the line RVM added from your `.profile` to your `~/.zshrc` file
 
     $ rvm requirements
     $ rvm install 1.9.2
-    $ rvm --default use 1.9.2 
+    $ rvm --default use 1.9.2
 
 You should now be all set.
 
