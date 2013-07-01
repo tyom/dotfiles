@@ -43,8 +43,8 @@ alias tu='top -o cpu'   #cpu
 alias tm='top -o vsize' #memory
 
 # edit/reload aliases 
-alias reload='source ~/.dotfiles/shared/aliases'
-alias ea='vim ~/.dotfiles/shared/aliases && reload'
+alias reload='source ~/.dotfiles/aliases'
+alias ea='vim ~/.dotfiles/aliases && reload'
 
 # git shortcuts
 concise_logging_format='--pretty=format:%Cblue%h%Creset %cr %Cgreen%an%Creset %s'
