@@ -43,6 +43,8 @@ vim
 
 Install [vim-pathogen](https://github.com/tpope/vim-pathogen).
 
+    git submodule update --init --recursive
+
 For Command-T plugin to work we need Vim with Ruby support.
 `brew install macvim` will do the trick. I creted an alias for it `v`.
 
