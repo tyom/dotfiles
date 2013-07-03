@@ -38,6 +38,10 @@ alias m='mate .'
 e() { subl "$@"; }
 alias e.='e .'
 
+# Node.js
+# debug in Chrome with node-inspector (https://github.com/dannycoates/node-inspector)
+debug-node() { node-inspector &; node --debug "$@"; }
+
 # top processes
 alias tu='top -o cpu'   #cpu
 alias tm='top -o vsize' #memory
