@@ -1,7 +1,3 @@
-[user]
-  name = Tyom Semonov
-  email = inspiro@gmail.com
-
 [core]
   excludesfile = ~/.dotfiles/gitignore
   pager = less -FRSX

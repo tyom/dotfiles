@@ -33,6 +33,17 @@ vim
 For Command-T plugin to work we need Vim with Ruby support.
 `brew install macvim` will do the trick. I creted an alias for it `v`.
 
+git
+---
+Include `gitconfig` from .dotfiles to extend your existing `.gitconfig`
+
+In `~/.gitconfig` add:
+
+    [include]
+      path = ~/.dotfiles/gitconfig
+
+
+
 
 RVM (Ruby)
 ----------
