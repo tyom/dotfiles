@@ -151,8 +151,8 @@ set guifont=Inconsolata:h14
 " => Moving around, tabs and buffers
 """""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
 " Map space to / (search) and c-space to ? (backgwards search)
-map <space> /
-map <c-space> ?
+" map <space> /
+" map <c-space> ?
 " Map 'remove search highlight' to <leader>-Enter (leader - \)
 map <silent> <leader><cr> :noh<cr>
 " Map NERD Tree to ESC-Enter
