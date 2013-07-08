@@ -37,9 +37,9 @@
   new = green bold
 
 [color "status"]
-  added = yellow
-  changed = green
-  untracked = cyan
+  added = green
+  changed = blue 
+  untracked = white bold 
 
 [push]
   default = current
