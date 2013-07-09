@@ -3,7 +3,7 @@
 
 def format_commit_info timestamp, time_desc, author, commit_id, message, ref_name
   [
-    "#{timestamp.strftime("%m/%d/%Y")} #{timestamp.strftime("%l:%M%p").downcase}",
+    "#{timestamp.strftime("%m/%d/%y")} #{timestamp.strftime("%l:%M%p").downcase}",
     "#{time_desc}",
     author,
     commit_id,
