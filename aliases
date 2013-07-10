@@ -15,11 +15,11 @@ if [[ $platform == 'linux' ]]; then
 elif [[ $platform == 'freebsd' || $platform == 'mac' ]]; then
    alias ls='ls -G'
 fi
-alias l='ls'            # default
-alias l.='ls -aG'       # default + hidden
-alias ll='ls -lG'       # vertical
-alias ll.='ls -alG'     # vertical + hidden
-alias lls='ls -lSh .'   # sort by size
+alias l='ls'           # default
+alias l.='ls -a'       # default + hidden
+alias ll='ls -l'       # vertical
+alias ll.='ls -al'     # vertical + hidden
+alias lls='ls -lSh .'  # sort by size
 
 # Alias to MacVim
 if [[ $platform == 'mac' ]]; then
@@ -27,8 +27,8 @@ if [[ $platform == 'mac' ]]; then
 fi
 
 # change directory
-# alias ..='cd ..'        # up
-alias .='pwd'           # print working directory
+# alias ..='cd ..'      # up
+# alias .='pwd'           # print working directory
 alias cdd='cd -'        # change to last directory
 
 # TextMate
