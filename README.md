@@ -63,12 +63,12 @@ You should now be all set.
 Usage
 =====
 
-Git helpers & aliases
----------------------
+Helpers
+-------
 
 ### `gbr`
 
-This helper outputs the summary of branches in repo ordered by their freshness. It outputs 6 columns:
+This Git helper outputs the summary of branches in repo ordered by their freshness. It outputs 6 columns:
 
 1. Date of time of last commit
 2. Author of last commit
@@ -80,6 +80,54 @@ This helper outputs the summary of branches in repo ordered by their freshness. 
 **Examples**  
 Running `gbr` on master branch will show all *local* branches and their merge status against 'master' branch (currently checked out).
 Running `gbr -r` will do the same but for *remote* branches, and `gbr -a` for all. It's `git branch` under the hood.
+
+### `define`
+
+Look up the dictionary on OSX from terminal.
+
+### `colortest`
+
+XTERM 256 colour test. Useful when customising your terminal colours.
+
+### `z`
+
+Jumps to most used directories based on 'frecency'. Installed as as submodule from [original repo](https://github.com/rupa/z).
+
+
+Aliases
+-------
+
+    l           -> 		ls  	   		    column view
+    l.  	    -> 		ls -a   		    include hidden files
+    ll  	    -> 		ls -l   		    long format
+    ll. 	    -> 		ls -la  		    long format, include hidden files
+    lls 	    ->		ls -lSh 		    long format, sort by size
+
+    cdd         ->     	cd -  	   		    change to last directory
+    
+    e <name>    ->      subl <name>         open <name> (file/directory) in Sublime Text
+    e.          ->      subl .              open current directory in ST
+    
+    s           ->      git st --short                      git status
+    d           ->      git diff --color-words              git diff with word highlights
+    gl          ->      git log -p                          git log as patch
+    glc         ->      git log "$concise_logging_format"   git log concise
+    glg         ->      glc --graph                         git log concise with graph
+    gai         ->      git add -p                          git add patch (interactive adding)
+    gcf <id>    ->      git commit --fixup                  git commit fixup <id>
+    gau         ->      git add -u                          git add update (eg. update deleted/renamed files)
+    gri <br>    ->      git rebase -i                       git rebase interactive <branch>
+    gra         ->      git rebase --abort                  git abort rebase in progress
+    gria        ->      git rebase -i --autosquash          git rebase interactive with autosquash
+    
+    server      ->      python -m SimpleHTTPServer          run simple python web server in current dir on port 8000
+    
+    top_commands ->                                         print top 10 commands from history
+    top-20-size  ->                                         print top 20 biggest directories within current directory
+    top-size     ->                                         show the list of directories in current directory ordered by size
+    
+    
+
 
 ---
 
