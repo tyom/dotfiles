@@ -2,8 +2,8 @@ This is a collection of my personal settings and aliases for zsh.
 
 ![Terminal screenshot](https://raw.github.com/tyom/dotfiles/screenshot/terminal.png)
 
-Usage
-=====
+Installation
+============
 
 Source dot files. To switch to zsh on your Mac go to **System Preferences** > **Users & Groups** and right click on your user name (may require unlocking first), then click **Advanced Options** and select your shell from drop-down menu.
 
@@ -43,8 +43,6 @@ In `~/.gitconfig` add:
       path = ~/.dotfiles/gitconfig
 
 
-
-
 RVM (Ruby)
 ----------
 
@@ -59,6 +57,29 @@ Move the line RVM added from your `.profile` to your `~/.zshrc` file
     $ rvm --default use 1.9.2
 
 You should now be all set.
+
+---
+
+Usage
+=====
+
+Git helpers & aliases
+---------------------
+
+### `gbr`
+
+This helper outputs the summary of branches in repo ordered by their freshness. It outputs 6 columns:
+
+1. Date of time of last commit
+2. Author of last commit
+3. Branch name
+4. Branch status (checks whether the branch is merged with the currently check out branch)
+5. Commit ID
+6. Commit message
+
+**Examples**  
+Running `gbr` on master branch will show all *local* branches and their merge status against 'master' branch (currently checked out).
+Running `gbr -r` will do the same but for *remote* branches, and `gbr -a` for all. It's `git branch` under the hood.
 
 ---
 
