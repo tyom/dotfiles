@@ -1,0 +1,32 @@
+#!/bin/bash
+
+# xterm colours
+# Run `colortest -w -s` to get colour codes (16 - black, 253 - white)
+
+# Usage: `echo "$(color 230 bold)Processed text$(color reset) Normal text"`
+
+colors="";
+
+for arg in "$@"
+do
+  case "$arg" in
+    "reset")
+      colors="${colors}\e[0m"
+      ;;
+    "bold")
+      colors="${colors}\e[1m"
+      ;;
+    "underline")
+      colors="${colors}\e[4m"
+      ;;
+    "background")
+      colors="${colors}\e[7m"
+      ;;
+    *)
+      colors="${colors}\e[38;5;${arg}m"
+      ;;
+  esac
+done
+
+echo "$colors";
+
