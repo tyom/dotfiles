@@ -6,7 +6,9 @@
 [alias]
   st = status
   ci = commit
+  br = branch
   co = checkout
+  df = diff
   unstage = reset HEAD --
   staged = diff --staged
   who = shortlog -s --
