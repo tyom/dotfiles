@@ -35,8 +35,11 @@ alias cdd='cd -'        # change to last directory
 alias m='mate .'
 
 # Alias Sublime Text's `subl` to `e`
-e() { subl "$@"; }
-alias e.='e .'
+e() {
+  if [ $# -eq 0 ]; then subl .;
+  else subl $*;
+  fi
+}
 
 # Node.js
 # debug in Chrome with node-inspector (https://github.com/dannycoates/node-inspector)
