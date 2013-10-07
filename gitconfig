@@ -13,6 +13,7 @@
   staged = diff --staged
   who = shortlog -s --
   sub = submodule update --init --recursive
+  show-stat = show --name-only
   lg1 = log --graph --all --format=format:'%C(bold blue)%h%C(reset) - %C(bold green)(%ar)%C(reset) %C(white)%s%C(reset) %C(bold white)—%an%C(reset)%C(bold yellow)%d%C(reset)' --abbrev-commit --date=relative
   lg2 = log --graph --all --format=format:'%C(bold blue)%h%C(reset) - %C(bold cyan)%aD%C(reset) %C(bold green)(%ar)%C(reset)%C(bold  yellow)%d%C(reset)%n''          %C(white)%s%C(reset) %C(bold white)— %an%C(reset)' --abbrev-commit
   lg = "!git log --pretty=format:'%h|%cr|%an|%s|%d' | while IFS='|' read hash time author message branch; do printf \"$(color 3)%s $(color 240)%-16s $(color 253)%-16s $(color 245)%-90s $(color 2)%s\n\" \"$hash\" \"$time\" \"$author\" \"$message\" \"$branch\"; done | more -R"
