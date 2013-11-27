@@ -31,6 +31,10 @@ setopt EXTENDED_HISTORY     # add more info
 # setopt NO_AUTO_MENU
 # setopt BASH_AUTO_LIST
 
+# Don't share history between tabs
+unsetopt inc_append_history
+unsetopt share_history
+
 #############################
 # Variables
 
