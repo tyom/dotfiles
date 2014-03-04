@@ -191,3 +191,5 @@ Visual effects
 [More info] on ZSH Prompt Expansion http://zsh.sourceforge.net/Doc/Release/Prompt-Expansion.html
 
 Run `colortest -w -s` to get the list of supported colours.
+
+![](https://ga-beacon.appspot.com/UA-332655-4/dotfiles/readme?pixel)
