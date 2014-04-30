@@ -79,7 +79,7 @@ alias be="bundle exec"
 
 # Requires Underscore CLI `npm install -g underscore-cli`
 # https://github.com/ddopson/underscore-cli
-alias pretty="underscore print --color"
+alias pp="underscore print --color"
 alias u="underscore"
 alias up="u process"
 
