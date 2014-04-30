@@ -81,6 +81,7 @@ alias be="bundle exec"
 # https://github.com/ddopson/underscore-cli
 alias pretty="underscore print --color"
 alias u="underscore"
+alias up="u process"
 
 # node.js
 alias npms="npm start"
