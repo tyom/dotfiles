@@ -10,11 +10,20 @@ ruby_version() {
   echo " $(ruby -v | awk '{print $2}')"
 }
 
+gemset_name() {
+  NAME=${GEM_HOME##*@}
+  if [[ $NAME =~ "^\/" ]]; then
+    echo 'global'
+  else
+    echo $NAME
+  fi 
+}
+
 # Run <colortest -w -s> to get the list of supported colours
 
 export PROMPT=$'%{%F{green}%}%n%{%f%} at %{%F{214%}%m%{%f%} ⫶ %{%F{134}%}$(project_pwd)%{%f%}
 %{%F{231}%}❯%{%f%} '
-export RPROMPT=$'%{%F{238}%}$(ruby_version)%{%f%}$(git_cwd_info)%{%E%}'
+export RPROMPT=$'%{%F{238}%}$(ruby_version)@$(gemset_name)%{%f%}$(git_cwd_info)%{%E%}'
 
 # STANDARD VARIABLES
 # ================
