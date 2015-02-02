@@ -20,10 +20,10 @@ gemset_name() {
 }
 
 # Run <colortest -w -s> to get the list of supported colours
-
-export PROMPT=$'%{%F{green}%}%n%{%f%} at %{%F{214%}%m%{%f%} ⫶ %{%F{134}%}$(project_pwd)%{%f%}
-%{%F{231}%}❯%{%f%} '
-export RPROMPT=$'%{%F{238}%}$(ruby_version)@$(gemset_name)%{%f%}$(git_cwd_info)%{%E%}'
+# ZLE_RPROMPT_INDENT=0 # remove extra space in RPROMPT
+export PROMPT=$'%F{green}%n%f at %F{214}%m%f ⫶ %F{134}$(project_pwd)%f
+%F{231}❯%f '
+export RPROMPT=$'%F{238}$(ruby_version)@$(gemset_name)%f$(git_cwd_info)%E'
 
 # STANDARD VARIABLES
 # ================
