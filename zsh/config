@@ -69,3 +69,6 @@ bindkey "^[[3~" delete-char
 # Fix Fn-Left/Fn-Right to go to beginning/end of line
 bindkey '^[[H' beginning-of-line
 bindkey '^[[F' end-of-line
+
+# Search forward through history via C-s
+stty -ixon
