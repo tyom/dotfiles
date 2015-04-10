@@ -18,8 +18,8 @@ source ~/.dotfiles/zsh/prompt
 
 # setopt PRINT_EXIT_VALUE
 
-setopt CORRECT
-setopt CORRECTALL
+# setopt CORRECT
+# setopt CORRECTALL
 
 setopt hist_ignore_dups     # ignore duplication command history list
 setopt share_history        # share command history data
