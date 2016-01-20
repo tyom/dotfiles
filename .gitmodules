@@ -27,6 +27,6 @@
 [submodule "tools/z"]
 	path = tools/z
 	url = https://github.com/rupa/z.git
-[submodule "tools/app-adenosine-prefab"]
-    path = tools/app-adenosine-prefab
-    url = git@github.com:frioux/app-adenosine-prefab.git
+[submodule "vim/bundle/vim-yajs"]
+	path = vim/bundle/vim-yajs
+	url = git@github.com:othree/yajs.vim.git

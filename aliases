@@ -64,6 +64,7 @@ alias glg="glc --graph"
 alias gai="git add --patch"
 alias gcf="git commit --fixup"
 alias gau="git add -u"
+alias gci="git ci"
 # rebase
 alias gri="git rebase -i"
 alias grc="git rebase --continue"
