@@ -30,3 +30,6 @@
 [submodule "vim/bundle/vim-yajs"]
 	path = vim/bundle/vim-yajs
 	url = git@github.com:othree/yajs.vim.git
+[submodule "vim/bundle/vim-json"]
+	path = vim/bundle/vim-json
+	url = git@github.com:elzr/vim-json.git
