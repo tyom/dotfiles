@@ -8,6 +8,7 @@
   ci = commit
   br = branch
   co = checkout
+  cp = cherry-pick
   df = diff
   unstage = reset HEAD --
   staged = diff --staged

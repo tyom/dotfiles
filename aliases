@@ -63,6 +63,7 @@ alias glc='git log "$concise_logging_format"'
 alias glg="glc --graph"
 alias gai="git add --patch"
 alias gcf="git commit --fixup"
+alias gca="git commit --amend"
 alias gau="git add -u"
 alias gci="git ci"
 # rebase
