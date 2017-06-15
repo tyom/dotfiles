@@ -10,6 +10,14 @@ ruby_version() {
   echo " $(ruby -v | awk '{print $2}')"
 }
 
+node_version() {
+  echo "$(node -v)"
+}
+
+npm_version() {
+  echo "$(npm -v)"
+}
+
 gemset_name() {
   NAME=${GEM_HOME##*@}
   if [[ $NAME =~ "^\/" ]]; then
@@ -23,7 +31,7 @@ gemset_name() {
 # ZLE_RPROMPT_INDENT=0 # remove extra space in RPROMPT
 export PROMPT=$'%F{green}%n%f at %F{214}%m%f ⫶ %F{134}$(project_pwd)%f
 %F{231}❯%f '
-export RPROMPT=$'%F{238}$(ruby_version)@$(gemset_name)%f$(git_cwd_info)%E'
+export RPROMPT=$'%F{238}node@$(node_version) npm@$(npm_version)%f$(git_cwd_info)%E'
 
 # STANDARD VARIABLES
 # ================
