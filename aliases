@@ -31,9 +31,6 @@ fi
 # alias .='pwd'           # print working directory
 alias cdd='cd -'        # change to last directory
 
-# TextMate
-alias m='mate .'
-
 # Alias Sublime Text's `subl` to `e`
 e() {
   if [ $# -eq 0 ]; then subl .;
@@ -55,6 +52,7 @@ alias ea='vim ~/.dotfiles/aliases && reload'
 
 # git shortcuts
 concise_logging_format='--pretty=format:%C(yellow)%h%C(240) %cr %C(white bold)%an%C(reset) %s'
+alias g="git"
 alias s="git st -sb"
 alias gs="git st"
 alias d="git diff --color-words"
