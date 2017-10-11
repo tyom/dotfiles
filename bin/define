@@ -1,8 +1,0 @@
-#!/usr/bin/python
-
-import DictionaryServices
-import sys
-
-word = " ".join(sys.argv[1:])
-
-print DictionaryServices.DCSCopyTextDefinition(None, word, (0, len(word)))

@@ -1,0 +1,20 @@
+# History
+HISTFILE=~/.zsh_histora
+HISTSIZE=10000
+SAVEHIST=10000
+
+# Tab completion fix for 'cd ..<TAB>'
+zstyle ':completion:*' special-dirs true
+
+# Append history as commands are executed
+setopt inc_append_history
+
+# # Disable sharing history between tabs (sessions)
+unsetopt share_history
+
+# # Avoid duplicates
+setopt hist_ignore_all_dups # Don't save duplicates
+
+# # Expansion and Globbing
+# # treat #, ~, and ^ as part of patterns for filename generation
+setopt extended_glob

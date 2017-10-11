@@ -1,0 +1,23 @@
+# IDEs support files
+.idea
+*.sublime-project
+*.sublime-workspace
+
+# Compiled Python files
+*.pyc
+
+# Cache files
+.DS_Store*
+Thumbs.db
+*.swp
+*~
+.netrw*
+
+# Locals
+*ssh/config
+.gitconfig.local
+private
+
+# npm
+node_modules
+npm-debug.log
