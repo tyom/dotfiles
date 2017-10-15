@@ -14,7 +14,7 @@ concise_logging_format='--pretty=format:%C(yellow)%h%C(240) %cr %C(white bold)%a
 alias g="git"
 alias gs="git s"
 alias d="git diff --color-words"
-alias gl="git log --pretty=format:'%C(yellow)%h %C(240)%cr %C(white bold) %an %C(reset)%s %C(green) %d' --decorate --date=short"
+alias gl="git log --pretty=format:'%C(yellow)%h %C(59)%cd%C(white bold) %an %C(245)%s%C(reset) %C(green) %d' --date=relative"
 alias glc='git log "$concise_logging_format"'
 alias glg="glc --graph"
 alias gaa="git add --all"
