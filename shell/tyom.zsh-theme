@@ -24,7 +24,7 @@ $(_user_host) ⫶ ${_current_dir}
 
 PROMPT2='%{$fg[$CARETCOLOR]%}◀%{$reset_color%} '
 
-RPROMPT=$'$(_node_version)%f $(git_prompt_info)'
+RPROMPT=$'$(_node_version)%f $(git_cwd_info)'
 
 MODE_INDICATOR="%{$fg_bold[yellow]%}❮%{$reset_color%}%{$fg[yellow]%}❮❮%{$reset_color%}"
 
