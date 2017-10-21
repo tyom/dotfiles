@@ -93,6 +93,11 @@ mkd() {
   fi
 }
 
+print_success() {
+  # Print output in green
+  printf "\e[0;32m  [✔] $1\e[0m\n"
+}
+
 print_error() {
   # Print output in red
   printf "\e[0;31m  [✖] $1 $2\e[0m\n"
@@ -117,68 +122,70 @@ print_result() {
     && exit
 }
 
-print_success() {
-  # Print output in green
-  printf "\e[0;32m  [✔] $1\e[0m\n"
+backup_existing_dotfiles() {
+  dir_backup=~/dotfiles_old    # old dotfiles backup directory
+
+  # Create dotfiles_old in homedir
+  echo -n "Creating $dir_backup for backup of any existing dotfiles in ~..."
+  mkdir -p $dir_backup
+  echo "done"
+
+  # Change to the dotfiles directory
+  echo -n "Changing to the $DOTFILES_DIR directory..."
+  cd $DOTFILES_DIR
+
+  # # Back up any .files to dotfiles_old directory
+  for i in ${FILES_TO_SYMLINK[@]}; do
+    # echo "Moving any existing dotfiles from ~ to $dir_backup"
+    mv ~/.${i#*/} ~/$dir_backup/
+  done
 }
 
-# Warn user this script will overwrite current dotfiles
-while true; do
-  read -p "Warning: this will overwrite your current dotfiles. Continue? [y/n] " yn
-  case $yn in
-    [Yy]* ) break;;
-    [Nn]* ) exit;;
-    * ) echo "Please answer yes or no.";;
-  esac
-done
+install_zsh() {
+  platform=$(uname);
+  # Install zsh for Linux
+  if [[ $platform == 'Linux' ]]; then
+    if [[ -f /etc/redhat-release ]]; then
+      sudo yum install zsh
+      setup_zsh
+    fi
+    if [[ -f /etc/debian_version ]]; then
+      sudo apt-get install zsh
+      setup_zsh
+    fi
+  # # Install zsh for macOS
+  # elif [[ $platform == 'Darwin' ]]; then
+  #   echo "We'll install zsh, then re-run this script!"
+  #   brew install zsh
+  #   setup_zsh
+  fi
+}
 
-# Get the dotfiles directory's absolute path
-SCRIPT_DIR="$(cd "$(dirname "$0")"; pwd -P)"
-DOTFILES_DIR="$(dirname "$SCRIPT_DIR")"
 
+setup_zsh() {
+  # Test to see if zshell is installed.  If it is:
+  if [ -f /bin/zsh -o -f /usr/bin/zsh ]; then
+    # Install Oh My Zsh if it isn't already present
+    if [[ ! -d $dir/oh-my-zsh/ ]]; then
+      sh -c "$(curl -fsSL https://raw.githubusercontent.com/robbyrussell/oh-my-zsh/master/tools/install.sh)"
+    fi
+  fi
+}
 
-dir=~/.dotfiles                       # dotfiles directory
-dir_backup=~/dotfiles_old             # old dotfiles backup directory
+setup_symlinks() {
+  declare -a FILES_TO_SYMLINK=(
+    'shell/shell_aliases'
+    'shell/shell_exports'
+    'shell/shell_config'
+    'shell/shell_functions'
+    'shell/zshrc'
+    'git/gitattributes'
+    'git/gitconfig'
+    'git/gitignore'
+    'vim/vimrc'
+    'vim/vimrc.bundles'
+  )
 
-# Get current dir (so run this script from anywhere)
-
-export DOTFILES_DIR
-DOTFILES_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
-
-# Create dotfiles_old in homedir
-echo -n "Creating $dir_backup for backup of any existing dotfiles in ~..."
-mkdir -p $dir_backup
-echo "done"
-
-# Change to the dotfiles directory
-echo -n "Changing to the $dir directory..."
-cd $dir
-echo "done"
-
-##
-# Symlinking
-##
-
-declare -a FILES_TO_SYMLINK=(
-  'shell/shell_aliases'
-  'shell/shell_exports'
-  'shell/shell_config'
-  'shell/shell_functions'
-  'shell/zshrc'
-  'git/gitattributes'
-  'git/gitconfig'
-  'git/gitignore'
-  'vim/vimrc'
-  'vim/vimrc.bundles'
-)
-
-# # Back up any .files to dotfiles_old directory
-for i in ${FILES_TO_SYMLINK[@]}; do
-  # echo "Moving any existing dotfiles from ~ to $dir_backup"
-  mv ~/.${i#*/} ~/dotfiles_old/
-done
-
-function create_symlinks() {
   local i=''
   local sourceFile=''
   local targetFile=''
@@ -205,51 +212,32 @@ function create_symlinks() {
   unset FILES_TO_SYMLINK
 }
 
-install_zsh () {
-  # Test to see if zshell is installed.  If it is:
-  if [ -f /bin/zsh -o -f /usr/bin/zsh ]; then
-    # Install Oh My Zsh if it isn't already present
-    if [[ ! -d $dir/oh-my-zsh/ ]]; then
-      sh -c "$(curl -fsSL https://raw.githubusercontent.com/robbyrussell/oh-my-zsh/master/tools/install.sh)"
-    fi
-    # Set the default shell to zsh if it isn't currently set to zsh
-    if [[ ! $(echo $SHELL) == $(which zsh) ]]; then
-      chsh -s $(which zsh)
-    fi
-  else
-    # If zsh isn't installed, get the platform of the current machine
-    platform=$(uname);
-    # Install zsh for Linux
-    if [[ $platform == 'Linux' ]]; then
-      if [[ -f /etc/redhat-release ]]; then
-        sudo yum install zsh
-        install_zsh
-      fi
-      if [[ -f /etc/debian_version ]]; then
-        sudo apt-get install zsh
-        install_zsh
-      fi
-    # Install zsh for macOS
-    elif [[ $platform == 'Darwin' ]]; then
-      echo "We'll install zsh, then re-run this script!"
-      brew install zsh
-      install_zsh
-    fi
-  fi
-}
+# --
+# Begin setup
+# --
 
-create_symlinks
+# Warn user this script will overwrite current dotfiles
+while true; do
+  read -p "Warning: this will overwrite your current dotfiles. Continue? [y/n] " yn
+  case $yn in
+    [Yy]* ) break;;
+    [Nn]* ) exit;;
+    * ) echo "Please answer yes or no.";;
+  esac
+done
+
+# Get the dotfiles directory's absolute path
+DOTFILES_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+export DOTFILES_DIR
+
+backup_existing_dotfiles
 
 # Package managers & packages
 . "$DOTFILES_DIR/install/brew.sh"
-. "$DOTFILES_DIR/install/node.sh"
 if [ "$(uname)" == "Darwin" ]; then
   . "$DOTFILES_DIR/install/brew-cask.sh"
 fi
-
-install_zsh
-# Link zsh theme
-ln -fs ~/.dotfiles/shell/tyom.zsh-theme $HOME/.oh-my-zsh/themes
+. "$DOTFILES_DIR/install/node.sh"
 
 # Vim plugins
 echo 'Installing Vim pluigns…'
@@ -261,10 +249,26 @@ else
   curl -fLo "$HOME"/.vim/autoload/plug.vim --create-dirs \
     https://raw.githubusercontent.com/junegunn/vim-plug/master/plug.vim
 fi
-vim -u "$HOME"/.vimrc.bundles +PlugUpdate +PlugClean! +qa
 
 # Disable prompt when quitting iTerm
 defaults write com.googlecode.iterm2 PromptOnQuit -bool false
 
-# Start zsh
+install_zsh
+echo 'Setting up zsh'
+setup_zsh
+echo 'Setting up symlinks'
+setup_symlinks
+
+# Link oh-my-zsh theme
+ln -fs "$DOTFILES_DIR/shell/tyom.zsh-theme" "$HOME/.oh-my-zsh/themes"
+
+# Vim bundles
+vim -u "$HOME/.vimrc.bundles" +PlugUpdate +PlugClean! +qa
+
+# Set the default shell to zsh if it isn't
+if [[ ! $(echo $SHELL) == $(which zsh) ]]; then
+  chsh -s $(which zsh)
+fi
+
+# Launch
 source "$HOME/.zshrc"
