@@ -21,27 +21,22 @@ brew upgrade
 apps=(
     bash-completion2
     coreutils
-    moreutils
+    # moreutils
     findutils
-    ffmpeg
     git
     git-extras
     hub
-    gnu-sed --with-default-names
-    grep --with-default-names
     homebrew/completions/brew-cask-completion
-    homebrew/dupes/grep
-    homebrew/dupes/openssh
-    mtr
+    # mtr
     fasd
-    imagemagick --with-webp
-    python
+    # imagemagick --with-webp
+    # python
     source-highlight
     the_silver_searcher
     tree
-    ffmpeg --with-libvpx
+    # ffmpeg --with-libvpx
     wget
-    wifi-password
+    # wifi-password
 )
 
 brew install "${apps[@]}"
