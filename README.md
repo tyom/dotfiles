@@ -45,3 +45,9 @@ e.g.
 To configure iTerm settings set "Load preferences from a custom folder or URL" to `iterm2` URL in this repo
 
     ~/.dotfiles/iterm2
+
+### macOS
+
+To set some macOS [default preferences](./macOS/set_defaults.sh) run
+
+    `~/.dotfiles/macOS/set_defaults.sh`
