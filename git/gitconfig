@@ -23,8 +23,8 @@
   show-stat = show --name-only
 
   # Stash
-  st = stash
-  stp = stash pop
+#  st = stash
+#  stp = stash pop
 
   # Status
   s = status
