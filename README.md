@@ -7,7 +7,7 @@ Installation
 ============
 
 Installation may take a few minutes as it will download and 
-[install](https://github.com/tyom/dotfiles/tree/master/install) a number of packages.
+[install](./install) a number of packages.
 
 Setup can be run mulitple times. It will update if necessary.
 
