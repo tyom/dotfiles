@@ -27,6 +27,7 @@ apps=(
     git-extras
     hub
     homebrew/completions/brew-cask-completion
+    httpie
     # mtr
     fasd
     # imagemagick --with-webp
