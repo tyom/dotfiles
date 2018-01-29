@@ -37,6 +37,7 @@ apps=(
     tree
     # ffmpeg --with-libvpx
     wget
+    yarn --without-node
     # wifi-password
 )
 

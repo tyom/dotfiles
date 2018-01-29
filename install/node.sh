@@ -33,10 +33,8 @@ packages=(
     git-recent
     git-open
     npm-check-updates
-    create-react-app
     nodemon
     surge
-    yarn
 )
 
 npm install -g "${packages[@]}"
