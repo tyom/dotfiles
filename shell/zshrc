@@ -22,6 +22,9 @@ ZSH_THEME="tyom"
 # Uncomment the following line to display red dots whilst waiting for completion.
 COMPLETION_WAITING_DOTS="true"
 
+# Autocomplete .. to ../
+zstyle ':completion:*' special-dirs true
+
 ##
 # User configuration
 #
