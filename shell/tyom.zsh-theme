@@ -6,7 +6,7 @@ else
   CARETCOLOR="white"
 fi
 
-local _current_dir="%{$fg_bold[blue]%}%3~%{$reset_color%} "
+local _current_dir="%{$fg_bold[blue]%}%~%{$reset_color%} "
 local _return_status="%{$fg_bold[red]%}%(?..⍉)%{$reset_color%}"
 local _hist_no="%{$fg[grey]%}%h%{$reset_color%}"
 
