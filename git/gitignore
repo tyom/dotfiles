@@ -2,6 +2,7 @@
 .idea
 *.sublime-project
 *.sublime-workspace
+.vscode
 
 # Compiled Python files
 *.pyc
