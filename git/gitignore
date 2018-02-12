@@ -1,8 +1,8 @@
 # IDEs support files
-.idea
+.idea/
+.vscode/
 *.sublime-project
 *.sublime-workspace
-.vscode
 
 # Compiled Python files
 *.pyc
@@ -20,5 +20,5 @@ Thumbs.db
 private
 
 # npm
-node_modules
+node_modules/
 npm-debug.log
