@@ -22,6 +22,8 @@ alias gai="git add --patch"
 alias gcf="git commit --fixup"
 alias gca="git commit --amend"
 alias gci="git ci"
+alias gp="git pull"
+alias gr="git rebase"
 # rebase
 alias gri="git rebase -i"
 alias grc="git rebase --continue"
