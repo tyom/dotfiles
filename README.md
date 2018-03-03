@@ -13,7 +13,7 @@ Setup can be run mulitple times. It will update if necessary.
 
 Admin password will be required during the setup process.
 
-    $ git clone https://github.com/tyom/dotfiles.git ~/dotfiles
+    $ git clone https://github.com/tyom/dotfiles.git ~/.dotfiles
     $ cd ~/dotfiles
     $ ./setup.sh
 
