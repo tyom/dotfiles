@@ -1,5 +1,0 @@
-.DS_Store*
-.idea
-*.sublime-project
-*.sublime-workspace
-*/config/initializers/global-gems.rb

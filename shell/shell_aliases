@@ -1,0 +1,55 @@
+alias l='ls'           # default
+alias l.='ls -a'       # default + hidden
+alias ll='ls -l'       # vertical
+alias ll.='ls -al'     # vertical + hidden
+alias lls='ls -lSh .'  # sort by size
+
+# change directory
+alias ..='cd ..'       # up
+alias .='pwd'          # print working directory
+alias -- -='cd -'       # change to last directory
+
+# git shortcuts
+concise_logging_format='--pretty=format:%C(yellow)%h%C(240) %cr %C(white bold)%an%C(reset) %s'
+alias g="git"
+alias gs="git s"
+alias d="git diff --color-words"
+alias gl="git log --pretty=format:'%C(yellow)%h %C(59)%cd%C(white bold) %an %C(245)%s%C(reset) %C(green) %d' --date=relative"
+alias glc='git log "$concise_logging_format"'
+alias glg="glc --graph"
+alias gaa="git add --all"
+alias gai="git add --patch"
+alias gcf="git commit --fixup"
+alias gca="git commit --amend"
+alias gci="git ci"
+alias gp="git pull"
+alias gr="git rebase"
+# rebase
+alias gri="git rebase -i"
+alias grc="git rebase --continue"
+alias gra="git rebase --abort"
+alias gria="git rebase -i --autosquash"
+# local branches freshness
+# see `bin/gbr`
+# alias glb="git for-each-ref --sort=-committerdate refs/heads/ --format='%(refname): %(committerdate:relative), %(authorname) - %(subject)' | sed 's/refs\/heads\///g'"
+
+# Run local server for current directory on port 8000
+alias server="python -m SimpleHTTPServer"
+
+# Disk space
+alias diskspace="df -P -kHl"
+
+# Recursively delete `.DS_Store` files
+alias cleanup_dsstore="find . -name '*.DS_Store' -type f -ls -delete"
+
+# Requires Underscore CLI `npm install -g underscore-cli`
+# https://github.com/ddopson/underscore-cli
+alias pp="underscore print --color"
+alias _="underscore"
+alias _p="underscore process"
+
+# zshrc config
+alias reload="source ~/.zshrc && echo 'Shell config reloaded from ~/.zshrc'"
+
+# zsh.local config
+alias localrc="if [[ -a ~/.zsh.local ]]; then ${EDITOR} ~/.zsh.local; fi"
