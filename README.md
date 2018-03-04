@@ -19,11 +19,11 @@ Admin password will be required during the setup process.
 
 ### Remotely
 
-    sh -c "`curl -fsSL https://raw.githubusercontent.com/tyom/dotfiles/rewrite/setup-remote.sh`"
+    sh -c "`curl -fsSL https://raw.githubusercontent.com/tyom/dotfiles/master/setup-remote.sh`"
 
 or with wget
 
-    sh -c "`wget -O - --no-check-certificate https://raw.githubusercontent.com/tyom/dotfiles/rewrite/setup-remote.sh`"
+    sh -c "`wget -O - --no-check-certificate https://raw.githubusercontent.com/tyom/dotfiles/master/setup-remote.sh`"
 
 Customisation
 ==============
