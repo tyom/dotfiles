@@ -1,7 +1,7 @@
 This is a collection of Tyom’s dotfiles and settings.
 
-![Shell screenshot](https://raw.githubusercontent.com/tyom/dotfiles/rewrite/shell.png)
-![Vim screenshot](https://raw.githubusercontent.com/tyom/dotfiles/rewrite/vim.png)
+![Shell screenshot](https://raw.githubusercontent.com/tyom/dotfiles/master/shell.png)
+![Vim screenshot](https://raw.githubusercontent.com/tyom/dotfiles/master/vim.png)
 
 Installation
 ============
