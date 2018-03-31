@@ -34,10 +34,6 @@ for file in $HOME/.shell_{aliases,zsh_config,functions,exports}; do
 done;
 unset file;
 
-if [ -f `brew --prefix`/etc/bash_completion ]; then
-  . `brew --prefix`/etc/bash_completion
-fi
-
 source $ZSH/oh-my-zsh.sh
 
 # npm tab completion
@@ -47,11 +43,18 @@ export NVM_DIR="$HOME/.nvm"
 [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"  # This loads nvm
 [ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"  # This loads nvm bash_completion
 
+# On MacOS
+if [[ $platform == 'Darwin' ]]; then
+  if [ -f `brew --prefix`/etc/bash_completion ]; then
+    . `brew --prefix`/etc/bash_completion
+  fi
+fi
+
 # Initialise fasd
 eval "$(fasd --init auto)"
 
 # Initialise fzf
-[ -f shell/fzf ] && source shell/fzf
+source shell/fzf
 
 # Source local extra (private) settings specific to machine if it exists
 [ -f ~/.zsh.local ] && source ~/.zsh.local

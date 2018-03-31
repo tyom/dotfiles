@@ -1,6 +1,6 @@
 # TYOM ZSH Theme
 
-if [[ $USER == "root" ]]; then
+if [[ $(whoami) == "root" ]]; then
   CARETCOLOR="red"
 else
   CARETCOLOR="white"
@@ -21,6 +21,11 @@ function _node_version() {
 PROMPT='
 $(_user_host) ⫶ ${_current_dir}
 %{$fg[$CARETCOLOR]%}❯%{$resetcolor%} '
+
+if [[ "$(uname)" != "Darwin" ]]; then
+  # Add additional spaces for Linux
+  PROMPT="$PROMPT  "
+fi
 
 PROMPT2='%{$fg[$CARETCOLOR]%}◀%{$reset_color%} '
 

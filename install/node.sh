@@ -36,4 +36,5 @@ packages=(
   nodemon
 )
 
+echo "Installing useful global Node packages: ${packages[@]}"
 npm install -g "${packages[@]}"

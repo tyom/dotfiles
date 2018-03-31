@@ -7,6 +7,17 @@
 
 # Can be safely run multiple times
 
+# Get the dotfiles directory's absolute path
+DOTFILES_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+
+YES_OVERRIDE=false
+if [ "$1" == "-y" ]; then YES_OVERRIDE=true; fi
+
+SUDO_CMD=""
+if [ "$(id -u)" != "0" ]; then
+  SUDO_CMD="sudo"
+fi
+
 ##
 # Utils
 ##
@@ -28,21 +39,6 @@ ask_for_confirmation() {
   printf "\n"
 }
 
-ask_for_sudo() {
-
-  # Ask for the administrator password upfront
-  sudo -v
-
-  # Update existing `sudo` time stamp until this script has finished
-  # https://gist.github.com/cowboy/3118588
-  while true; do
-    sudo -n true
-    sleep 60
-    kill -0 "$$" || exit
-  done &> /dev/null &
-
-}
-
 cmd_exists() {
   [ -x "$(command -v "$1")" ] \
     && printf 0 \
@@ -59,7 +55,6 @@ get_answer() {
 }
 
 get_os() {
-
   declare -r OS_NAME="$(uname -s)"
   local os=""
 
@@ -70,7 +65,6 @@ get_os() {
   fi
 
   printf "%s" "$os"
-
 }
 
 is_git_repository() {
@@ -142,32 +136,33 @@ backup_existing_dotfiles() {
 }
 
 install_zsh() {
-  platform=$(uname);
+  platform=$(uname)
+
   # Install zsh for Linux
   if [[ $platform == 'Linux' ]]; then
     if [[ -f /etc/redhat-release ]]; then
-      sudo yum install zsh
-      setup_zsh
+      ${SUDO_CMD} yum install zsh -y
+    elif [[ -f /etc/debian_version ]]; then
+      ${SUDO_CMD} apt-get install zsh -y
     fi
-    if [[ -f /etc/debian_version ]]; then
-      sudo apt-get install zsh
-      setup_zsh
-    fi
-  # # Install zsh for macOS
-  # elif [[ $platform == 'Darwin' ]]; then
-  #   echo "We'll install zsh, then re-run this script!"
-  #   brew install zsh
-  #   setup_zsh
+  # Install zsh for macOS
+  elif [[ $platform == 'Darwin' ]]; then
+    echo "We'll install zsh, then re-run this script!"
+    brew install zsh
   fi
 }
 
-
 setup_zsh() {
+  install_zsh
+  chsh -s $(which zsh)
+
   # Test to see if zshell is installed.  If it is:
   if [ -f /bin/zsh -o -f /usr/bin/zsh ]; then
     # Install Oh My Zsh if it isn't already present
     if [[ ! -d $dir/oh-my-zsh/ ]]; then
       sh -c "$(curl -fsSL https://raw.githubusercontent.com/robbyrussell/oh-my-zsh/master/tools/install.sh)"
+    else
+      echo 'Zsh is not installed'
     fi
   fi
 }
@@ -190,11 +185,14 @@ setup_symlinks() {
   local sourceFile=''
   local targetFile=''
 
+  echo "$1"
+
   for i in ${FILES_TO_SYMLINK[@]}; do
-    sourceFile="$(pwd)/$i"
+    sourceFile="$DOTFILES_DIR/$i"
     targetFile="$HOME/.$(printf "%s" "$i" | sed "s/.*\/\(.*\)/\1/g")"
 
-    if [ ! -e "$targetFile" ]; then
+    # link target file conditionally or always overwrite with -y argument
+    if [ ! -e "$targetFile" ] || $YES_OVERRIDE; then
       execute "ln -fs $sourceFile $targetFile" "$targetFile → $sourceFile"
     elif [ "$(readlink "$targetFile")" == "$sourceFile" ]; then
       print_success "$targetFile → $sourceFile"
@@ -209,6 +207,9 @@ setup_symlinks() {
     fi
   done
 
+  # Link oh-my-zsh theme
+  ln -fs "$DOTFILES_DIR/shell/tyom.zsh-theme" "$HOME/.oh-my-zsh/themes"
+
   unset FILES_TO_SYMLINK
 }
 
@@ -218,6 +219,8 @@ setup_symlinks() {
 
 # Warn user this script will overwrite current dotfiles
 while true; do
+  if $YES_OVERRIDE; then break; fi # accept -y argument to continue
+
   read -p "Warning: this will overwrite your current dotfiles. Continue? [y/n] " yn
   case $yn in
     [Yy]* ) break;;
@@ -226,17 +229,14 @@ while true; do
   esac
 done
 
-# Get the dotfiles directory's absolute path
-DOTFILES_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
-export DOTFILES_DIR
-
 backup_existing_dotfiles
 
 # Package managers & packages
-. "$DOTFILES_DIR/install/brew.sh"
 if [ "$(uname)" == "Darwin" ]; then
+  . "$DOTFILES_DIR/install/brew.sh"
   . "$DOTFILES_DIR/install/brew-cask.sh"
 fi
+
 . "$DOTFILES_DIR/install/node.sh"
 
 # Vim plugins
@@ -250,25 +250,18 @@ else
     https://raw.githubusercontent.com/junegunn/vim-plug/master/plug.vim
 fi
 
-# Disable prompt when quitting iTerm
-defaults write com.googlecode.iterm2 PromptOnQuit -bool false
-
-install_zsh
-echo 'Setting up zsh'
-setup_zsh
-echo 'Setting up symlinks'
-setup_symlinks
-
-# Link oh-my-zsh theme
-ln -fs "$DOTFILES_DIR/shell/tyom.zsh-theme" "$HOME/.oh-my-zsh/themes"
+echo 'Setting up zsh' && setup_zsh
+echo 'Setting up symlinks' && setup_symlinks
 
 # Vim bundles
 vim -u "$HOME/.vimrc.bundles" +PlugUpdate +PlugClean! +qa
 
-# Set the default shell to zsh if it isn't
-if [[ ! $(echo $SHELL) == $(which zsh) ]]; then
-  chsh -s $(which zsh)
+# Disable prompt when quitting iTerm
+if [ "$(uname)" == "Darwin" ]; then
+  defaults write com.googlecode.iterm2 PromptOnQuit -bool false
 fi
 
 # Launch
 source "$HOME/.zshrc"
+
+echo 'Dotfiles setup is done!'
