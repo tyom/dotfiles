@@ -29,12 +29,11 @@ npm config set save-exact = true
 
 # Globally install with npm
 packages=(
-    diff-so-fancy
-    git-recent
-    git-open
-    npm-check-updates
-    nodemon
-    surge
+  diff-so-fancy
+  git-recent
+  git-open
+  npm-check-updates
+  nodemon
 )
 
 npm install -g "${packages[@]}"
