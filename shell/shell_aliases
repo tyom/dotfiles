@@ -53,3 +53,7 @@ alias reload="source ~/.zshrc && echo 'Shell config reloaded from ~/.zshrc'"
 
 # zsh.local config
 alias localrc="if [[ -a ~/.zsh.local ]]; then ${EDITOR} ~/.zsh.local; fi"
+
+# Chrome
+alias canary="/Applications/Google\ Chrome\ Canary.app/Contents/MacOS/Google\ Chrome\ Canary"
+alias canaryrd="canary --remote-debugging-port=9222"
