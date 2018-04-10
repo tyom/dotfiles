@@ -11,6 +11,8 @@ dirs_to_prepend=(
   "/usr/local/git/bin"
   "$HOME/.dotfiles/bin"
   "$HOME/bin"
+  "$HOME/.yarn/bin"
+  "$HOME/.config/yarn/global/node_modules/.bin"
   "$(brew --prefix ruby)/bin"
   "$(brew --prefix coreutils)/libexec/gnubin" # Add brew-installed GNU core utilities bin
   "$(brew --prefix)/share/npm/bin" # Add npm-installed package bin
