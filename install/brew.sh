@@ -26,6 +26,7 @@ apps=(
     git
     git-extras
     hub
+    fzf
     homebrew/completions/brew-cask-completion
     httpie
     # mtr

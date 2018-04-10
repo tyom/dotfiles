@@ -40,9 +40,6 @@ fi
 
 source $ZSH/oh-my-zsh.sh
 
-# Source local extra (private) settings specific to machine if it exists
-[ -f ~/.zsh.local ] && source ~/.zsh.local
-
 # npm tab completion
 # . <(npm completion)
 
@@ -52,3 +49,9 @@ export NVM_DIR="$HOME/.nvm"
 
 # Initialise fasd
 eval "$(fasd --init auto)"
+
+# Initialise fzf
+[ -f shell/fzf ] && source shell/fzf
+
+# Source local extra (private) settings specific to machine if it exists
+[ -f ~/.zsh.local ] && source ~/.zsh.local
