@@ -15,7 +15,9 @@ function _user_host() {
 }
 
 function _node_version() {
-  echo "%F{238}node $(node -v) ∘ npm $(npm -v)% %{$reset_color%}"
+  if [ -x "$(command -v node)" ]; then
+    echo "%F{238}node $(node -v) ∘ npm $(npm -v)% %{$reset_color%}"
+  fi
 }
 
 PROMPT='
@@ -24,12 +26,10 @@ $(_user_host) ⫶ ${_current_dir}
 
 if [[ "$(uname)" != "Darwin" ]]; then
   # Add additional spaces for Linux
-  PROMPT="$PROMPT  "
+  PROMPT+="    "
 fi
 
-PROMPT2='%{$fg[$CARETCOLOR]%}◀%{$reset_color%} '
-
-RPROMPT=$'$(_node_version)%f $(git_cwd_info)'
+RPROMPT='$(_node_version) $(git_prompt_info)'
 
 MODE_INDICATOR="%{$fg_bold[yellow]%}❮%{$reset_color%}%{$fg[yellow]%}❮❮%{$reset_color%}"
 
