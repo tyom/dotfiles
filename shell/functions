@@ -11,18 +11,18 @@ function largest_files {
 }
 
 # find shorthand
-function f() {
+function f {
   find . -name "$1" 2>&1 | grep -v 'Permission denied'
 }
 
 # cd into whatever is the forefront Finder window.
-function cdf () {  # short for cdfinder
+function cdf {  # short for cdfinder
   cd "`osascript -e 'tell app "Finder" to POSIX path of (insertion location as alias)'`"
 }
 
 # animated gifs from any video
 # from Alex Sexton gist.github.com/SlexAxton/4989674
-function gifify () {
+function gifify {
   if [[ -n "$1" ]]; then
   if [[ $2 == '--good' ]]; then
     ffmpeg -i "$1" -r 10 -vcodec png out-static-%05d.png
@@ -38,6 +38,6 @@ function gifify () {
 
 # turn that video into webm.
 # brew reinstall ffmpeg --with-libvpx
-function webmify () {
+function webmify {
   ffmpeg -i "$1" -vcodec libvpx -acodec libvorbis -isync -copyts -aq 80 -threads 3 -qmax 30 -y "$2" "$1.webm"
 }

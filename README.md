@@ -14,16 +14,12 @@ Setup can be run mulitple times. It will update if necessary.
 Admin password will be required during the setup process.
 
     $ git clone https://github.com/tyom/dotfiles.git ~/.dotfiles
-    $ cd ~/dotfiles
-    $ ./setup.sh
+    $ cd ~/.dotfiles
+    $ make install
 
 ### Remotely
 
-    sh -c "`curl -fsSL https://raw.githubusercontent.com/tyom/dotfiles/master/setup-remote.sh`"
-
-or with wget
-
-    sh -c "`wget -O - --no-check-certificate https://raw.githubusercontent.com/tyom/dotfiles/master/setup-remote.sh`"
+    sh -c "`curl -fsSL https://raw.githubusercontent.com/tyom/dotfiles/updates/install.sh`"
 
 Customisation
 ==============
@@ -51,3 +47,10 @@ To configure iTerm settings set "Load preferences from a custom folder or URL" t
 To set some macOS [default preferences](./macOS/set_defaults.sh) run
 
     `~/.dotfiles/macOS/set_defaults.sh`
+
+Development
+===========
+
+To test dotfiles in sandbox use provided Docker image:
+
+    make test

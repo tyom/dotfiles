@@ -1,13 +1,16 @@
 # Setup fzf
 # ---------
+
+BREW_DIR=$(brew --prefix)
+
 if [[ ! "$PATH" == */usr/local/opt/fzf/bin* ]]; then
-  export PATH="$PATH:/usr/local/opt/fzf/bin"
+  export PATH="$PATH:$BREW_DIR/opt/fzf/bin"
 fi
 
 # Auto-completion
 # ---------------
-[[ $- == *i* ]] && source "/usr/local/opt/fzf/shell/completion.zsh" 2> /dev/null
+[[ $- == *i* ]] && source "$BREW_DIR/opt/fzf/shell/completion.zsh" 2> /dev/null
 
 # Key bindings
 # ------------
-source "/usr/local/opt/fzf/shell/key-bindings.zsh"
+source "$BREW_DIR/opt/fzf/shell/key-bindings.zsh"

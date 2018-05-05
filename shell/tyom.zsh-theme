@@ -1,44 +1,51 @@
 # TYOM ZSH Theme
 
-if [[ $USER == "root" ]]; then
+if [[ $(whoami) == "root" ]]; then
   CARETCOLOR="red"
 else
   CARETCOLOR="white"
 fi
 
 local _current_dir="%{$fg_bold[blue]%}%~%{$reset_color%} "
-local _return_status="%{$fg_bold[red]%}%(?..⍉)%{$reset_color%}"
-local _hist_no="%{$fg[grey]%}%h%{$reset_color%}"
 
-function _user_host() {
+function _user_host {
   echo "%{$fg[green]%}%n%{$reset_color%} at $fg[yellow]%}%m%{$reset_color%}"
 }
 
-function _node_version() {
-  echo "%F{238}node $(node -v) ∘ npm $(npm -v)% %{$reset_color%}"
+function _node_version {
+  if [ -x "$(command -v node)" ]; then
+    echo "%F{238}node $(node -v) ∘ npm $(npm -v)% %{$reset_color%}"
+  fi
+}
+
+function _git_status {
+  [ -f .git/REBASE_HEAD ] && echo "%{$fg[yellow]%}(REBASING)%{$reset_color%}"
+  [ -f .git/MERGE_HEAD ] && echo "%{$fg[yellow]%}(MERGING)%{$reset_color%}"
+  [ -f .git/BISECT_LOG ] && echo "%{$fg[yellow]%}(BISECTING)%{$reset_color%}"
 }
 
 PROMPT='
 $(_user_host) ⫶ ${_current_dir}
 %{$fg[$CARETCOLOR]%}❯%{$resetcolor%} '
 
-PROMPT2='%{$fg[$CARETCOLOR]%}◀%{$reset_color%} '
+if [[ "$(uname)" != "Darwin" ]]; then
+  # Add additional spaces for Linux
+  PROMPT+="    "
+fi
 
-RPROMPT=$'$(_node_version)%f $(git_cwd_info)'
-
-MODE_INDICATOR="%{$fg_bold[yellow]%}❮%{$reset_color%}%{$fg[yellow]%}❮❮%{$reset_color%}"
+RPROMPT='$(_node_version) $(_git_status) $(git_prompt_info)$(git_prompt_status)'
 
 ZSH_THEME_GIT_PROMPT_PREFIX="%F{187}Ⴤ%f %F{115}"
 ZSH_THEME_GIT_PROMPT_SUFFIX="%{$reset_color%}"
 
 ZSH_THEME_GIT_PROMPT_CLEAN=" %{$fg[green]%}✔%{$reset_color%}"
 ZSH_THEME_GIT_PROMPT_DIRTY=" %{$fg[red]%}✗%{$reset_color%}"
-ZSH_THEME_GIT_PROMPT_ADDED="%{$fg[green]%}✚ "
-ZSH_THEME_GIT_PROMPT_MODIFIED="%{$fg[yellow]%}⚑ "
-ZSH_THEME_GIT_PROMPT_DELETED="%{$fg[red]%}✖ "
-ZSH_THEME_GIT_PROMPT_RENAMED="%{$fg[blue]%}▴ "
-ZSH_THEME_GIT_PROMPT_UNMERGED="%{$fg[cyan]%}§ "
-ZSH_THEME_GIT_PROMPT_UNTRACKED="%{$fg[white]%}◒ "
+ZSH_THEME_GIT_PROMPT_ADDED="%{$fg[green]%} +%{$reset_color%}"
+ZSH_THEME_GIT_PROMPT_DELETED="%{$fg[red]%} –%{$reset_color%}"
+ZSH_THEME_GIT_PROMPT_MODIFIED="%{$fg[yellow]%} ⋇%{$reset_color%}"
+ZSH_THEME_GIT_PROMPT_RENAMED="%{$fg[blue]%} ≈%{$reset_color%}"
+ZSH_THEME_GIT_PROMPT_UNMERGED="%{$fg[cyan]%} ⊘%{$reset_color%}"
+ZSH_THEME_GIT_PROMPT_UNTRACKED="%{$fg[white]%} ∪%{$reset_color%}"
 
 # STANDARD VARIABLES
 # ================
@@ -72,7 +79,7 @@ ZSH_THEME_GIT_PROMPT_UNTRACKED="%{$fg[white]%}◒ "
 # %d or %/ - current working directory
 # %c or %. - trailing component of $PWD (for n trailing components put an integer n after %)
 # %C - like %c or %. but $HOME is represented as ~)
-# 
+#
 # Misc
 # ----
 # %h or %! - current history event number

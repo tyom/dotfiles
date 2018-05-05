@@ -1,0 +1,34 @@
+[ -f ~/.dotfilesrc ] \
+  && source ~/.dotfilesrc \
+  || echo "\e[0;31m ✖ ~/.dotfilesrc file which exports \$DOTFILES_DIR path is missing\e[0m\n"
+
+source $DOTFILES_DIR/shell/exports
+source $DOTFILES_DIR/shell/aliases
+source $DOTFILES_DIR/shell/functions
+source $DOTFILES_DIR/shell/config
+source $ZSH/oh-my-zsh.sh
+
+# npm tab completion
+# . <(npm completion)
+
+# NVM
+export NVM_DIR="$HOME/.nvm"
+[ -s "$NVM_DIR/nvm.sh" ] && source "$NVM_DIR/nvm.sh"
+[ -s "$NVM_DIR/bash_completion" ] && source "$NVM_DIR/bash_completion"
+
+# Bash completions
+if exists brew; then
+  [ -f $(brew --prefix)/etc/bash_completion ] \
+    && source $(brew --prefix)/etc/bash_completion
+fi
+
+if exists brew; then
+  # Initialise fasd
+  eval "$(fasd --init auto)"
+
+  # Initialise fzf
+  source $DOTFILES_DIR/shell/fzf
+fi
+
+# Source local extra (private) settings specific to the machine
+[ -f ~/.zsh.local ] && source ~/.zsh.local
