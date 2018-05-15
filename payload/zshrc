@@ -32,3 +32,6 @@ fi
 
 # Source local extra (private) settings specific to the machine
 [ -f ~/.zsh.local ] && source ~/.zsh.local
+
+# scmpuff for easier Git commits
+eval "$(scmpuff init -s --aliases=false)"

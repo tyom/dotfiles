@@ -6,6 +6,7 @@ packages=(
   fasd
   fzf
   diff-so-fancy
+  scmpuff
   # tree
   # wget
   # yarn --without-node

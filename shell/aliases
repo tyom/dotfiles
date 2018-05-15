@@ -12,18 +12,19 @@ alias -- -='cd -'       # change to last directory
 # git shortcuts
 concise_logging_format='--pretty=format:%C(yellow)%h%C(240) %cr %C(white bold)%an%C(reset) %s'
 alias g="git"
-alias gs="git s"
+alias gs="scmpuff_status"
 alias d="git diff --color-words"
 alias gl="git log --pretty=format:'%C(yellow)%h %C(59)%cd%C(white bold) %an %C(245)%s%C(reset) %C(green) %d' --date=relative"
 alias glc='git log "$concise_logging_format"'
 alias glg="glc --graph"
+alias ga="git add"
 alias gaa="git add --all"
 alias gai="git add --patch"
+alias gc="git commit"
 alias gcf="git commit --fixup"
 alias gca="git commit --amend"
 alias gci="git ci"
 alias gp="git pull"
-alias gr="git rebase"
 # rebase
 alias gri="git rebase -i"
 alias grc="git rebase --continue"
