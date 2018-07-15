@@ -10,10 +10,10 @@ continue_or_exit \
 
 source "$DOTFILES_DIR/scripts/backup.sh"
 
-# continue_or_skip \
-#   'Install Homebrew and useful packages? This may take a while.' \
-#   && source "$DOTFILES_DIR/scripts/install/brew.sh" \
-#   || print_info 'Skipping Homebrew'
+continue_or_skip \
+  'Install Homebrew and useful packages? This may take a while.' \
+  && source "$DOTFILES_DIR/scripts/install/brew.sh" \
+  || print_info 'Skipping Homebrew'
 
 if [ $(which_os) == "macos" ]; then
   continue_or_skip \
@@ -27,7 +27,7 @@ fi
 
 continue_or_skip \
   'Install NVM & Node?' \
-  && source "$DOTFILES_DIR/install/node.sh" \
+  && source "$DOTFILES_DIR/scripts/install/node.sh" \
   || print_info 'Skipping Node'
 
 print_step 'Setting up zsh' \
