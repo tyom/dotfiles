@@ -12,13 +12,13 @@ packages=(
   nodemon
 )
 
-function install_nvm {
+function install_node {
   nvm install $NODE_VERSION
   nvm use node
   nvm alias default node
 }
 
-function install_node {
+function install_nvm {
   if !exists nvm; then
     curl -o- https://raw.githubusercontent.com/creationix/nvm/master/install.sh | bash
 
