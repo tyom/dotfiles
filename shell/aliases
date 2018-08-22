@@ -25,6 +25,7 @@ alias gcf="git commit --fixup"
 alias gca="git commit --amend"
 alias gci="git ci"
 alias gp="git pull"
+alias gco="git checkout"
 # rebase
 alias gri="git rebase -i"
 alias grc="git rebase --continue"
@@ -33,6 +34,11 @@ alias gria="git rebase -i --autosquash"
 # local branches freshness
 # see `bin/gbr`
 # alias glb="git for-each-ref --sort=-committerdate refs/heads/ --format='%(refname): %(committerdate:relative), %(authorname) - %(subject)' | sed 's/refs\/heads\///g'"
+
+# Docker
+alias docker-rm-exited-containers="docker ps --filter status=dead --filter status=exited -aq | xargs docker rm -v"
+alias docker-rm-unused-images="docker images --no-trunc | grep '<none>' | awk '{ print $3 }' | xargs docker rmi"
+alias docker-rm-unused-volumes="docker volume ls -qf dangling=true | xargs docker volume rm"
 
 # Run local server for current directory on port 8000
 alias server="python -m SimpleHTTPServer"
