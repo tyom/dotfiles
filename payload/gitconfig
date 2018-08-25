@@ -21,6 +21,7 @@
   who = shortlog -s --
   sub = submodule update --init --recursive
   show-stat = show --name-only
+  push = push -u
 
   # Stash
 #  st = stash
