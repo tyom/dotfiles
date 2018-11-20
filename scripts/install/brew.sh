@@ -7,9 +7,9 @@ packages=(
   fzf
   diff-so-fancy
   scmpuff
-  # tree
-  # wget
-  # yarn --without-node
+  tree
+  wget
+  yarn --without-node
   # bash-completion2
   # git-extras
   # hub
