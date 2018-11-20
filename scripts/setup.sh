@@ -26,7 +26,7 @@ if [ $(which_os) == "macos" ]; then
 fi
 
 continue_or_skip \
-  'Install NVM & Node?' \
+  'Install n & Node?' \
   && source "$DOTFILES_DIR/scripts/install/node.sh" \
   || print_info 'Skipping Node'
 

@@ -1,7 +1,5 @@
 #!/bin/bash
 
-source shell/utils
-
 NODE_VERSION=lts
 
 # Globally install with npm
@@ -12,21 +10,9 @@ packages=(
   nodemon
 )
 
-function install_node {
-  nvm install $NODE_VERSION
-  nvm use node
-  nvm alias default node
-}
-
-function install_nvm {
-  if !exists nvm; then
-    curl -o- https://raw.githubusercontent.com/creationix/nvm/master/install.sh | bash
-
-    export NVM_DIR="$HOME/.nvm"
-
-    [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"  # This loads nvm
-    [ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"  # This loads nvm bash_completion
-  fi
+function install_n {
+  curl -L https://git.io/n-install | bash
+  source ~/.zshrc
 }
 
 function install_npm_packages {
@@ -37,6 +23,5 @@ function install_npm_packages {
   npm install -g "${packages[@]}"
 }
 
-print_step 'Installing NVM' && install_nvm
-print_step 'Installing Node' && install_node
+print_step 'Installing Node manager' && install_n
 print_step 'Installing useful global NPM packages' && install_npm_packages
