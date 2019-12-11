@@ -5,6 +5,7 @@ source shell/utils
 packages=(
   fasd
   fzf
+  bat
   diff-so-fancy
   scmpuff
   tree
