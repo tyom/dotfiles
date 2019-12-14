@@ -9,7 +9,7 @@ fi
 local _current_dir="%{$fg_bold[blue]%}%~%{$reset_color%} "
 
 function _user_host {
-  echo "%{$fg[green]%}%n%{$reset_color%} at $fg[yellow]%}%m%{$reset_color%}"
+  echo "%{$fg[green]%}%n%{$reset_color%} › $fg[yellow]%}%m%{$reset_color%}"
 }
 
 function _node_version {
