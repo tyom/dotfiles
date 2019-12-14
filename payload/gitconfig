@@ -80,9 +80,10 @@
   show = diff-so-fancy | less --tabs=4 -RFX
 
 [filter "lfs"]
-  clean = git lfs clean %f
-  smudge = git lfs smudge %f
+  clean = git-lfs clean -- %f
+  smudge = git-lfs smudge -- %f
   required = true
+  process = git-lfs filter-process
 
 [pretty]
   custom = "%C(magenta)%h%C(red)%d %C(yellow)%ar %C(white)%s %C(green)(%an)"
