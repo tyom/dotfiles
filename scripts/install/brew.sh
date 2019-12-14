@@ -3,14 +3,15 @@
 source shell/utils
 
 packages=(
-  fasd
-  fzf
-  bat
-  diff-so-fancy
-  scmpuff
-  tree
-  wget
-  yarn --without-node
+  fasd # CLI quick access to files and dirs
+  fzf # CLI fuzzy finder
+  bat # A cat(1) clone with syntax highlighting and Git integration.
+  fx  # Command-line JSON processing tool
+  diff-so-fancy # Nice Git diffs
+  scmpuff # Add numbered shortcuts to common git commands 
+  tree # Display directories as trees 
+  wget # Internet file retriever
+  yarn --without-node # JS package manager
   # bash-completion2
   # git-extras
   # hub
