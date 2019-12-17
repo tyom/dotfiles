@@ -12,6 +12,7 @@ packages=(
   tree # Display directories as trees 
   wget # Internet file retriever
   yarn --without-node # JS package manager
+  httpie # Command line HTTP client
   # bash-completion2
   # git-extras
   # hub
