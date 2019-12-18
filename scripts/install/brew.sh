@@ -11,7 +11,7 @@ packages=(
   scmpuff # Add numbered shortcuts to common git commands 
   tree # Display directories as trees 
   wget # Internet file retriever
-  yarn --without-node # JS package manager
+  yarn --ignore-dependencies # JS package manager (skip Node in favour of currently used node via version manager, e.g. n)
   httpie # Command line HTTP client
   # bash-completion2
   # git-extras
