@@ -1,49 +1,130 @@
-#!/usr/bin/env ruby
-# encoding: UTF-8
+#!/usr/bin/env node
 
-def format_commit_info timestamp, time_desc, author, commit_id, message, ref_name
-  [
-    "#{timestamp.strftime("%d %m %Y")} #{timestamp.strftime("%l:%M%p").downcase}",
-    time_desc,
-    author,
-    commit_id,
-    message,
-    ref_name
-  ]
-end
+const { execSync } = require('child_process');
 
-def render_commit_info timestamp, time_desc, author, commit_id, message, ref_name, merged
-  trunc_limit = 33
-  branch_chracter_count = ref_name[0..trunc_limit].strip.length
-  [
-    "\e[90m#{time_desc}\e[0m",
-    "\e[37m#{author}\e[0m",
-    (merged ? "\e[32m✓\e[m #{commit_id}" : "\e[31m✗\e[m \e[33m#{commit_id}\e[0m"),
-    # "\e[32m#{branch_chracter_count > trunc_limit ? ref_name[0..trunc_limit].gsub(/$/, '…') : ref_name[0..trunc_limit+1]}\e[0m",
-    "\e[32m#{ref_name.strip}\e[0m ",
-    "\e[#{message[/^Temp/] ? 31 : 90}m#{message.strip}\e[0m",
-  ].join(' ')
-end
-  
+const ARGS = process.argv.slice(2);
 
-commit_info = `git branch #{ARGV.join(' ')} | cut -c 3-`.strip.split("\n").reject {|ref_name|
-  ref_name[' -> ']
-}.map {|ref_name|
-  `git log --no-walk --pretty=format:"%ct\n%cr\n%an\n%h\n%s" '#{ref_name}' --`.strip.split("\n").push(ref_name)
-}.map {|commit_info|
-  [Time.at(commit_info.shift.to_i)].concat(commit_info)
-}.sort_by {|commit_info|
-  commit_info.first # unix timestamp
-}.map {|commit_info|  # <- `.reverse.map` for newset at top
-  format_commit_info(*commit_info)
-}.transpose.map {|column|
-  max_col_length = column.sort_by {|i| i.length }.last.length
-  column.map {|i| i.ljust(max_col_length) }
-}.transpose.map {|commit_info|
-  # check if branch has been merged
-  commit_info.push(
-   `git merge-base HEAD #{commit_info[3]}`.chomp[0...7] == commit_info[3]
-  )
-}.each {|commit_info|
-  puts render_commit_info(*commit_info)
+const COLOURS = {
+  reset: '\x1b[0m',
+  bright: '\x1b[1m',
+  dim: '\x1b[2m',
+  underscore: '\x1b[4m',
+  blink: '\x1b[5m',
+  reverse: '\x1b[7m',
+  hidden: '\x1b[8m',
+
+  black: '\x1b[30m',
+  gray: '\x1b[90m',
+  lightGray: '\x1b[38;5;246m',
+  red: '\x1b[31m',
+  green: '\x1b[32m',
+  yellow: '\x1b[33m',
+  blue: '\x1b[34m',
+  magenta: '\x1b[35m',
+  cyan: '\x1b[36m',
+  white: '\x1b[37m',
+
+  bgBlack: '\x1b[40m',
+  bgRed: '\x1b[41m',
+  bgGreen: '\x1b[42m',
+  bgYellow: '\x1b[43m',
+  bgBlue: '\x1b[44m',
+  bgMagenta: '\x1b[45m',
+  bgCyan: '\x1b[46m',
+  bgWhite: '\x1b[47m'
+};
+
+const truncate = (input, length) =>
+  input.length > length ? `${input.substring(0, length)}…` : input;
+
+const c = new Proxy(COLOURS, {
+  get(obj, prop) {
+    return function(string = '', padValue = 0, truncateCount = 20) {
+      const definedColour = obj[prop];
+      if (!definedColour) return string;
+      return `${definedColour}${truncate(string, truncateCount).padEnd(
+        padValue
+      )}${COLOURS.reset}`;
+    };
+  }
+});
+
+let gitBranches;
+
+try {
+  gitBranches = execSync(`git branch ${ARGS.join(' ')} | cut -c 3-`).toString();
+} catch (error) {
+  console.log(error.message);
 }
+
+if (!gitBranches) {
+  return;
+}
+
+const currentBranch = execSync('git rev-parse --abbrev-ref HEAD')
+  .toString()
+  .trim();
+
+const branchesArray = gitBranches
+  .trim()
+  .split('\n')
+  .filter(b => !b.includes(' -> '));
+
+const branchesArrayWithLogs = branchesArray
+  .map(name =>
+    execSync(
+      `git log --no-walk --pretty=format:"%ct\\n%cr\\n%an\\n%h\\n%S\\n%s" '${name.trim()}' --`
+    )
+  )
+  .map(b => b.toString())
+  .map(l => l.split('\\n'));
+
+const countLargestStringInSummaries = (arrays, maxCharCount = 100) => {
+  let summaryItems = [];
+  let summaryMaxCounts = Array(arrays[0].length).fill(0);
+  arrays.forEach(array => {
+    array.forEach((s, sectionIdx) => {
+      summaryMaxCounts[sectionIdx] = Math.min(
+        Math.max(s.length, summaryMaxCounts[sectionIdx]),
+        maxCharCount
+      );
+      summaryItems[sectionIdx] = summaryMaxCounts[sectionIdx];
+    });
+  });
+  return summaryItems;
+};
+
+// Sort by commit timestamp and remove it
+const branchSummariesArray = branchesArrayWithLogs
+  .sort((a, b) => new Date(a[0] * 1000) - new Date(b[0] * 1000))
+  .map(item => item.slice(1));
+
+const [
+  longestTimeAgo,
+  longestAuthorName,
+  ,
+  longestBranchName,
+  longestMessage
+] = countLargestStringInSummaries(branchSummariesArray);
+
+const output = branchSummariesArray.map(
+  ([timeAgo, authorName, sha, branchName, message]) => {
+    const isCurrentBranch = currentBranch === branchName;
+    const isPresent = execSync(`git merge-base HEAD ${sha}`)
+      .toString()
+      .includes(sha);
+
+    return [
+      c.gray(timeAgo, longestTimeAgo, longestAuthorName),
+      c.white(authorName, longestAuthorName, longestAuthorName),
+      !isCurrentBranch && isPresent ? c.green('✓') : ' ',
+      isPresent ? c.bright(sha) : c.yellow(sha),
+      isCurrentBranch
+        ? c.bgGreen(` ${branchName} `, 0, longestBranchName)
+        : c.green(branchName, 0, longestBranchName),
+      c.lightGray(message, 0, longestMessage)
+    ].join(' ');
+  }
+);
+
+console.log(output.join('\n'));
