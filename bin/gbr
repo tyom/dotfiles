@@ -31,7 +31,7 @@ const COLOURS = {
   bgBlue: '\x1b[44m',
   bgMagenta: '\x1b[45m',
   bgCyan: '\x1b[46m',
-  bgWhite: '\x1b[47m'
+  bgWhite: '\x1b[47m',
 };
 
 const truncate = (input, length) =>
@@ -46,7 +46,7 @@ const c = new Proxy(COLOURS, {
         padValue
       )}${COLOURS.reset}`;
     };
-  }
+  },
 });
 
 let gitBranches;
@@ -61,7 +61,7 @@ if (!gitBranches) {
   return;
 }
 
-const currentBranch = execSync('git rev-parse --abbrev-ref HEAD')
+const currentBranch = execSync(`git rev-parse --abbrev-ref HEAD`)
   .toString()
   .trim();
 
@@ -73,11 +73,10 @@ const branchesArray = gitBranches
 const branchesArrayWithLogs = branchesArray
   .map(name =>
     execSync(
-      `git log --no-walk --pretty=format:"%ct\\n%cr\\n%an\\n%h\\n%S\\n%s" '${name.trim()}' --`
-    )
+      `git log --no-walk --pretty=format:"%ct || %cr || %an || %h || %S || %s" '${name.trim()}'`
+    ).toString()
   )
-  .map(b => b.toString())
-  .map(l => l.split('\\n'));
+  .map(l => l.split(' || '));
 
 const countLargestStringInSummaries = (arrays, maxCharCount = 100) => {
   let summaryItems = [];
@@ -104,7 +103,7 @@ const [
   longestAuthorName,
   ,
   longestBranchName,
-  longestMessage
+  longestMessage,
 ] = countLargestStringInSummaries(branchSummariesArray);
 
 const output = branchSummariesArray.map(
@@ -113,16 +112,17 @@ const output = branchSummariesArray.map(
     const isPresent = execSync(`git merge-base HEAD ${sha}`)
       .toString()
       .includes(sha);
+    const currentSha = isPresent && isCurrentBranch;
 
     return [
       c.gray(timeAgo, longestTimeAgo, longestAuthorName),
       c.white(authorName, longestAuthorName, longestAuthorName),
-      !isCurrentBranch && isPresent ? c.green('✓') : ' ',
-      isPresent ? c.bright(sha) : c.yellow(sha),
-      isCurrentBranch
-        ? c.bgGreen(` ${branchName} `, 0, longestBranchName)
-        : c.green(branchName, 0, longestBranchName),
-      c.lightGray(message, 0, longestMessage)
+      !isCurrentBranch && isPresent
+        ? c.green('✓')
+        : (isCurrentBranch && '➜') || ' ',
+      currentSha ? c.bright(sha) : c.yellow(sha),
+      c.green(branchName, 0, longestBranchName),
+      c.lightGray(message, 0, longestMessage),
     ].join(' ');
   }
 );
