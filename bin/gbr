@@ -108,10 +108,15 @@ const [
 
 const output = branchSummariesArray.map(
   ([timeAgo, authorName, sha, branchName, message]) => {
+    let isPresent = false;
     const isCurrentBranch = currentBranch === branchName;
-    const isPresent = execSync(`git merge-base HEAD ${sha}`)
-      .toString()
-      .includes(sha);
+
+    try {
+      isPresent = execSync(`git merge-base HEAD ${sha}`)
+        .toString()
+        .includes(sha);
+    } catch {}
+
     const currentSha = isPresent && isCurrentBranch;
 
     return [
