@@ -18,7 +18,7 @@
   d  = diff --color-words
   unstage = reset HEAD --
   staged = diff --staged
-  who = shortlog -s --
+  who = shortlog --summary --numbered --no-merges
   sub = submodule update --init --recursive
   show-stat = show --name-only
   push = push -u
