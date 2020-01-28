@@ -42,7 +42,7 @@ const c = new Proxy(COLOURS, {
     return function(string = '', padValue = 0, truncateCount = 20) {
       const definedColour = obj[prop];
       if (!definedColour) return string;
-      return `${definedColour}${truncate(string, truncateCount).padEnd(
+      return `${definedColour}${truncate(string, truncateCount + 2).padEnd(
         padValue
       )}${COLOURS.reset}`;
     };
