@@ -68,7 +68,7 @@ const currentBranch = execSync(`git rev-parse --abbrev-ref HEAD`)
 const branchesArray = gitBranches
   .trim()
   .split('\n')
-  .filter(b => !b.includes(' -> '));
+  .filter(b => !b.includes(' -> ') && !b.includes('HEAD detached at'));
 
 const branchesArrayWithLogs = branchesArray
   .map(name =>
