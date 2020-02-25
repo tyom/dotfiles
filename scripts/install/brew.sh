@@ -13,6 +13,7 @@ packages=(
   wget # Internet file retriever
   yarn --ignore-dependencies # JS package manager (skip Node in favour of currently used node via version manager, e.g. n)
   httpie # Command line HTTP client
+  n # Node version manager
   # bash-completion2
   # git-extras
   # hub

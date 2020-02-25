@@ -8,13 +8,10 @@ source $DOTFILES_DIR/shell/functions
 source $DOTFILES_DIR/shell/config
 source $ZSH/oh-my-zsh.sh
 
+autoload -Uz compinit; compinit
+
 # npm tab completion
 # . <(npm completion)
-
-# NVM
-export NVM_DIR="$HOME/.nvm"
-[ -s "$NVM_DIR/nvm.sh" ] && source "$NVM_DIR/nvm.sh"
-[ -s "$NVM_DIR/bash_completion" ] && source "$NVM_DIR/bash_completion"
 
 # Bash completions
 if exists brew; then
