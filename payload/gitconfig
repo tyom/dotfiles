@@ -12,7 +12,7 @@
   ca = commit -a
   cm = commit -m
   amend = commit --amend
-  br = branch
+  b = branch
   co = checkout
   cp = cherry-pick
   d  = diff --color-words
