@@ -7,7 +7,7 @@ packages=(
   fzf # CLI fuzzy finder
   bat # A cat(1) clone with syntax highlighting and Git integration.
   fx  # Command-line JSON processing tool
-  diff-so-fancy # Nice Git diffs
+  git-delta # Syntax highlighter for git and diff output
   scmpuff # Add numbered shortcuts to common git commands 
   tree # Display directories as trees 
   wget # Internet file retriever

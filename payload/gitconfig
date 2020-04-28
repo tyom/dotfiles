@@ -1,7 +1,7 @@
 [core]
   attributesfile = ~/.gitattributes
   excludesfile = ~/.gitignore
-  pager = less -FRSX
+  pager = delta --plus-color="#012800" --minus-color="#340001"
   whitespace=fix,-indent-with-non-tab,trailing-space,cr-at-eol
 
 [alias]
@@ -74,10 +74,8 @@
 [credential]
   helper = osxkeychain
 
-[pager]
-  # Insanely beautiful diffs ==> npm install -g diff-so-fancy
-  diff = diff-so-fancy | less --tabs=4 -RFX
-  show = diff-so-fancy | less --tabs=4 -RFX
+[interactive]
+  diffFilter = delta --color-only
 
 [filter "lfs"]
   clean = git-lfs clean -- %f
