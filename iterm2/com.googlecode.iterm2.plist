@@ -4,6 +4,8 @@
 <dict>
 	<key>AppleAntiAliasingThreshold</key>
 	<integer>1</integer>
+	<key>ApplePressAndHoldEnabled</key>
+	<false/>
 	<key>AppleScrollAnimationEnabled</key>
 	<integer>0</integer>
 	<key>AppleSmoothFixedFontsSizeThreshold</key>
@@ -137,10 +139,12 @@
 	<integer>4</integer>
 	<key>LoadPrefsFromCustomFolder</key>
 	<true/>
+	<key>NSFontPanelAttributes</key>
+	<string>1, 4</string>
 	<key>NSNavLastRootDirectory</key>
 	<string>~/.dotfiles/iterm2</string>
 	<key>NSNavPanelExpandedSizeForOpenMode</key>
-	<string>{799, 448}</string>
+	<string>{712, 448}</string>
 	<key>NSQuotedKeystrokeBinding</key>
 	<string></string>
 	<key>NSRepeatCountBinding</key>
@@ -183,19 +187,19 @@
 		<integer>1</integer>
 	</dict>
 	<key>NSWindow Frame NSFontPanel</key>
-	<string>1169 110 445 103 0 0 1680 1027 </string>
-	<key>NSWindow Frame NSNavPanelAutosaveName</key>
-	<string>169 285 799 448 0 0 1680 1027 </string>
+	<string>1169 110 445 285 0 0 1680 1028 </string>
 	<key>NSWindow Frame SUAutomaticUpdateAlert</key>
 	<string>532 639 616 174 0 0 1680 1027 </string>
 	<key>NSWindow Frame SUUpdateAlert</key>
 	<string>530 476 620 392 0 0 1680 1027 </string>
 	<key>NSWindow Frame SessionsPreferences</key>
-	<string>269 126 606 469 0 0 1920 1057 </string>
+	<string>269 126 606 469 0 0 1680 1028 </string>
 	<key>NSWindow Frame SharedPreferences</key>
-	<string>441 618 770 429 0 0 1920 1057 </string>
+	<string>409 490 796 486 0 0 1680 1027 </string>
 	<key>NSWindow Frame iTerm Window 0</key>
-	<string>0 0 1680 1027 0 0 1680 1027 </string>
+	<string>0 0 3840 1302 0 0 3840 2137 </string>
+	<key>NSWindow Frame iTerm Window 1</key>
+	<string>212 0 885 537 0 0 1680 1028 </string>
 	<key>New Bookmarks</key>
 	<array>
 		<dict>
@@ -923,7 +927,7 @@
 			<key>Non-ASCII Anti Aliased</key>
 			<true/>
 			<key>Normal Font</key>
-			<string>FiraCode-Regular 14</string>
+			<string>Monaco 15</string>
 			<key>Option Key Sends</key>
 			<integer>0</integer>
 			<key>Prompt Before Closing 2</key>
@@ -1132,7 +1136,7 @@
 			<key>Use Non-ASCII Font</key>
 			<false/>
 			<key>Vertical Spacing</key>
-			<real>0.80000000000000004</real>
+			<real>1</real>
 			<key>Visual Bell</key>
 			<true/>
 			<key>Window Type</key>
@@ -1143,24 +1147,27 @@
 	</array>
 	<key>NoSyncAllAppVersions</key>
 	<array>
-		<string>3.3.1</string>
-		<string>3.2.8</string>
-		<string>3.3.3</string>
 		<string>3.3.6</string>
+		<string>3.3.8</string>
+		<string>3.3.1</string>
+		<string>3.3.3</string>
+		<string>3.3.7</string>
+		<string>3.3.9</string>
+		<string>3.2.9</string>
 	</array>
 	<key>NoSyncBFPRecents</key>
 	<array>
-		<string>Fira Code</string>
+		<string>PT Mono</string>
+		<string>Monaco</string>
+		<string>DejaVu Sans Mono</string>
 		<string>IBM Plex Mono</string>
 	</array>
-	<key>NoSyncCommandHistoryHasEverBeenUsed</key>
-	<true/>
 	<key>NoSyncFrame_SharedPreferences</key>
 	<dict>
 		<key>screenFrame</key>
-		<string>{{0, 0}, {1680, 1050}}</string>
+		<string>{{0, 0}, {3840, 2160}}</string>
 		<key>topLeft</key>
-		<string>{257, 811}</string>
+		<string>{1387, 876}</string>
 	</dict>
 	<key>NoSyncHaveRequestedFullDiskAccess</key>
 	<true/>
@@ -1169,15 +1176,17 @@
 	<key>NoSyncHaveWarnedAboutPasteConfirmationChange</key>
 	<true/>
 	<key>NoSyncInstallationId</key>
-	<string>6EA95A35-E0E6-416C-BDD5-AD5F6BDD83F9</string>
+	<string>0CCB5C0E-B94B-4C24-A531-91AFAD268784</string>
+	<key>NoSyncLastTipTime</key>
+	<real>587125053.35201204</real>
 	<key>NoSyncLaunchExperienceControllerRunCount</key>
-	<integer>17</integer>
+	<integer>25</integer>
 	<key>NoSyncNeverRemindPrefsChangesLostForFile</key>
 	<true/>
 	<key>NoSyncNeverRemindPrefsChangesLostForFile_selection</key>
 	<integer>0</integer>
 	<key>NoSyncNextAnnoyanceTime</key>
-	<real>587212894.08923304</real>
+	<real>587210929.68587995</real>
 	<key>NoSyncOnboardingWindowHasBeenShown</key>
 	<true/>
 	<key>NoSyncPermissionToShowTip</key>
@@ -1546,14 +1555,6 @@
 			</dict>
 			<dict>
 				<key>isTerminal</key>
-				<true/>
-				<key>name</key>
-				<string>currentTab.currentSession.lastCommand</string>
-				<key>nonterminalContext</key>
-				<integer>0</integer>
-			</dict>
-			<dict>
-				<key>isTerminal</key>
 				<false/>
 				<key>name</key>
 				<string>currentTab</string>
@@ -1791,14 +1792,6 @@
 				<key>isTerminal</key>
 				<true/>
 				<key>name</key>
-				<string>currentSession.lastCommand</string>
-				<key>nonterminalContext</key>
-				<integer>0</integer>
-			</dict>
-			<dict>
-				<key>isTerminal</key>
-				<true/>
-				<key>name</key>
 				<string>window</string>
 				<key>nonterminalContext</key>
 				<integer>0</integer>
@@ -1928,28 +1921,12 @@
 			</dict>
 		</array>
 	</dict>
-	<key>NoSyncSearchHistory</key>
-	<array>
-		<string>safari@12</string>
-		<string>feat</string>
-		<string>troika</string>
-		<string>color</string>
-	</array>
-	<key>NoSyncSearchHistory2</key>
-	<array>
-		<string>frozen</string>
-		<string>NODE_ENV</string>
-		<string>performance-budget</string>
-		<string>skip</string>
-		<string>dotenv-cli</string>
-		<string>doten v-</string>
-		<string>import/no-unres</string>
-		<string>import=</string>
-		<string>resource-</string>
-		<string>peerformance-bu</string>
-	</array>
 	<key>NoSyncTimeOfFirstLaunchOfVersionWithTip</key>
-	<real>564353105.68657398</real>
+	<real>529416531.78348202</real>
+	<key>NoSyncTipsToNotShow</key>
+	<array>
+		<string>000</string>
+	</array>
 	<key>PMPrintingExpandedStateForPrint2</key>
 	<false/>
 	<key>PointerActions</key>
@@ -2000,11 +1977,11 @@
 	<key>SUFeedAlternateAppNameKey</key>
 	<string>iTerm</string>
 	<key>SUFeedURL</key>
-	<string>https://iterm2.com/appcasts/final_new.xml?shard=51</string>
+	<string>https://iterm2.com/appcasts/final_new.xml?shard=47</string>
 	<key>SUHasLaunchedBefore</key>
 	<true/>
 	<key>SULastCheckTime</key>
-	<date>2019-12-23T17:05:56Z</date>
+	<date>2020-04-25T16:07:08Z</date>
 	<key>SUSendProfileInfo</key>
 	<false/>
 	<key>SUUpdateRelaunchingMarker</key>
@@ -2034,6 +2011,6 @@
 	<key>findMode_iTerm</key>
 	<integer>0</integer>
 	<key>iTerm Version</key>
-	<string>3.3.6</string>
+	<string>3.3.9</string>
 </dict>
 </plist>
