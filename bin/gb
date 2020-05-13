@@ -73,7 +73,7 @@ const branchesArray = gitBranches
 const branchesArrayWithLogs = branchesArray
   .map(name =>
     execSync(
-      `git log --no-walk --pretty=format:"%ct || %cr || %an || %h || %S || %s" '${name.trim()}'`
+      `git log --no-walk --pretty=format:"%ct || %cr || %an || %h || %S || %s" '${name.trim()}' --`
     ).toString()
   )
   .map(l => l.split(' || '));
