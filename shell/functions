@@ -1,5 +1,47 @@
 #!/bin/bash
 
+function which-port {
+  lsof_options="i"
+  port_number=""
+  option=""
+
+  print_usage() {
+    echo "Get info about application running on a given port"
+    echo " "
+    echo "$1 [options] port_number"
+    echo " "
+    echo "options:"
+    echo "-h, --help  show brief help"
+    echo "-p, --pid   show only PID"
+  }
+
+  if [[ "$1" =~ ^-.+ ]]; then
+    option="$1"
+    shift
+  fi
+
+  if [[ "$1" =~ ^[[:digit:]]+$ ]]; then
+    port_number="$1"
+    shift
+  fi
+
+  if [[ "$1" =~ ^-.+ ]]; then
+    option="$1"
+    shift
+  fi
+
+  if [ $# -eq 0 ] && [ -z "$port_number" ]; then
+    print_usage "$0"
+    return
+  fi
+
+  if [[ $option == "-p" ]]; then
+    lsof_options="ti"
+  fi
+
+  lsof "-$lsof_options:$port_number"
+}
+
 # show top 10 most used shell commands
 function top_commands {
     history | awk '{ a[$2]++ } END { for(i in a ) { print a[i] " " i } }' | sort -rn | head
