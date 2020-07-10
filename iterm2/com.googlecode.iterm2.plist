@@ -197,7 +197,7 @@
 	<key>NSWindow Frame SharedPreferences</key>
 	<string>409 490 796 486 0 0 1680 1027 </string>
 	<key>NSWindow Frame iTerm Window 0</key>
-	<string>0 0 3840 1302 0 0 3840 2137 </string>
+	<string>0 0 3840 1029 0 0 3840 2137 </string>
 	<key>NSWindow Frame iTerm Window 1</key>
 	<string>212 0 885 537 0 0 1680 1028 </string>
 	<key>New Bookmarks</key>
@@ -853,13 +853,6 @@
 					<key>Text</key>
 					<string>[24;2~</string>
 				</dict>
-				<key>0xf728-0x0</key>
-				<dict>
-					<key>Action</key>
-					<integer>11</integer>
-					<key>Text</key>
-					<string>0x4</string>
-				</dict>
 				<key>0xf728-0x80000</key>
 				<dict>
 					<key>Action</key>
@@ -1180,7 +1173,7 @@
 	<key>NoSyncLastTipTime</key>
 	<real>587125053.35201204</real>
 	<key>NoSyncLaunchExperienceControllerRunCount</key>
-	<integer>25</integer>
+	<integer>28</integer>
 	<key>NoSyncNeverRemindPrefsChangesLostForFile</key>
 	<true/>
 	<key>NoSyncNeverRemindPrefsChangesLostForFile_selection</key>
@@ -1981,7 +1974,7 @@
 	<key>SUHasLaunchedBefore</key>
 	<true/>
 	<key>SULastCheckTime</key>
-	<date>2020-04-25T16:07:08Z</date>
+	<date>2020-05-20T11:27:25Z</date>
 	<key>SUSendProfileInfo</key>
 	<false/>
 	<key>SUUpdateRelaunchingMarker</key>
