@@ -15,7 +15,7 @@
   b = branch
   co = checkout
   cp = cherry-pick
-  d  = diff --color-words
+  d  = diff
   unstage = reset HEAD --
   staged = diff --staged
   who = shortlog --summary --numbered --no-merges
@@ -57,8 +57,8 @@
 
 [color "status"]
   added = green
-  changed = blue 
-  untracked = white bold 
+  changed = blue
+  untracked = white bold
 
 [push]
   default = current

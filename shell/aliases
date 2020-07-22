@@ -10,13 +10,11 @@ alias .='pwd'          # print working directory
 alias -- -='cd -'       # change to last directory
 
 # git shortcuts
-concise_logging_format='--pretty=format:%C(yellow)%h%C(240) %cr %C(white bold)%an%C(reset) %s'
 alias g="git"
 alias gs="scmpuff_status"
 alias d="git diff --color-words"
-alias gl="git log --pretty=format:'%C(yellow)%h %C(59)%cd%C(white bold) %an %C(245)%s%C(reset) %C(green) %d' --date=relative"
-alias glc='git log "$concise_logging_format"'
-alias glg="glc --graph"
+alias gl="git log --pretty=format:'%C(yellow)%h %C(59)%<(15)%cr %C(white)%an → %C(245)%s %C(green) %d'"
+alias glg="gl --graph"
 alias ga="git add"
 alias gaa="git add --all"
 alias gai="git add --patch"
@@ -32,8 +30,8 @@ alias grc="git rebase --continue"
 alias gra="git rebase --abort"
 alias gria="git rebase -i --autosquash"
 # local branches freshness
-alias gbrr="gbr -r"
-# see `bin/gbr`
+alias gbr="gb -r"
+# see `bin/gb`
 # alias glb="git for-each-ref --sort=-committerdate refs/heads/ --format='%(refname): %(committerdate:relative), %(authorname) - %(subject)' | sed 's/refs\/heads\///g'"
 
 # Docker
