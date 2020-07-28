@@ -19,7 +19,7 @@ function _node_version {
 }
 
 function _git_status {
-  [ -f .git/REBASE_HEAD ] && echo "%{$fg[yellow]%}(REBASING)%{$reset_color%}"
+  [[ -d ".git/rebase-apply" || -d ".git/rebase-merge" ]] && echo "%{$fg[yellow]%}(REBASING)%{$reset_color%}"
   [ -f .git/MERGE_HEAD ] && echo "%{$fg[yellow]%}(MERGING)%{$reset_color%}"
   [ -f .git/BISECT_LOG ] && echo "%{$fg[yellow]%}(BISECTING)%{$reset_color%}"
 }
