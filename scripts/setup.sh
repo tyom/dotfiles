@@ -15,7 +15,7 @@ continue_or_skip \
   && source "$DOTFILES_DIR/scripts/install/brew.sh" \
   || print_info 'Skipping Homebrew'
 
-if [ $(which_os) == "macos" ]; then
+if [ "$(which_os)" == "macos" ]; then
   continue_or_skip \
     'Install brew cask (macOS apps via Homebrew)?' \
     && source "$DOTFILES_DIR/scripts/install/brew-cask.sh" \
@@ -24,11 +24,6 @@ if [ $(which_os) == "macos" ]; then
   # Disable prompt when quitting iTerm
   defaults write com.googlecode.iterm2 PromptOnQuit -bool false
 fi
-
-continue_or_skip \
-  'Install n & Node?' \
-  && source "$DOTFILES_DIR/scripts/install/node.sh" \
-  || print_info 'Skipping Node'
 
 print_step 'Setting up zsh' \
   && source "$DOTFILES_DIR/scripts/zsh.sh"
@@ -39,7 +34,7 @@ print_step 'Symlinking dotfiles' \
 print_step 'Installing Vim plugins' \
   && source "$DOTFILES_DIR/scripts/install/vim.sh"
 
-print_success 'dotfiles are installed!'
+print_success 'dotfiles are installed! Start a new shell session.'
 
 # Add reference to dotfiles directory
-> $HOME/.dotfilesrc && echo "export DOTFILES_DIR=$DOTFILES_DIR" >> $HOME/.dotfilesrc
+> "$HOME/.dotfilesrc" && echo "export DOTFILES_DIR=$DOTFILES_DIR" >> "$HOME/.dotfilesrc"
