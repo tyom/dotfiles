@@ -4,7 +4,7 @@ RUN \
   apt-get update -qq && \
   apt-get upgrade -y && \
   apt-get install -y build-essential locales curl file vim git ruby python-setuptools sudo zsh && \
-  localedef -i en_US -f UTF-8 en_US.UTF-8
+  localedef -i en_GB -f UTF-8 en_GB.UTF-8
 
 COPY test/sudoers /etc/sudoers
 
