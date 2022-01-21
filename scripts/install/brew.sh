@@ -3,8 +3,8 @@
 source shell/utils
 
 packages=(
-  fasd # CLI quick access to files and dirs
-  fzf # CLI fuzzy finder
+  # fasd # CLI quick access to files and dirs
+  # fzf # CLI fuzzy finder
   bat # A cat(1) clone with syntax highlighting and Git integration.
   git-delta # Syntax highlighter for git and diff output
   scmpuff # Add numbered shortcuts to common git commands
