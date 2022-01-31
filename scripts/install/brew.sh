@@ -16,6 +16,7 @@ packages=(
   n # Node version manager
   fx  # Command-line JSON processing tool
   yarn --ignore-dependencies # JS package manager (skip Node in favour of currently used node via version manager, e.g. n)
+  # saulpw/vd/visidata # tool that lets you open, explore, summarise and analyse datasets in terminal
   # bash-completion2
   # git-extras
   # hub
