@@ -6,7 +6,6 @@ alias lls='ls -lSh .'  # sort by size
 
 # change directory
 alias ..='cd ..'       # up
-alias .='pwd'          # print working directory
 alias -- -='cd -'       # change to last directory
 
 # git shortcuts
