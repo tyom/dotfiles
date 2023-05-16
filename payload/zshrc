@@ -26,3 +26,5 @@ fi
 
 # scmpuff for easier Git commits
 eval "$(scmpuff init -s --aliases=false)"
+
+export PATH="$HOME/.yarn/bin:$HOME/.config/yarn/global/node_modules/.bin:$PATH"
