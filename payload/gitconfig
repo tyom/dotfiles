@@ -23,6 +23,7 @@
   show-stat = show --name-only
   push = push -u
   loc = ! git ls-files | grep -Ev 'ios/Pods|.jpg|.png|.lock|.jar|.bat|.otf|.woff' | xargs wc -l
+  author = git-author
 
   # Stash
 #  st = stash
