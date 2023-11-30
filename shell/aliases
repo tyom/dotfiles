@@ -8,6 +8,8 @@ alias lls='ls -lSh .'  # sort by size
 alias ..='cd ..'       # up
 alias -- -='cd -'       # change to last directory
 
+alias \?\?='gh copilot explain'
+
 # git shortcuts
 alias g="git"
 alias gs="scmpuff_status"
