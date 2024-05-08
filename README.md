@@ -20,7 +20,7 @@ Admin password will be required during the setup process.
 
 ### Remotely
 
-    sh -c "`curl -fsSL https://raw.githubusercontent.com/tyom/dotfiles/updates/install.sh`"
+    sh -c "`curl -fsSL https://raw.githubusercontent.com/tyom/dotfiles/master/install.sh`"
 
 Customisation
 ==============
