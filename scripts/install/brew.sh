@@ -12,7 +12,7 @@ packages=(
   wget # Internet file retriever
   httpie # Command line HTTP client
   gh # GitHub command-line tool
-  node # Node
+#  node # Node
   n # Node version manager
   fx  # Command-line JSON processing tool
   yarn --ignore-dependencies # JS package manager (skip Node in favour of currently used node via version manager, e.g. n)
