@@ -2,11 +2,9 @@
 
 source shell/utils
 
-brew tap homebrew/cask
-
 print_step "Installing macOS packages"
 
-brew install rowanj-gitx betterzip
+brew install --cask gitx
 
 # Quick Look Plugins (https://github.com/sindresorhus/quick-look-plugins)
 brew install \
@@ -14,10 +12,8 @@ brew install \
   qlstephen \
   qlmarkdown \
   quicklook-json \
-  qlimagesize \
   suspicious-package \
   apparency \
-  quicklookase \
   qlvideo \
   qlprettypatch \
   quicklook-csv \
