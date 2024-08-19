@@ -24,8 +24,15 @@ function _git_status {
   [ -f .git/BISECT_LOG ] && echo "%{$fg[yellow]%}(BISECTING)%{$reset_color%}"
 }
 
+function _conda_env_name {
+  if [[ -n $CONDA_PREFIX ]]; then
+    CONDA_ENV="($CONDA_DEFAULT_ENV)"
+  fi
+  echo "%{$fg[cyan]%}$CONDA_ENV%{$reset_color%}"
+}
+
 PROMPT='
-$(_user_host) ⫶ ${_current_dir}
+$(_user_host) $(_conda_env_name) ⫶ ${_current_dir}
 %{$fg[$CARETCOLOR]%}❯%{$resetcolor%} '
 
 if [[ "$(uname)" != "Darwin" ]]; then
