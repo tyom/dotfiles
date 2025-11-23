@@ -46,17 +46,17 @@ else
   ERRORS=$((ERRORS + 1))
 fi
 
-if grep -qF 'source "$DOTFILES_DIR/zsh/config.zsh"' "$HOME/.zshrc" 2>/dev/null; then
-  print_success "zsh config sourced in .zshrc"
+if grep -qF 'source "$HOME/.dotfiles.zsh"' "$HOME/.zshrc" 2>/dev/null; then
+  print_success "dotfiles.zsh sourced in .zshrc"
 else
-  print_error "zsh config not sourced in .zshrc"
+  print_error "dotfiles.zsh not sourced in .zshrc"
   ERRORS=$((ERRORS + 1))
 fi
 
-if grep -qF 'source "$ZSH/oh-my-zsh.sh"' "$HOME/.zshrc" 2>/dev/null; then
-  print_success "oh-my-zsh sourced in .zshrc"
+if [ -f "$HOME/.dotfiles.zsh" ]; then
+  print_success ".dotfiles.zsh exists"
 else
-  print_error "oh-my-zsh not sourced in .zshrc"
+  print_error ".dotfiles.zsh missing"
   ERRORS=$((ERRORS + 1))
 fi
 
@@ -101,21 +101,21 @@ else
   ERRORS=$((ERRORS + 1))
 fi
 
-# Check if fzf keybindings are loaded (Ctrl+R binding) - only if fzf is installed
+# Check if fzf plugin is configured - only if fzf is installed
 if command -v fzf >/dev/null 2>&1; then
   echo ""
-  print_info "Checking fzf keybindings..."
+  print_info "Checking fzf configuration..."
 
-  FZF_BINDINGS_CHECK=$(zsh -ic 'bindkey | grep "fzf-history-widget"' 2>/dev/null || echo "")
-  if [ -n "$FZF_BINDINGS_CHECK" ]; then
-    print_success "fzf keybindings loaded (Ctrl+R)"
+  if grep -q "plugins.*fzf" "$DOTFILES_DIR/zsh/config.zsh" 2>/dev/null || \
+     grep -q 'plugins+=(fzf)' "$DOTFILES_DIR/zsh/config.zsh" 2>/dev/null; then
+    print_success "fzf plugin configured"
   else
-    print_error "fzf keybindings NOT loaded (Ctrl+R won't work)"
+    print_error "fzf plugin not configured in zsh/config.zsh"
     ERRORS=$((ERRORS + 1))
   fi
 else
   echo ""
-  print_info "fzf not installed, skipping keybindings check"
+  print_info "fzf not installed, skipping fzf check"
 fi
 
 # Check bin scripts

@@ -1,5 +1,5 @@
 # Dotfiles ZSH Configuration
-# Sources config in order: dotfilesrc -> config.zsh -> oh-my-zsh -> original
+# Sources config in order: dotfilesrc -> config.zsh -> oh-my-zsh
 
 # Load dotfiles directory path
 [ -f ~/.dotfilesrc ] && source ~/.dotfilesrc
@@ -16,6 +16,3 @@ source "$ZSH/oh-my-zsh.sh"
 if command -v scmpuff &>/dev/null; then
   eval "$(scmpuff init -s --aliases=false)"
 fi
-
-# Source original zshrc if present
-[ -f ~/.zshrc.bak ] && source ~/.zshrc.bak

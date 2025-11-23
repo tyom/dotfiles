@@ -22,6 +22,7 @@ git/
 ```
 
 The `.gitconfig` includes:
+
 - Delta pager for beautiful diffs
 - Useful aliases (gs, gl, gco, etc.)
 - Color configuration
@@ -39,6 +40,7 @@ vim/
 ```
 
 Uses vim-plug for plugin management with:
+
 - Gruvbox color scheme
 - Airline status bar
 - NERDTree file explorer
@@ -50,10 +52,11 @@ Zsh configuration (sourced, not symlinked):
 
 ```
 zsh/
-└── config.zsh      # Sourced from ~/.zshrc
+├── config.zsh      # Pre-oh-my-zsh config (exports, aliases, plugins)
+└── dotfiles.zsh    # Main config copied to ~/.dotfiles.zsh
 ```
 
-Unlike other packages, this is NOT stowed. Instead, `setup.sh` prepends a source line to `~/.zshrc` that loads this config. This is non-destructive and preserves any existing `.zshrc` content.
+Setup copies `dotfiles.zsh` to `~/.dotfiles.zsh` and adds a source line to `~/.zshrc`. This is non-destructive and preserves any existing `.zshrc` content.
 
 ### `oh-my-zsh/`
 
@@ -68,6 +71,7 @@ oh-my-zsh/
 ```
 
 Features:
+
 - User and hostname display
 - Conda environment indicator
 - Node.js version display
@@ -91,16 +95,14 @@ bin/
 
 ### `shell/`
 
-Shell configuration modules that are **sourced** (not symlinked) by `.zshrc`:
+Shell configuration modules that are **sourced** (not symlinked) by `zsh/config.zsh`:
 
 ```
 shell/
-├── aliases    # Command aliases
-├── config     # Zsh settings (history, completion)
-├── exports    # Environment variables and PATH
-├── functions  # Custom shell functions
-├── fzf        # Fuzzy finder configuration
-└── utils      # Utility functions (used by install scripts too)
+├── aliases.sh    # Command aliases
+├── exports.sh    # Environment variables and PATH
+├── functions.sh  # Custom shell functions
+└── utils.sh      # Utility functions (used by install scripts too)
 ```
 
 These files remain in the repository and are sourced via `$DOTFILES_DIR/shell/`.
@@ -132,6 +134,7 @@ When you run `stow -d /path/to/dotfiles -t ~ git`, Stow:
 3. Example: `~/.gitconfig` → `/path/to/dotfiles/git/.gitconfig`
 
 Benefits:
+
 - Files stay in the repository (easy to version control)
 - Symlinks make them appear in the expected locations
 - Easy to add/remove packages

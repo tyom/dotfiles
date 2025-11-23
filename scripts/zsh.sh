@@ -25,22 +25,40 @@ else
   exit
 fi
 
-# Backup existing .zshrc before oh-my-zsh installation
-if [[ -f $HOME/.zshrc ]] && [[ ! -f $HOME/.zshrc.bak ]]; then
-  mv "$HOME/.zshrc" "$HOME/.zshrc.bak"
-  print_info "Backed up existing .zshrc to .zshrc.bak"
-fi
-
 # Install Oh My Zsh if it isn't already present
 if [[ ! -d $HOME/.oh-my-zsh/ ]]; then
   # RUNZSH=no: Don't start zsh after install
-  # KEEP_ZSHRC=yes: Don't overwrite .zshrc (we'll create our own)
+  # KEEP_ZSHRC=yes: Don't overwrite .zshrc
   RUNZSH=no KEEP_ZSHRC=yes sh -c "$(curl -fsSL https://raw.githubusercontent.com/robbyrussell/oh-my-zsh/master/tools/install.sh)"
 else
   print_info 'oh-my-zsh is already installed. Skipping.'
 fi
 
-# Create .zshrc from template
-cp "$DOTFILES_DIR/zsh/zshrc.template.zsh" "$HOME/.zshrc"
+# Set up .zshrc to source our dotfiles config
+DOTFILES_SOURCE_LINE='source "$HOME/.dotfiles.zsh"'
 
-print_success "Created new .zshrc"
+if grep -qF "$DOTFILES_SOURCE_LINE" "$HOME/.zshrc" 2>/dev/null; then
+  print_info "Dotfiles already sourced in .zshrc"
+else
+  # Check if .zshrc is default oh-my-zsh (sources oh-my-zsh.sh and has ZSH_THEME)
+  if grep -q 'source.*oh-my-zsh.sh' "$HOME/.zshrc" 2>/dev/null &&
+    grep -q 'ZSH_THEME=' "$HOME/.zshrc" 2>/dev/null; then
+    # Replace default oh-my-zsh .zshrc (our dotfiles.zsh handles everything)
+    echo "$DOTFILES_SOURCE_LINE" >"$HOME/.zshrc"
+    print_success "Replaced default oh-my-zsh .zshrc"
+  elif [[ -f "$HOME/.zshrc" ]]; then
+    # Append to existing custom .zshrc
+    echo "" >>"$HOME/.zshrc"
+    echo "# Dotfiles" >>"$HOME/.zshrc"
+    echo "$DOTFILES_SOURCE_LINE" >>"$HOME/.zshrc"
+    print_success "Added dotfiles source line to .zshrc"
+  else
+    echo "$DOTFILES_SOURCE_LINE" >"$HOME/.zshrc"
+    print_success "Created .zshrc"
+  fi
+fi
+
+# Create/update the dotfiles zsh config
+cp "$DOTFILES_DIR/zsh/dotfiles.zsh" "$HOME/.dotfiles.zsh"
+
+print_success "Created ~/.dotfiles.zsh"

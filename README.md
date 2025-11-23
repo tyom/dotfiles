@@ -64,9 +64,9 @@ See [STRUCTURE.md](./STRUCTURE.md) for detailed documentation.
 
 These dotfiles are meant to be read-only. Additional configuration should be added to local dotfiles:
 
-### `~/.zshrc.bak`
+### `~/.zshrc`
 
-Your original `.zshrc` is automatically backed up during installation and sourced at the end of the new `.zshrc`. Machine-specific shell configuration is preserved here.
+Your existing `.zshrc` is preserved. The installer adds a single source line to load the dotfiles config. Add machine-specific shell configuration directly to `~/.zshrc`.
 
 ### `~/.gitconfig.local`
 
@@ -81,14 +81,6 @@ Add your personal git configuration:
 ### `~/.vimrc.local`
 
 Add machine-specific vim configuration here.
-
-### iTerm2
-
-To configure iTerm settings set "Load preferences from a custom folder or URL" to `iterm2` URL in this repo:
-
-```
-~/.dotfiles/iterm2
-```
 
 ## What Gets Installed
 
@@ -141,6 +133,6 @@ Run `make` to see all available commands:
 | `make brew`         | Install Homebrew packages          |
 | `make docker-build` | Build Docker test image            |
 | `make docker-test`  | Run setup and validation in Docker |
-| `make docker-shell` | Start persistent shell in Docker   |
 | `make docker-setup` | Run setup and drop into shell      |
+| `make docker-shell` | Start persistent shell in Docker   |
 | `make docker-clean` | Remove persistent Docker container |
