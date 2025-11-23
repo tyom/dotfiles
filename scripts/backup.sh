@@ -22,17 +22,16 @@ else
   mkdir -p "$BACKUP_DIR"
 
   # Create new file
-  > $SUMMARY_FILE
+  >$SUMMARY_FILE
 
   # Copy existing files to backup directory
   # and create summary of files copied
-  for file in "${EXISTING_DOTFILES[@]}";
-  do
+  for file in "${EXISTING_DOTFILES[@]}"; do
     filename=$(basename "$file")
     home_file="$HOME/.$filename"
     if [ -e "$home_file" ]; then
       cp -L "$HOME/.$filename" "$BACKUP_DIR/.$filename"
-      echo ".$filename" >> $SUMMARY_FILE
+      echo ".$filename" >>$SUMMARY_FILE
       echo " - .$filename"
     fi
   done

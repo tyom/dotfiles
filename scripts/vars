@@ -2,5 +2,5 @@
 : ${YES_OVERRIDE:=false}
 : ${DOTFILES_DIR:="$(cd $(dirname "$0")/.. && pwd)"}
 
-# Files to be symlinked in home directory
-PAYLOAD_FILES=$(ls $DOTFILES_DIR/payload)
+# Stow packages to install (directories in the repo root)
+STOW_PACKAGES=(git vim zsh oh-my-zsh bin)

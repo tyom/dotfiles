@@ -1,0 +1,79 @@
+#!/bin/bash
+
+# Validation script for dotfiles installation
+# Checks that all symlinks and configurations are properly set up
+
+set -e
+
+DOTFILES_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+source "$DOTFILES_DIR/shell/utils"
+
+ERRORS=0
+
+print_step "Validating dotfiles installation..."
+
+# Check symlinks exist
+check_symlink() {
+  local target="$1"
+  local desc="$2"
+  if [ -L "$target" ] || [ -f "$target" ]; then
+    print_success "$desc exists"
+  else
+    print_error "$desc missing: $target"
+    ERRORS=$((ERRORS + 1))
+  fi
+}
+
+echo ""
+print_info "Checking symlinks..."
+
+check_symlink "$HOME/.gitconfig" ".gitconfig"
+check_symlink "$HOME/.gitignore" ".gitignore"
+check_symlink "$HOME/.gitattributes" ".gitattributes"
+check_symlink "$HOME/.vimrc" ".vimrc"
+check_symlink "$HOME/.vimrc.bundles" ".vimrc.bundles"
+check_symlink "$HOME/.zshrc" ".zshrc"
+check_symlink "$HOME/.oh-my-zsh/custom/themes/tyom.zsh-theme" "zsh theme"
+check_symlink "$HOME/.dotfilesrc" ".dotfilesrc"
+
+# Check bin scripts
+echo ""
+print_info "Checking bin scripts..."
+
+for script in color-test gb git-author icat ils; do
+  check_symlink "$HOME/bin/$script" "bin/$script"
+done
+
+# Check shell config files are sourceable
+echo ""
+print_info "Checking shell config files..."
+
+for config in exports aliases functions config utils; do
+  if [ -f "$DOTFILES_DIR/shell/$config" ]; then
+    print_success "shell/$config exists"
+  else
+    print_error "shell/$config missing"
+    ERRORS=$((ERRORS + 1))
+  fi
+done
+
+# Check git configuration loads
+echo ""
+print_info "Checking git configuration..."
+
+if git config --global --get alias.s >/dev/null 2>&1; then
+  print_success "Git aliases configured"
+else
+  print_error "Git aliases not loaded"
+  ERRORS=$((ERRORS + 1))
+fi
+
+# Summary
+echo ""
+if [ $ERRORS -eq 0 ]; then
+  print_success "All validation checks passed!"
+  exit 0
+else
+  print_error "Validation failed with $ERRORS error(s)"
+  exit 1
+fi

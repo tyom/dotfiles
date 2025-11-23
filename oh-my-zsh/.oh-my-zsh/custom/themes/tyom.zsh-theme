@@ -9,12 +9,12 @@ fi
 local _current_dir="%{$fg_bold[blue]%}%~%{$reset_color%} "
 
 function _user_host {
-  echo "%{$fg[green]%}%n%{$reset_color%} › $fg[yellow]%}%m%{$reset_color%}"
+  echo "%{$fg[green]%}%n%{$reset_color%} › %{$fg[yellow]%}%m%{$reset_color%}"
 }
 
 function _node_version {
   if [ -x "$(command -v node)" ]; then
-    echo "%F{238}node $(node -v) ∘ npm $(npm -v)% %{$reset_color%}"
+    echo "%F{238}node $(node -v) ∘ npm $(npm -v)%f"
   fi
 }
 
@@ -33,12 +33,7 @@ function _conda_env_name {
 
 PROMPT='
 $(_user_host) $(_conda_env_name) ⫶ ${_current_dir}
-%{$fg[$CARETCOLOR]%}❯%{$resetcolor%} '
-
-if [[ "$(uname)" != "Darwin" ]]; then
-  # Add additional spaces for Linux
-  PROMPT+="    "
-fi
+%{$fg[$CARETCOLOR]%}❯%{$reset_color%} '
 
 RPROMPT='$(_node_version) $(_git_status) $(git_prompt_info)$(git_prompt_status)'
 

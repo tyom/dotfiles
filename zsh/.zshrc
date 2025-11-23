@@ -13,7 +13,9 @@ source $ZSH/oh-my-zsh.sh
 autoload -Uz compinit; compinit
 
 # npm tab completion
-source <(npm completion)
+if exists npm; then
+  source <(npm completion)
+fi
 
 # Bash completions
 if exists brew; then
@@ -25,8 +27,6 @@ fi
 [ -f ~/.zsh.local ] && source ~/.zsh.local
 
 # scmpuff for easier Git commits
-eval "$(scmpuff init -s --aliases=false)"
-
-export PATH="$HOME/.yarn/bin:$HOME/.config/yarn/global/node_modules/.bin:$PATH"
-export VOLTA_HOME="$HOME/.volta"
-export PATH="$VOLTA_HOME/bin:$PATH"
+if exists scmpuff; then
+  eval "$(scmpuff init -s --aliases=false)"
+fi

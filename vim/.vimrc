@@ -5,8 +5,13 @@ if filereadable(expand("~/.vimrc.bundles"))
   source ~/.vimrc.bundles
 endif
 
+" Color settings
+set t_Co=256
 set background=dark
-colorscheme gruvbox
+if has('termguicolors')
+  set termguicolors
+endif
+silent! colorscheme gruvbox
 
 " General
 """""""""
@@ -72,7 +77,7 @@ if has("autocmd")
   " Treat RSS as XML
   autocmd BufNewFile,BufRead *.rss setfiletype xml
   autocmd BufNewFile,BufRead *.conf setfiletype config
-  
+
   " Delete trailing whitespaces when saving files
   autocmd BufWritePre *.py,*.js,*.html,*.rb :call <SID>StripTrailingWhitespaces()
 endif
@@ -108,7 +113,7 @@ set tw=500      "max text width 500
 " set ai "Auto indent
 " set si "Smart indet
 " set wrap "Wrap lines
- 
+
 " Use TextMate symbols for invisible characters
 " In .vim/colors/yourtheme.vim use NonText and SpecialKey to set eol and tab colours
 set listchars=tab:▸\ ,eol:¬
@@ -156,7 +161,7 @@ map <silent> <leader><cr> :noh<cr>
 nmap <silent><esc><cr> :NERDTreeToggle<cr>
 
 
-" Diffs 
+" Diffs
 """""""
 function! s:DiffWithSaved()
     let filetype=&ft
@@ -186,7 +191,7 @@ map <C-l> <C-w>l
 
 
 
-" Tabularize 
+" Tabularize
 """"""""""""
 
 " Mappings
