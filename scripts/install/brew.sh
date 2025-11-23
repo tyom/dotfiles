@@ -3,15 +3,16 @@
 source shell/utils
 
 packages=(
-  bat       # A cat(1) clone with syntax highlighting and Git integration.
+  bat       # A cat(1) clone with syntax highlighting and Git integration
+  fzf       # Fuzzy finder for files, history, etc.
   git-delta # Syntax highlighter for git and diff output
   scmpuff   # Add numbered shortcuts to common git commands
   tree      # Display directories as trees
   wget      # Internet file retriever
-  httpie    # Command line HTTP client
-  gh        # GitHub command-line tool
-  fx        # Command-line JSON processing tool
-  rg        # Ripgrep - a fast grep alternative
+  # httpie    # Command line HTTP client
+  # gh        # GitHub command-line tool
+  # fx        # Command-line JSON processing tool
+  # ripgrep   # Fast grep alternative (rg command)
 )
 
 if [ "$(which_os)" == "macos" ]; then

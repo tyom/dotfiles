@@ -1,5 +1,5 @@
 # Dotfiles ZSH Configuration
-# This file is sourced from ~/.zshrc
+# This file is sourced from ~/.zshrc BEFORE oh-my-zsh
 
 # Ensure DOTFILES_DIR is set
 if [ -z "$DOTFILES_DIR" ]; then
@@ -7,38 +7,21 @@ if [ -z "$DOTFILES_DIR" ]; then
   return
 fi
 
-# Oh-my-zsh configuration
-export ZSH="$HOME/.oh-my-zsh"
-ZSH_THEME="tyom"
-plugins=(z fzf colored-man-pages docker npm extract gh ripgrep)
-
-# Source shell modules (before oh-my-zsh for PATH setup)
+# Source shell modules first (for PATH and utility functions)
+source $DOTFILES_DIR/shell/utils
 source $DOTFILES_DIR/shell/exports
 source $DOTFILES_DIR/shell/aliases
 source $DOTFILES_DIR/shell/functions
 source $DOTFILES_DIR/shell/config
 
-# Load oh-my-zsh
-source $ZSH/oh-my-zsh.sh
-
-# Completions
-autoload -Uz compinit; compinit
-
-# npm tab completion
-if exists npm; then
-  source <(npm completion)
-fi
-
-# Bash completions
+# Set FZF_BASE for oh-my-zsh fzf plugin (must be set BEFORE oh-my-zsh loads)
 if exists brew; then
-  [ -f $(brew --prefix)/etc/bash_completion ] \
-    && source $(brew --prefix)/etc/bash_completion
+  FZF_BREW_PATH="$(brew --prefix)/opt/fzf"
+  [ -d "$FZF_BREW_PATH" ] && export FZF_BASE="$FZF_BREW_PATH"
 fi
 
-# Source local extra (private) settings specific to the machine
-[ -f ~/.zsh.local ] && source ~/.zsh.local
+# Set plugins array (overrides oh-my-zsh template's plugins=(git))
+# This must be set BEFORE oh-my-zsh sources (which happens after this file)
+plugins=(git z fzf colored-man-pages docker npm extract gh)
 
-# scmpuff for easier Git commits
-if exists scmpuff; then
-  eval "$(scmpuff init -s --aliases=false)"
-fi
+# Note: oh-my-zsh will be sourced by the template ~/.zshrc after this file

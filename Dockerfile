@@ -1,36 +1,25 @@
 # Dotfiles testing environment
-FROM ubuntu:22.04
+FROM homebrew/brew:latest
 
-# Avoid interactive prompts during package installation
-ENV DEBIAN_FRONTEND=noninteractive
 ENV TERM=xterm-256color
 
-RUN \
-  apt-get update -qq && \
-  apt-get upgrade -y && \
-  apt-get install -y \
-    build-essential \
-    locales \
-    curl \
-    file \
-    vim \
-    git \
-    stow \
-    zsh && \
+# Install additional packages via apt (run as root temporarily)
+USER root
+RUN apt-get update -qq && \
+  apt-get install -y stow vim locales zsh && \
   apt-get clean && \
   rm -rf /var/lib/apt/lists/* && \
   localedef -i en_GB -f UTF-8 en_GB.UTF-8
 
-# Setup non-root user
-RUN useradd -m docker && echo "docker:docker" | chpasswd
-USER docker
+# Switch back to linuxbrew user
+USER linuxbrew
 
 # Copy dotfiles and install
-COPY --chown=docker:docker . /home/docker/dotfiles
-WORKDIR /home/docker/dotfiles
+COPY --chown=linuxbrew:linuxbrew . /home/linuxbrew/dotfiles
+WORKDIR /home/linuxbrew/dotfiles
 
 # Run installation (non-interactive mode)
-RUN YES_OVERRIDE=true make install
+RUN export YES_OVERRIDE=true && ./scripts/setup.sh
 
 # Run validation
 RUN ./scripts/validate.sh

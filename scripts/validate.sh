@@ -53,6 +53,48 @@ else
   ERRORS=$((ERRORS + 1))
 fi
 
+# Check theme and configuration in a zsh subprocess
+echo ""
+print_info "Checking zsh theme and configuration..."
+
+ZSH_THEME_CHECK=$(zsh -c 'source ~/.zshrc 2>/dev/null; echo $ZSH_THEME')
+if [ "$ZSH_THEME_CHECK" = "tyom" ]; then
+  print_success "ZSH_THEME is set to 'tyom'"
+else
+  print_error "ZSH_THEME is '$ZSH_THEME_CHECK' (expected 'tyom')"
+  ERRORS=$((ERRORS + 1))
+fi
+
+# Check if FZF_BASE is set
+FZF_BASE_CHECK=$(zsh -c 'source ~/.zshrc 2>/dev/null; echo $FZF_BASE')
+if [ -n "$FZF_BASE_CHECK" ]; then
+  print_success "FZF_BASE is set: $FZF_BASE_CHECK"
+else
+  print_error "FZF_BASE is not set"
+  ERRORS=$((ERRORS + 1))
+fi
+
+# Check if our PATH modifications are loaded
+DOTFILES_BIN_CHECK=$(zsh -c 'source ~/.zshrc 2>/dev/null; echo $PATH' | grep -c "$DOTFILES_DIR/bin")
+if [ "$DOTFILES_BIN_CHECK" -gt 0 ]; then
+  print_success "DOTFILES_DIR/bin is in PATH"
+else
+  print_error "DOTFILES_DIR/bin not in PATH"
+  ERRORS=$((ERRORS + 1))
+fi
+
+# Check if fzf keybindings are loaded (Ctrl+R binding)
+echo ""
+print_info "Checking fzf keybindings..."
+
+FZF_BINDINGS_CHECK=$(zsh -ic 'bindkey | grep "fzf-history-widget"' 2>/dev/null || echo "")
+if [ -n "$FZF_BINDINGS_CHECK" ]; then
+  print_success "fzf keybindings loaded (Ctrl+R)"
+else
+  print_error "fzf keybindings NOT loaded (Ctrl+R won't work)"
+  ERRORS=$((ERRORS + 1))
+fi
+
 # Check bin scripts
 echo ""
 print_info "Checking bin scripts..."
