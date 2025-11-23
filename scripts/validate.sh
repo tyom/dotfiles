@@ -122,7 +122,7 @@ fi
 echo ""
 print_info "Checking bin scripts..."
 
-for script in color-test gb git-author icat ils; do
+for script in color-test gb git-author; do
   check_symlink "$HOME/bin/$script" "bin/$script"
 done
 

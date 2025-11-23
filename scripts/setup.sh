@@ -18,9 +18,6 @@ if [ "$(which_os)" == "macos" ]; then
     'Install brew cask (macOS apps via Homebrew)?' 'y' &&
     # source "$DOTFILES_DIR/scripts/install/brew-cask.sh" ||
     print_info 'Skipping Brew Cask'
-
-  # Disable prompt when quitting iTerm
-  defaults write com.googlecode.iterm2 PromptOnQuit -bool false
 fi
 
 # Add reference to dotfiles directory

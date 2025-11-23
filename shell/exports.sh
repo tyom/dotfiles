@@ -54,7 +54,6 @@ export LANG="en_GB"
 # Don’t clear the screen after quitting a manual page
 export MANPAGER="less -X"
 
-# Set colors to match iTerm2 Terminal Colors
 export TERM=xterm-256color
 
 # LS colors, made with http://geoff.greer.fm/lscolors/

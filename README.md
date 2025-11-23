@@ -86,23 +86,88 @@ Add machine-specific vim configuration here.
 
 ### Homebrew Packages
 
-- `stow` - Symlink management
-- `bat` - Better cat with syntax highlighting
-- `git-delta` - Syntax highlighter for git diffs
-- `scmpuff` - Numbered shortcuts for git commands
-- `tree` - Directory tree viewer
-- `wget` - File downloader
-- `httpie` - HTTP client
-- `gh` - GitHub CLI
-- `n` - Node version manager
-- `fx` - JSON processor
-- `yarn` - JavaScript package manager
+See [scripts/install/brew.sh](./scripts/install/brew.sh) for the list of installed packages.
 
 ### Shell Tools
 
 - Zsh with Oh-my-zsh
 - Custom theme with git status, node version, and conda environment display
 - fzf integration for fuzzy finding
+
+## Installation Flow
+
+The installation process follows this sequence:
+
+```
+install.sh (entry point)
+└── Clone/download repository to ~/.dotfiles
+    └── Execute scripts/setup.sh
+
+setup.sh (orchestrator)
+├── 1. Confirm user wants to proceed
+├── 2. Install Homebrew and packages (optional)
+├── 3. Create ~/.dotfilesrc with DOTFILES_DIR
+├── 4. Set up Zsh and Oh My Zsh (scripts/zsh.sh)
+│   ├── Install zsh if missing
+│   ├── Install Oh My Zsh if missing
+│   ├── Modify ~/.zshrc to source dotfiles
+│   └── Copy zsh/dotfiles.zsh to ~/.dotfiles.zsh
+├── 5. Create symlinks (scripts/stow.sh)
+│   └── Symlink packages: git, vim, oh-my-zsh, bin
+├── 6. Install Vim plugins (scripts/install/vim.sh)
+│   ├── Install vim-plug
+│   └── Run PlugInstall
+└── 7. Validate installation (scripts/validate.sh)
+```
+
+### Zsh Configuration Chain
+
+The shell configuration is loaded in this order:
+
+```
+~/.zshrc
+└── sources ~/.dotfiles.zsh
+    ├── sources zsh/config.zsh (pre-oh-my-zsh setup)
+    │   ├── sources shell/utils.sh
+    │   ├── sources shell/exports.sh
+    │   ├── sources shell/aliases.sh
+    │   ├── sources shell/functions.sh
+    │   └── configures oh-my-zsh plugins
+    └── sources oh-my-zsh.sh
+        └── loads theme and plugins
+```
+
+### Symlinked Files
+
+GNU Stow creates these symlinks in your home directory:
+
+| Package   | Source                            | Target                                      |
+| --------- | --------------------------------- | ------------------------------------------- |
+| git       | `git/.gitconfig`                  | `~/.gitconfig`                              |
+| git       | `git/.gitignore`                  | `~/.gitignore`                              |
+| git       | `git/.gitattributes`              | `~/.gitattributes`                          |
+| vim       | `vim/.vimrc`                      | `~/.vimrc`                                  |
+| vim       | `vim/.vimrc.bundles`              | `~/.vimrc.bundles`                          |
+| oh-my-zsh | `oh-my-zsh/.oh-my-zsh/custom/...` | `~/.oh-my-zsh/custom/themes/tyom.zsh-theme` |
+| bin       | `bin/bin/*`                       | `~/bin/*`                                   |
+
+### Non-Symlinked Files
+
+These files are copied or created (not symlinked):
+
+| File              | Description                              |
+| ----------------- | ---------------------------------------- |
+| `~/.dotfilesrc`   | Sets `DOTFILES_DIR` environment variable |
+| `~/.dotfiles.zsh` | Copied from `zsh/dotfiles.zsh`           |
+
+### Interactive Prompts
+
+During installation, you'll be asked:
+
+1. **Confirmation to proceed** - "Warning: this will modify your dotfiles configuration." [Y/n]
+2. **Homebrew installation** - "Install Homebrew and useful packages?" [Y/n]
+
+To skip prompts (for CI/automation), set `YES_OVERRIDE=true`.
 
 ## Development
 
