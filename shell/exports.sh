@@ -6,6 +6,16 @@ export ZSH=$HOME/.oh-my-zsh
 export VOLTA_HOME="$HOME/.volta"
 export PATH="$VOLTA_HOME/bin:$PATH"
 
+# Bun (if installed via curl)
+if [ -d "$HOME/.bun" ]; then
+  export BUN_INSTALL="$HOME/.bun"
+  export PATH="$BUN_INSTALL/bin:$PATH"
+
+  # bun completions
+  [ -s "$BUN_INSTALL/_bun" ] && source "$BUN_INSTALL/_bun"
+
+fi
+
 # Initialize Homebrew if not already in PATH
 if ! exists brew; then
   # Apple Silicon
