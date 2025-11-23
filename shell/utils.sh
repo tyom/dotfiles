@@ -10,9 +10,14 @@ function continue_or_skip {
 
   print_question "$1 $prompt "
 
-  if $YES_OVERRIDE; then echo && return 0; fi
+  # Handle non-interactive mode (e.g., curl | bash)
+  if $YES_OVERRIDE || [[ ! -t 0 ]]; then
+    echo
+    [[ "$default" == "y" ]] || $YES_OVERRIDE && return 0
+    return 1
+  fi
 
-  read -n 1 yn
+  read -n 1 yn </dev/tty
   echo
 
   # Handle empty input (Enter) with default
@@ -40,10 +45,19 @@ function continue_or_exit {
 
   print_question "$1 Continue? $prompt "
 
-  while true; do
-    if $YES_OVERRIDE; then echo && break; fi
+  # Handle non-interactive mode (e.g., curl | bash)
+  if $YES_OVERRIDE || [[ ! -t 0 ]]; then
+    echo
+    if [[ "$default" == "y" ]] || $YES_OVERRIDE; then
+      return 0
+    else
+      echo "Non-interactive mode requires default=y. Exiting."
+      exit 1
+    fi
+  fi
 
-    read -n 1 yn
+  while true; do
+    read -n 1 yn </dev/tty
     echo
 
     # Handle empty input (Enter) with default
