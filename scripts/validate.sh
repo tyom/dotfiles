@@ -79,13 +79,17 @@ else
   ERRORS=$((ERRORS + 1))
 fi
 
-# Check if FZF_BASE is set
-FZF_BASE_CHECK=$(zsh -c 'source ~/.zshrc 2>/dev/null; echo $FZF_BASE')
-if [ -n "$FZF_BASE_CHECK" ]; then
-  print_success "FZF_BASE is set: $FZF_BASE_CHECK"
+# Check if FZF_BASE is set (only if fzf is installed)
+if command -v fzf >/dev/null 2>&1; then
+  FZF_BASE_CHECK=$(zsh -c 'source ~/.zshrc 2>/dev/null; echo $FZF_BASE')
+  if [ -n "$FZF_BASE_CHECK" ]; then
+    print_success "FZF_BASE is set: $FZF_BASE_CHECK"
+  else
+    print_error "FZF_BASE is not set"
+    ERRORS=$((ERRORS + 1))
+  fi
 else
-  print_error "FZF_BASE is not set"
-  ERRORS=$((ERRORS + 1))
+  print_info "fzf not installed, skipping FZF_BASE check"
 fi
 
 # Check if our PATH modifications are loaded
@@ -97,16 +101,21 @@ else
   ERRORS=$((ERRORS + 1))
 fi
 
-# Check if fzf keybindings are loaded (Ctrl+R binding)
-echo ""
-print_info "Checking fzf keybindings..."
+# Check if fzf keybindings are loaded (Ctrl+R binding) - only if fzf is installed
+if command -v fzf >/dev/null 2>&1; then
+  echo ""
+  print_info "Checking fzf keybindings..."
 
-FZF_BINDINGS_CHECK=$(zsh -ic 'bindkey | grep "fzf-history-widget"' 2>/dev/null || echo "")
-if [ -n "$FZF_BINDINGS_CHECK" ]; then
-  print_success "fzf keybindings loaded (Ctrl+R)"
+  FZF_BINDINGS_CHECK=$(zsh -ic 'bindkey | grep "fzf-history-widget"' 2>/dev/null || echo "")
+  if [ -n "$FZF_BINDINGS_CHECK" ]; then
+    print_success "fzf keybindings loaded (Ctrl+R)"
+  else
+    print_error "fzf keybindings NOT loaded (Ctrl+R won't work)"
+    ERRORS=$((ERRORS + 1))
+  fi
 else
-  print_error "fzf keybindings NOT loaded (Ctrl+R won't work)"
-  ERRORS=$((ERRORS + 1))
+  echo ""
+  print_info "fzf not installed, skipping keybindings check"
 fi
 
 # Check bin scripts

@@ -1,37 +1,37 @@
 #!/usr/bin/env node
 
-const { execSync } = require('child_process');
+const { execSync } = require("child_process");
 
 const ARGS = process.argv.slice(2);
 
 const COLOURS = {
-  reset: '\x1b[0m',
-  bright: '\x1b[1m',
-  dim: '\x1b[2m',
-  underscore: '\x1b[4m',
-  blink: '\x1b[5m',
-  reverse: '\x1b[7m',
-  hidden: '\x1b[8m',
+  reset: "\x1b[0m",
+  bright: "\x1b[1m",
+  dim: "\x1b[2m",
+  underscore: "\x1b[4m",
+  blink: "\x1b[5m",
+  reverse: "\x1b[7m",
+  hidden: "\x1b[8m",
 
-  black: '\x1b[30m',
-  gray: '\x1b[90m',
-  lightGray: '\x1b[38;5;246m',
-  red: '\x1b[31m',
-  green: '\x1b[32m',
-  yellow: '\x1b[33m',
-  blue: '\x1b[34m',
-  magenta: '\x1b[35m',
-  cyan: '\x1b[36m',
-  white: '\x1b[37m',
+  black: "\x1b[30m",
+  gray: "\x1b[90m",
+  lightGray: "\x1b[38;5;246m",
+  red: "\x1b[31m",
+  green: "\x1b[32m",
+  yellow: "\x1b[33m",
+  blue: "\x1b[34m",
+  magenta: "\x1b[35m",
+  cyan: "\x1b[36m",
+  white: "\x1b[37m",
 
-  bgBlack: '\x1b[40m',
-  bgRed: '\x1b[41m',
-  bgGreen: '\x1b[42m',
-  bgYellow: '\x1b[43m',
-  bgBlue: '\x1b[44m',
-  bgMagenta: '\x1b[45m',
-  bgCyan: '\x1b[46m',
-  bgWhite: '\x1b[47m',
+  bgBlack: "\x1b[40m",
+  bgRed: "\x1b[41m",
+  bgGreen: "\x1b[42m",
+  bgYellow: "\x1b[43m",
+  bgBlue: "\x1b[44m",
+  bgMagenta: "\x1b[45m",
+  bgCyan: "\x1b[46m",
+  bgWhite: "\x1b[47m",
 };
 
 const truncate = (input, length) =>
@@ -39,7 +39,7 @@ const truncate = (input, length) =>
 
 const c = new Proxy(COLOURS, {
   get(obj, prop) {
-    return function(string = '', padValue = 0, truncateCount = 20) {
+    return function (string = "", padValue = 0, truncateCount = 20) {
       const definedColour = obj[prop];
       if (!definedColour) return string;
       return `${definedColour}${truncate(string, truncateCount + 2).padEnd(
@@ -52,7 +52,7 @@ const c = new Proxy(COLOURS, {
 let gitBranches;
 
 try {
-  gitBranches = execSync(`git branch ${ARGS.join(' ')} | cut -c 3-`).toString();
+  gitBranches = execSync(`git branch ${ARGS.join(" ")} | cut -c 3-`).toString();
 } catch (error) {
   console.log(error.message);
 }
@@ -67,21 +67,21 @@ const currentBranch = execSync(`git rev-parse --abbrev-ref HEAD`)
 
 const branchesArray = gitBranches
   .trim()
-  .split('\n')
-  .filter(b => !b.includes(' -> ') && !b.includes('HEAD detached at'));
+  .split("\n")
+  .filter((b) => !b.includes(" -> ") && !b.includes("HEAD detached at"));
 
 const branchesArrayWithLogs = branchesArray
-  .map(name =>
+  .map((name) =>
     execSync(
       `git log --no-walk --pretty=format:"%ct || %cr || %an || %h || %S || %s" '${name.trim()}' --`
     ).toString()
   )
-  .map(l => l.split(' || '));
+  .map((l) => l.split(" || "));
 
 const countLargestStringInSummaries = (arrays, maxCharCount = 100) => {
   let summaryItems = [];
   let summaryMaxCounts = Array(arrays[0].length).fill(0);
-  arrays.forEach(array => {
+  arrays.forEach((array) => {
     array.forEach((s, sectionIdx) => {
       summaryMaxCounts[sectionIdx] = Math.min(
         Math.max(s.length, summaryMaxCounts[sectionIdx]),
@@ -96,15 +96,10 @@ const countLargestStringInSummaries = (arrays, maxCharCount = 100) => {
 // Sort by commit timestamp and remove it
 const branchSummariesArray = branchesArrayWithLogs
   .sort((a, b) => new Date(a[0] * 1000) - new Date(b[0] * 1000))
-  .map(item => item.slice(1));
+  .map((item) => item.slice(1));
 
-const [
-  longestTimeAgo,
-  longestAuthorName,
-  ,
-  longestBranchName,
-  longestMessage,
-] = countLargestStringInSummaries(branchSummariesArray);
+const [longestTimeAgo, longestAuthorName, , longestBranchName, longestMessage] =
+  countLargestStringInSummaries(branchSummariesArray);
 
 const output = branchSummariesArray.map(
   ([timeAgo, authorName, sha, branchName, message]) => {
@@ -123,13 +118,13 @@ const output = branchSummariesArray.map(
       c.gray(timeAgo, longestTimeAgo, longestAuthorName),
       c.white(authorName, longestAuthorName, longestAuthorName),
       !isCurrentBranch && isPresent
-        ? c.green('✓')
-        : (isCurrentBranch && '➜') || ' ',
+        ? c.green("✓")
+        : (isCurrentBranch && "➜") || " ",
       currentSha ? c.bright(sha) : c.yellow(sha),
       c.green(branchName, 0, longestBranchName),
       c.lightGray(message, 0, longestMessage),
-    ].join(' ');
+    ].join(" ");
   }
 );
 
-console.log(output.join('\n'));
+console.log(output.join("\n"));
