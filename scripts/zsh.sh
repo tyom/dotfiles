@@ -40,21 +40,24 @@ DOTFILES_SOURCE_LINE='source "$HOME/.dotfiles.zsh"'
 if grep -qF "$DOTFILES_SOURCE_LINE" "$HOME/.zshrc" 2>/dev/null; then
   print_info "Dotfiles already sourced in .zshrc"
 else
-  # Check if .zshrc is default oh-my-zsh (sources oh-my-zsh.sh and has ZSH_THEME)
-  if grep -q 'source.*oh-my-zsh.sh' "$HOME/.zshrc" 2>/dev/null &&
-    grep -q 'ZSH_THEME=' "$HOME/.zshrc" 2>/dev/null; then
-    # Replace default oh-my-zsh .zshrc (our dotfiles.zsh handles everything)
-    echo "$DOTFILES_SOURCE_LINE" >"$HOME/.zshrc"
-    print_success "Replaced default oh-my-zsh .zshrc"
-  elif [[ -f "$HOME/.zshrc" ]]; then
-    # Append to existing custom .zshrc
+  # Always append to existing .zshrc or create if it doesn't exist
+  if [[ -f "$HOME/.zshrc" ]]; then
+    # Append to existing .zshrc (never overwrite)
     echo "" >>"$HOME/.zshrc"
     echo "# Dotfiles" >>"$HOME/.zshrc"
     echo "$DOTFILES_SOURCE_LINE" >>"$HOME/.zshrc"
     print_success "Added dotfiles source line to .zshrc"
   else
+    # Create new .zshrc if it doesn't exist
     echo "$DOTFILES_SOURCE_LINE" >"$HOME/.zshrc"
     print_success "Created .zshrc"
+  fi
+
+  # If user needs manual action, provide instructions
+  if [[ ! -w "$HOME/.zshrc" ]]; then
+    print_error "Cannot write to .zshrc. Please manually add the following line to your .zshrc:"
+    print_info "$DOTFILES_SOURCE_LINE"
+    exit 1
   fi
 fi
 
