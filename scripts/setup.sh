@@ -16,7 +16,7 @@ continue_or_skip \
 if [ "$(which_os)" == "macos" ]; then
   continue_or_skip \
     'Install brew cask (macOS apps via Homebrew)?' 'y' &&
-    # source "$DOTFILES_DIR/scripts/install/brew-cask.sh" ||
+    source "$DOTFILES_DIR/scripts/install/brew-cask.sh" ||
     print_info 'Skipping Brew Cask'
 fi
 
