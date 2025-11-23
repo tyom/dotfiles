@@ -6,7 +6,7 @@ source shell/utils.sh
 echo -e "Installing dotfiles for $(which_os)…"
 
 continue_or_exit \
-  'Warning: this will modify your dotfiles configuration.' 'y'
+  'This will install dotfiles for your system and update your .zshrc file.' 'y'
 
 continue_or_skip \
   'Install Homebrew and useful packages? This may take a while.' 'y' &&
@@ -33,7 +33,7 @@ print_step 'Installing Vim plugins' &&
   source "$DOTFILES_DIR/scripts/install/vim.sh"
 
 print_step 'Validating installation'
-source "$DOTFILES_DIR/scripts/validate.sh"
+"$DOTFILES_DIR/scripts/validate.sh"
 
 echo ""
 print_success 'dotfiles are installed! Start a new shell session.'

@@ -12,7 +12,7 @@ alias -- -='cd -' # change to last directory
 alias g="git"
 alias gs="scmpuff_status"
 alias d="git diff --color-words"
-alias gl="git log --pretty=format:'%C(yellow)%h %C(59)%<(15)%cr %C(white)%an → %C(245)%s %C(green) %d'"
+alias gl="git log --color=always --pretty=format:'%C(yellow)%h %C(59)%<(15)%cr %C(white)%an → %C(245)%s%C(green)%d%C(auto)' | less -R"
 alias glg="gl --graph"
 alias ga="git add"
 alias gaa="git add --all"

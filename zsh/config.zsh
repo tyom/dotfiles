@@ -13,6 +13,9 @@ source $DOTFILES_DIR/shell/exports.sh
 source $DOTFILES_DIR/shell/aliases.sh
 source $DOTFILES_DIR/shell/functions.sh
 
+# Disable partial line marker (%) for commands without trailing newline
+PROMPT_EOL_MARK=''
+
 # History
 HISTFILE=~/.zsh_history
 HISTSIZE=10000
@@ -41,7 +44,8 @@ if exists brew; then
 fi
 
 # Set plugins array (must be set BEFORE oh-my-zsh loads)
-plugins=(git z colored-man-pages docker npm extract gh)
+# Note: 'git' plugin excluded to use custom aliases from shell/aliases.sh
+plugins=(z colored-man-pages docker npm extract gh)
 
 # Only add fzf plugin if fzf is installed
 [ -n "$FZF_BASE" ] && plugins+=(fzf)
