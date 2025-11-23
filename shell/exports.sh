@@ -1,10 +1,20 @@
-source $DOTFILES_DIR/scripts/vars
+source $DOTFILES_DIR/scripts/vars.sh
 source $DOTFILES_DIR/shell/utils.sh
 
 export ZSH=$HOME/.oh-my-zsh
 
 export VOLTA_HOME="$HOME/.volta"
 export PATH="$VOLTA_HOME/bin:$PATH"
+
+# Initialize Homebrew if not already in PATH
+if ! exists brew; then
+  # Apple Silicon
+  [ -x /opt/homebrew/bin/brew ] && eval "$(/opt/homebrew/bin/brew shellenv)"
+  # Intel Mac
+  [ -x /usr/local/bin/brew ] && eval "$(/usr/local/bin/brew shellenv)"
+  # Linux
+  [ -x "$HOME/.linuxbrew/bin/brew" ] && eval "$($HOME/.linuxbrew/bin/brew shellenv)"
+fi
 
 # Directories to be prepended to $PATH
 declare -a dirs_to_prepend
@@ -16,7 +26,6 @@ dirs_to_prepend=(
   "$HOME/bin"
   "$HOME/.yarn/bin"
   "$HOME/.config/yarn/global/node_modules/.bin"
-  "$HOME/.linuxbrew/bin"
 )
 
 if exists brew; then

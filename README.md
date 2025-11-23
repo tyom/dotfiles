@@ -22,7 +22,17 @@ make install
 ### Remote Installation
 
 ```bash
-sh -c "$(curl -fsSL https://raw.githubusercontent.com/tyom/dotfiles/master/install.sh)"
+curl -fsSL https://raw.githubusercontent.com/tyom/dotfiles/master/install.sh | bash
+```
+
+You can customise the installation:
+
+```bash
+# Install to a different directory
+DOTFILES_DIR=~/my-dotfiles curl -fsSL ... | bash
+
+# Install from a different branch
+DOTFILES_BRANCH=next curl -fsSL ... | bash
 ```
 
 ### Uninstall
@@ -54,9 +64,9 @@ See [STRUCTURE.md](./STRUCTURE.md) for detailed documentation.
 
 These dotfiles are meant to be read-only. Additional configuration should be added to local dotfiles:
 
-### `~/.zsh.local`
+### `~/.zshrc.bak`
 
-Add machine-specific shell configuration here.
+Your original `.zshrc` is automatically backed up during installation and sourced at the end of the new `.zshrc`. Machine-specific shell configuration is preserved here.
 
 ### `~/.gitconfig.local`
 
@@ -104,19 +114,33 @@ To configure iTerm settings set "Load preferences from a custom folder or URL" t
 
 ## Development
 
-To test dotfiles in a sandbox using Docker:
+Test dotfiles in a Docker sandbox:
 
 ```bash
-make test
-```
+# Run setup and validation
+make docker-test
 
-This builds and runs a Docker container with the dotfiles installed, then validates the installation.
+# Interactive shell (persistent state)
+make docker-shell
+
+# Run setup and drop into shell
+make docker-setup
+
+# Clean up persistent container
+make docker-clean
+```
 
 ## Makefile Commands
 
-| Command | Description |
-|---------|-------------|
-| `make install` | Run full installation |
-| `make uninstall` | Remove all symlinks |
-| `make brew` | Install Homebrew packages |
-| `make test` | Test in Docker container |
+Run `make` to see all available commands:
+
+| Command             | Description                        |
+| ------------------- | ---------------------------------- |
+| `make install`      | Install dotfiles on local machine  |
+| `make uninstall`    | Remove dotfiles symlinks           |
+| `make brew`         | Install Homebrew packages          |
+| `make docker-build` | Build Docker test image            |
+| `make docker-test`  | Run setup and validation in Docker |
+| `make docker-shell` | Start persistent shell in Docker   |
+| `make docker-setup` | Run setup and drop into shell      |
+| `make docker-clean` | Remove persistent Docker container |

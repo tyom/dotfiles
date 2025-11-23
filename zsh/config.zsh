@@ -22,6 +22,9 @@ fi
 
 # Set plugins array (overrides oh-my-zsh template's plugins=(git))
 # This must be set BEFORE oh-my-zsh sources (which happens after this file)
-plugins=(git z fzf colored-man-pages docker npm extract gh)
+plugins=(git z colored-man-pages docker npm extract gh)
+
+# Only add fzf plugin if fzf is installed
+[ -n "$FZF_BASE" ] && plugins+=(fzf)
 
 # Note: oh-my-zsh will be sourced by the template ~/.zshrc after this file

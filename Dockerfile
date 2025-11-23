@@ -14,15 +14,13 @@ RUN apt-get update -qq && \
 # Switch back to linuxbrew user
 USER linuxbrew
 
-# Copy dotfiles and install
+# Copy dotfiles
 COPY --chown=linuxbrew:linuxbrew . /home/linuxbrew/dotfiles
 WORKDIR /home/linuxbrew/dotfiles
 
-# Run installation (non-interactive mode)
-RUN export YES_OVERRIDE=true && ./scripts/setup.sh
+# Make entrypoint executable
+RUN chmod +x scripts/docker-entrypoint.sh
 
-# Run validation
-RUN ./scripts/validate.sh
-
-# Default to zsh shell
-CMD ["zsh"]
+# Flexible entrypoint: setup, validate, test, shell, or custom command
+ENTRYPOINT ["./scripts/docker-entrypoint.sh"]
+CMD ["shell"]

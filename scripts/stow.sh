@@ -3,7 +3,7 @@
 # Create symlinks using GNU Stow
 # Each package directory mirrors the home directory structure
 
-source "$DOTFILES_DIR/scripts/vars"
+source "$DOTFILES_DIR/scripts/vars.sh"
 source "$DOTFILES_DIR/shell/utils.sh"
 
 # Ensure ~/bin exists for the bin package

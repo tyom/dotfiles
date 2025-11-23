@@ -3,7 +3,7 @@
 # Remove symlinks using GNU Stow
 # This cleanly removes all dotfile symlinks
 
-source "$DOTFILES_DIR/scripts/vars"
+source "$DOTFILES_DIR/scripts/vars.sh"
 source "$DOTFILES_DIR/shell/utils.sh"
 
 # Use system stow on Linux (Homebrew stow has Perl dependency issues)

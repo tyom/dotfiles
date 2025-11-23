@@ -35,14 +35,28 @@ check_symlink "$HOME/.vimrc.bundles" ".vimrc.bundles"
 check_symlink "$HOME/.oh-my-zsh/custom/themes/tyom.zsh-theme" "zsh theme"
 check_symlink "$HOME/.dotfilesrc" ".dotfilesrc"
 
-# Check zsh config is sourced (not symlinked anymore)
+# Check zsh configuration
 echo ""
 print_info "Checking zsh configuration..."
 
-if grep -qF "source \$DOTFILES_DIR/zsh/config.zsh" "$HOME/.zshrc" 2>/dev/null; then
+if [ -f "$HOME/.zshrc" ]; then
+  print_success ".zshrc exists"
+else
+  print_error ".zshrc missing"
+  ERRORS=$((ERRORS + 1))
+fi
+
+if grep -qF 'source "$DOTFILES_DIR/zsh/config.zsh"' "$HOME/.zshrc" 2>/dev/null; then
   print_success "zsh config sourced in .zshrc"
 else
   print_error "zsh config not sourced in .zshrc"
+  ERRORS=$((ERRORS + 1))
+fi
+
+if grep -qF 'source "$ZSH/oh-my-zsh.sh"' "$HOME/.zshrc" 2>/dev/null; then
+  print_success "oh-my-zsh sourced in .zshrc"
+else
+  print_error "oh-my-zsh not sourced in .zshrc"
   ERRORS=$((ERRORS + 1))
 fi
 
