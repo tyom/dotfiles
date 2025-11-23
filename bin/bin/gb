@@ -1,130 +1,101 @@
-#!/usr/bin/env node
+#!/usr/bin/env bash
 
-const { execSync } = require("child_process");
+# Git branches with formatted output, sorted by commit date
+# Usage: gb [git-branch-args...]
 
-const ARGS = process.argv.slice(2);
+set -e
 
-const COLOURS = {
-  reset: "\x1b[0m",
-  bright: "\x1b[1m",
-  dim: "\x1b[2m",
-  underscore: "\x1b[4m",
-  blink: "\x1b[5m",
-  reverse: "\x1b[7m",
-  hidden: "\x1b[8m",
+# Colors (using $'...' syntax for proper escape interpretation)
+RESET=$'\033[0m'
+BRIGHT=$'\033[1m'
+GRAY=$'\033[90m'
+LIGHT_GRAY=$'\033[38;5;246m'
+GREEN=$'\033[32m'
+YELLOW=$'\033[33m'
+WHITE=$'\033[37m'
 
-  black: "\x1b[30m",
-  gray: "\x1b[90m",
-  lightGray: "\x1b[38;5;246m",
-  red: "\x1b[31m",
-  green: "\x1b[32m",
-  yellow: "\x1b[33m",
-  blue: "\x1b[34m",
-  magenta: "\x1b[35m",
-  cyan: "\x1b[36m",
-  white: "\x1b[37m",
-
-  bgBlack: "\x1b[40m",
-  bgRed: "\x1b[41m",
-  bgGreen: "\x1b[42m",
-  bgYellow: "\x1b[43m",
-  bgBlue: "\x1b[44m",
-  bgMagenta: "\x1b[45m",
-  bgCyan: "\x1b[46m",
-  bgWhite: "\x1b[47m",
-};
-
-const truncate = (input, length) =>
-  input.length > length ? `${input.substring(0, length)}…` : input;
-
-const c = new Proxy(COLOURS, {
-  get(obj, prop) {
-    return function (string = "", padValue = 0, truncateCount = 20) {
-      const definedColour = obj[prop];
-      if (!definedColour) return string;
-      return `${definedColour}${truncate(string, truncateCount + 2).padEnd(
-        padValue
-      )}${COLOURS.reset}`;
-    };
-  },
-});
-
-let gitBranches;
-
-try {
-  gitBranches = execSync(`git branch ${ARGS.join(" ")} | cut -c 3-`).toString();
-} catch (error) {
-  console.log(error.message);
+truncate() {
+  local str="$1"
+  local max="$2"
+  if [[ ${#str} -gt $max ]]; then
+    printf '%s' "${str:0:$max}…"
+  else
+    printf '%s' "$str"
+  fi
 }
 
-if (!gitBranches) {
-  return;
-}
+# Get branches, pass through any arguments
+branches=$(git branch "$@" 2>/dev/null | cut -c 3- | grep -v ' -> ' | grep -v 'HEAD detached at') || exit 0
 
-const currentBranch = execSync(`git rev-parse --abbrev-ref HEAD`)
-  .toString()
-  .trim();
+if [[ -z "$branches" ]]; then
+  exit 0
+fi
 
-const branchesArray = gitBranches
-  .trim()
-  .split("\n")
-  .filter((b) => !b.includes(" -> ") && !b.includes("HEAD detached at"));
+current_branch=$(git rev-parse --abbrev-ref HEAD 2>/dev/null)
 
-const branchesArrayWithLogs = branchesArray
-  .map((name) =>
-    execSync(
-      `git log --no-walk --pretty=format:"%ct || %cr || %an || %h || %S || %s" '${name.trim()}' --`
-    ).toString()
-  )
-  .map((l) => l.split(" || "));
+# Collect branch info with timestamps for sorting
+declare -a branch_data=()
 
-const countLargestStringInSummaries = (arrays, maxCharCount = 100) => {
-  let summaryItems = [];
-  let summaryMaxCounts = Array(arrays[0].length).fill(0);
-  arrays.forEach((array) => {
-    array.forEach((s, sectionIdx) => {
-      summaryMaxCounts[sectionIdx] = Math.min(
-        Math.max(s.length, summaryMaxCounts[sectionIdx]),
-        maxCharCount
-      );
-      summaryItems[sectionIdx] = summaryMaxCounts[sectionIdx];
-    });
-  });
-  return summaryItems;
-};
+while IFS= read -r branch; do
+  branch=$(echo "$branch" | xargs) # trim whitespace
+  [[ -z "$branch" ]] && continue
 
-// Sort by commit timestamp and remove it
-const branchSummariesArray = branchesArrayWithLogs
-  .sort((a, b) => new Date(a[0] * 1000) - new Date(b[0] * 1000))
-  .map((item) => item.slice(1));
+  # Get commit info: timestamp, relative time, author, sha, message
+  info=$(git log --no-walk --pretty=format:"%ct|%cr|%an|%h|%s" "$branch" -- 2>/dev/null) || continue
+  [[ -z "$info" ]] && continue
 
-const [longestTimeAgo, longestAuthorName, , longestBranchName, longestMessage] =
-  countLargestStringInSummaries(branchSummariesArray);
+  branch_data+=("$info|$branch")
+done <<<"$branches"
 
-const output = branchSummariesArray.map(
-  ([timeAgo, authorName, sha, branchName, message]) => {
-    let isPresent = false;
-    const isCurrentBranch = currentBranch === branchName;
+# Sort by timestamp (first field)
+sorted_data=$(printf '%s\n' "${branch_data[@]}" | sort -t'|' -k1 -n)
 
-    try {
-      isPresent = execSync(`git merge-base HEAD ${sha}`)
-        .toString()
-        .includes(sha);
-    } catch {}
+# Calculate max branch name length
+max_branch_len=0
+while IFS='|' read -r _ _ _ _ _ branch; do
+  [[ ${#branch} -gt $max_branch_len ]] && max_branch_len=${#branch}
+done <<<"$sorted_data"
 
-    const currentSha = isPresent && isCurrentBranch;
+# Output
+while IFS='|' read -r timestamp timeago author sha message branch; do
+  [[ -z "$branch" ]] && continue
 
-    return [
-      c.gray(timeAgo, longestTimeAgo, longestAuthorName),
-      c.white(authorName, longestAuthorName, longestAuthorName),
-      !isCurrentBranch && isPresent
-        ? c.green("✓")
-        : (isCurrentBranch && "➜") || " ",
-      currentSha ? c.bright(sha) : c.yellow(sha),
-      c.green(branchName, 0, longestBranchName),
-      c.lightGray(message, 0, longestMessage),
-    ].join(" ");
-  }
-);
+  # Check if commit is in current HEAD
+  is_present=""
+  if git merge-base --is-ancestor "$sha" HEAD 2>/dev/null; then
+    is_present="1"
+  fi
 
-console.log(output.join("\n"));
+  is_current=""
+  [[ "$branch" == "$current_branch" ]] && is_current="1"
+
+  # Determine marker
+  if [[ -n "$is_current" ]]; then
+    marker="→"
+  elif [[ -n "$is_present" ]]; then
+    marker="${GREEN}✓${RESET}"
+  else
+    marker=" "
+  fi
+
+  # Determine SHA color
+  if [[ -n "$is_present" && -n "$is_current" ]]; then
+    sha_color="$BRIGHT"
+  else
+    sha_color="$YELLOW"
+  fi
+
+  # Truncate fields
+  timeago_trunc=$(truncate "$timeago" 20)
+  author_trunc=$(truncate "$author" 20)
+  message_trunc=$(truncate "$message" 60)
+
+  # Use %b to interpret escape sequences in format string
+  printf '%b%-20s%b  %b%-20s%b  %s  %b%s%b  %b%-*s%b  %b%s%b\n' \
+    "$GRAY" "$timeago_trunc" "$RESET" \
+    "$WHITE" "$author_trunc" "$RESET" \
+    "$marker" \
+    "$sha_color" "$sha" "$RESET" \
+    "$GREEN" "$max_branch_len" "$branch" "$RESET" \
+    "$LIGHT_GRAY" "$message_trunc" "$RESET"
+done <<<"$sorted_data"
