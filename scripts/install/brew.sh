@@ -20,6 +20,7 @@ if [ "$(which_os)" == "macos" ]; then
     stow # GNU Stow for symlink management (on Linux, use system stow via apt)
     coreutils
     findutils
+    tyom/kcm/kcm # Keychain-based secrets manager (tap: tyom/kcm)
   )
 fi
 
