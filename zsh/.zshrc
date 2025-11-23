@@ -2,7 +2,7 @@
   && source ~/.dotfilesrc \
   || echo "\e[0;31m ✖ ~/.dotfilesrc file which exports \$DOTFILES_DIR path is missing\e[0m\n"
 
-plugins=(z fzf)
+plugins=(z fzf colored-man-pages docker npm extract gh ripgrep)
 
 source $DOTFILES_DIR/shell/exports
 source $DOTFILES_DIR/shell/aliases
