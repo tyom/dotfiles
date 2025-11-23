@@ -44,12 +44,12 @@ function which-port {
 
 # show top 10 most used shell commands
 function top_commands {
-    history | awk '{ a[$2]++ } END { for(i in a ) { print a[i] " " i } }' | sort -rn | head
+  history | awk '{ a[$2]++ } END { for(i in a ) { print a[i] " " i } }' | sort -rn | head
 }
 
 # Show top n biggest files
 function largest_files {
-    du -k $@ | sort -rn | head -n 20 | perl -ne '($s,$f)=split(/\t/,$_,2);for(qw(K M G T)){if($s<1024){$x=($s<10?"%.1f":"%3d");printf("$x$_\t%s",$s,$f);last};$s/=1024}'
+  du -k $@ | sort -rn | head -n 20 | perl -ne '($s,$f)=split(/\t/,$_,2);for(qw(K M G T)){if($s<1024){$x=($s<10?"%.1f":"%3d");printf("$x$_\t%s",$s,$f);last};$s/=1024}'
 }
 
 # find shorthand
@@ -58,23 +58,23 @@ function f {
 }
 
 # cd into whatever is the forefront Finder window.
-function cdf {  # short for cdfinder
-  cd "`osascript -e 'tell app "Finder" to POSIX path of (insertion location as alias)'`"
+function cdf { # short for cdfinder
+  cd "$(osascript -e 'tell app "Finder" to POSIX path of (insertion location as alias)')"
 }
 
 # animated gifs from any video
 # from Alex Sexton gist.github.com/SlexAxton/4989674
 function gifify {
   if [[ -n "$1" ]]; then
-  if [[ $2 == '--good' ]]; then
-    ffmpeg -i "$1" -r 10 -vcodec png out-static-%05d.png
-    time convert -verbose +dither -layers Optimize -resize 900x900\> out-static*.png  GIF:- | gifsicle --colors 128 --delay=5 --loop --optimize=3 --multifile - > "$1.gif"
-    rm out-static*.png
+    if [[ $2 == '--good' ]]; then
+      ffmpeg -i "$1" -r 10 -vcodec png out-static-%05d.png
+      time convert -verbose +dither -layers Optimize -resize 900x900\> out-static*.png GIF:- | gifsicle --colors 128 --delay=5 --loop --optimize=3 --multifile - >"$1.gif"
+      rm out-static*.png
+    else
+      ffmpeg -i "$1" -s 600x400 -pix_fmt rgb24 -r 10 -f gif - | gifsicle --optimize=3 --delay=3 >"$1.gif"
+    fi
   else
-    ffmpeg -i "$1" -s 600x400 -pix_fmt rgb24 -r 10 -f gif - | gifsicle --optimize=3 --delay=3 > "$1.gif"
-  fi
-  else
-  echo "proper usage: gifify <input_movie.mov>. You DO need to include extension."
+    echo "proper usage: gifify <input_movie.mov>. You DO need to include extension."
   fi
 }
 
@@ -89,6 +89,6 @@ function webmify {
 fcs() {
   local commits commit
   commits=$(git log --color=always --pretty=oneline --abbrev-commit --reverse) &&
-  commit=$(echo "$commits" | fzf --tac +s +m -e --ansi --reverse) &&
-  echo -n $(echo "$commit" | sed "s/ .*//")
+    commit=$(echo "$commits" | fzf --tac +s +m -e --ansi --reverse) &&
+    echo -n $(echo "$commit" | sed "s/ .*//")
 }

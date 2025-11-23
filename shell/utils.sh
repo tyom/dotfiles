@@ -20,15 +20,15 @@ function continue_or_exit {
 
     read -n 1 yn
     case $yn in
-      [Yy]*) echo && break;;
-      [Nn]*) echo && exit;;
-      *) echo " Please answer yes or no."
+    [Yy]*) echo && break ;;
+    [Nn]*) echo && exit ;;
+    *) echo " Please answer yes or no." ;;
     esac
   done
 }
 
 function execute {
-  $1 &> /dev/null
+  $1 &>/dev/null
   print_result $? "${2:-$1}"
 }
 
@@ -57,12 +57,12 @@ function print_error {
 }
 
 function print_result {
-  [ $1 -eq 0 ] \
-    && print_success "$2" \
-    || print_error "$2"
+  [ $1 -eq 0 ] &&
+    print_success "$2" ||
+    print_error "$2"
 
-  [ "$3" == "true" ] && [ $1 -ne 0 ] \
-    && exit
+  [ "$3" == "true" ] && [ $1 -ne 0 ] &&
+    exit
 }
 
 function which_os {
@@ -83,6 +83,6 @@ function which_os {
   printf $os
 }
 
-exists () {
+exists() {
   command -v $1 >/dev/null 2>&1
 }

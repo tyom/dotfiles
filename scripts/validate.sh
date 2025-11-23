@@ -6,7 +6,7 @@
 set -e
 
 DOTFILES_DIR="$(cd "$(dirname "$0")/.." && pwd)"
-source "$DOTFILES_DIR/shell/utils"
+source "$DOTFILES_DIR/shell/utils.sh"
 
 ERRORS=0
 
@@ -107,7 +107,7 @@ done
 echo ""
 print_info "Checking shell config files..."
 
-for config in exports aliases functions config utils; do
+for config in exports.sh aliases.sh functions.sh config.sh utils.sh; do
   if [ -f "$DOTFILES_DIR/shell/$config" ]; then
     print_success "shell/$config exists"
   else

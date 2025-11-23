@@ -8,11 +8,11 @@ if [ -z "$DOTFILES_DIR" ]; then
 fi
 
 # Source shell modules first (for PATH and utility functions)
-source $DOTFILES_DIR/shell/utils
-source $DOTFILES_DIR/shell/exports
-source $DOTFILES_DIR/shell/aliases
-source $DOTFILES_DIR/shell/functions
-source $DOTFILES_DIR/shell/config
+source $DOTFILES_DIR/shell/utils.sh
+source $DOTFILES_DIR/shell/exports.sh
+source $DOTFILES_DIR/shell/aliases.sh
+source $DOTFILES_DIR/shell/functions.sh
+source $DOTFILES_DIR/shell/config.sh
 
 # Set FZF_BASE for oh-my-zsh fzf plugin (must be set BEFORE oh-my-zsh loads)
 if exists brew; then

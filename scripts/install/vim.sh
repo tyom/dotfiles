@@ -1,6 +1,6 @@
 #!/bin/bash
 
-source shell/utils
+source shell/utils.sh
 
 # Install vim-plug plugin manager
 print_step 'Installing vim-plug'

@@ -1,5 +1,5 @@
 source $DOTFILES_DIR/scripts/vars
-source $DOTFILES_DIR/shell/utils
+source $DOTFILES_DIR/shell/utils.sh
 
 export ZSH=$HOME/.oh-my-zsh
 
@@ -23,7 +23,7 @@ if exists brew; then
   dirs_to_prepend+=(
     "$(brew --prefix ruby)/bin"
     "$(brew --prefix coreutils)/libexec/gnubin" # Add brew-installed GNU core utilities bin
-    "$(brew --prefix)/share/npm/bin" # Add npm-installed package bin
+    "$(brew --prefix)/share/npm/bin"            # Add npm-installed package bin
   )
 fi
 

@@ -1,12 +1,12 @@
-alias l='ls'           # default
-alias l.='ls -a'       # default + hidden
-alias ll='ls -l'       # vertical
-alias ll.='ls -al'     # vertical + hidden
-alias lls='ls -lSh .'  # sort by size
+alias l='ls'          # default
+alias l.='ls -a'      # default + hidden
+alias ll='ls -l'      # vertical
+alias ll.='ls -al'    # vertical + hidden
+alias lls='ls -lSh .' # sort by size
 
 # change directory
-alias ..='cd ..'       # up
-alias -- -='cd -'       # change to last directory
+alias ..='cd ..'  # up
+alias -- -='cd -' # change to last directory
 
 # git shortcuts
 alias g="git"

@@ -1,6 +1,6 @@
 #!/bin/bash
 
-source shell/utils
+source shell/utils.sh
 
 print_step "Installing macOS Quick Look plugins"
 

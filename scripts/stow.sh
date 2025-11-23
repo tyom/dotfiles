@@ -4,7 +4,7 @@
 # Each package directory mirrors the home directory structure
 
 source "$DOTFILES_DIR/scripts/vars"
-source "$DOTFILES_DIR/shell/utils"
+source "$DOTFILES_DIR/shell/utils.sh"
 
 # Ensure ~/bin exists for the bin package
 mkdir -p "$HOME/bin"

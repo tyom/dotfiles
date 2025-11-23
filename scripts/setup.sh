@@ -1,7 +1,7 @@
 #!/bin/bash
 
 source scripts/vars
-source shell/utils
+source shell/utils.sh
 
 echo -e "Installing dotfiles for $(which_os)…"
 

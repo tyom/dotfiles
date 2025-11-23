@@ -1,6 +1,6 @@
 #!/bin/bash
 
-source shell/utils
+source shell/utils.sh
 
 packages=(
   bat       # A cat(1) clone with syntax highlighting and Git integration
