@@ -32,9 +32,26 @@ check_symlink "$HOME/.gitignore" ".gitignore"
 check_symlink "$HOME/.gitattributes" ".gitattributes"
 check_symlink "$HOME/.vimrc" ".vimrc"
 check_symlink "$HOME/.vimrc.bundles" ".vimrc.bundles"
-check_symlink "$HOME/.zshrc" ".zshrc"
 check_symlink "$HOME/.oh-my-zsh/custom/themes/tyom.zsh-theme" "zsh theme"
 check_symlink "$HOME/.dotfilesrc" ".dotfilesrc"
+
+# Check zsh config is sourced (not symlinked anymore)
+echo ""
+print_info "Checking zsh configuration..."
+
+if grep -qF "source \$DOTFILES_DIR/zsh/config.zsh" "$HOME/.zshrc" 2>/dev/null; then
+  print_success "zsh config sourced in .zshrc"
+else
+  print_error "zsh config not sourced in .zshrc"
+  ERRORS=$((ERRORS + 1))
+fi
+
+if [ -f "$DOTFILES_DIR/zsh/config.zsh" ]; then
+  print_success "zsh/config.zsh exists"
+else
+  print_error "zsh/config.zsh missing"
+  ERRORS=$((ERRORS + 1))
+fi
 
 # Check bin scripts
 echo ""

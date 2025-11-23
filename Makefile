@@ -1,6 +1,3 @@
-backup:
-	./scripts/backup.sh
-
 install:
 	./scripts/setup.sh
 
@@ -15,4 +12,4 @@ test:
 	docker build -t dotfiles .
 	docker run -it dotfiles zsh
 
-.PHONY: backup install uninstall brew test
+.PHONY: install uninstall brew test

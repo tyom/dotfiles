@@ -6,9 +6,7 @@ source shell/utils
 echo -e "Installing dotfiles for $(which_os)…"
 
 continue_or_exit \
-  'Warning: this will overwrite your current dotfiles. They will be backed up.'
-
-source "$DOTFILES_DIR/scripts/backup.sh"
+  'Warning: this will modify your dotfiles configuration.'
 
 continue_or_skip \
   'Install Homebrew and useful packages? This may take a while.' &&
@@ -34,7 +32,23 @@ print_step 'Symlinking dotfiles' &&
 print_step 'Installing Vim plugins' &&
   source "$DOTFILES_DIR/scripts/install/vim.sh"
 
-print_success 'dotfiles are installed! Start a new shell session.'
-
 # Add reference to dotfiles directory
 >"$HOME/.dotfilesrc" && echo "export DOTFILES_DIR=$DOTFILES_DIR" >>"$HOME/.dotfilesrc"
+
+# Prepend source line to ~/.zshrc if not already present
+print_step 'Configuring zsh'
+ZSHRC_SOURCE_LINE='[ -f ~/.dotfilesrc ] && source ~/.dotfilesrc && source $DOTFILES_DIR/zsh/config.zsh'
+if ! grep -qF "source \$DOTFILES_DIR/zsh/config.zsh" "$HOME/.zshrc" 2>/dev/null; then
+  # Prepend to .zshrc
+  TEMP_ZSHRC=$(mktemp)
+  echo "# Dotfiles configuration" > "$TEMP_ZSHRC"
+  echo "$ZSHRC_SOURCE_LINE" >> "$TEMP_ZSHRC"
+  echo "" >> "$TEMP_ZSHRC"
+  cat "$HOME/.zshrc" >> "$TEMP_ZSHRC" 2>/dev/null || true
+  mv "$TEMP_ZSHRC" "$HOME/.zshrc"
+  print_success 'Added dotfiles source line to ~/.zshrc'
+else
+  print_info 'Dotfiles source line already in ~/.zshrc'
+fi
+
+print_success 'dotfiles are installed! Start a new shell session.'

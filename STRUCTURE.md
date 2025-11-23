@@ -46,14 +46,14 @@ Uses vim-plug for plugin management with:
 
 ### `zsh/`
 
-Zsh configuration:
+Zsh configuration (sourced, not symlinked):
 
 ```
 zsh/
-└── .zshrc          → ~/.zshrc
+└── config.zsh      # Sourced from ~/.zshrc
 ```
 
-The `.zshrc` sources modular config from the `shell/` directory.
+Unlike other packages, this is NOT stowed. Instead, `setup.sh` prepends a source line to `~/.zshrc` that loads this config. This is non-destructive and preserves any existing `.zshrc` content.
 
 ### `oh-my-zsh/`
 
@@ -114,7 +114,6 @@ scripts/
 ├── setup.sh       # Main installation orchestrator
 ├── stow.sh        # Creates symlinks via Stow
 ├── unstow.sh      # Removes symlinks
-├── backup.sh      # Backs up existing dotfiles
 ├── zsh.sh         # Installs zsh and oh-my-zsh
 ├── validate.sh    # Validates installation
 ├── vars           # Shared variables

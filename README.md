@@ -41,7 +41,7 @@ This repository uses [GNU Stow](https://www.gnu.org/software/stow/) for symlink 
 dotfiles/
 ├── git/           # Git configuration (.gitconfig, .gitignore, .gitattributes)
 ├── vim/           # Vim configuration (.vimrc, .vimrc.bundles)
-├── zsh/           # Zsh configuration (.zshrc)
+├── zsh/           # Zsh configuration (sourced, not symlinked)
 ├── oh-my-zsh/     # Oh-my-zsh custom theme
 ├── bin/           # Custom scripts (~/bin/)
 ├── shell/         # Shell modules (sourced by .zshrc, not symlinked)
@@ -118,6 +118,5 @@ This builds and runs a Docker container with the dotfiles installed, then valida
 |---------|-------------|
 | `make install` | Run full installation |
 | `make uninstall` | Remove all symlinks |
-| `make backup` | Backup existing dotfiles |
 | `make brew` | Install Homebrew packages |
 | `make test` | Test in Docker container |
