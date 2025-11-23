@@ -10,26 +10,34 @@ function continue_or_skip {
 
   print_question "$1 $prompt "
 
-  # Handle non-interactive mode (e.g., curl | bash)
-  if $YES_OVERRIDE || [[ ! -t 0 ]]; then
+  # Handle YES_OVERRIDE (auto-accept all)
+  if $YES_OVERRIDE; then
     echo
-    [[ "$default" == "y" ]] || $YES_OVERRIDE && return 0
-    return 1
+    return 0
   fi
 
-  read -n 1 yn </dev/tty
+  # Try interactive input via /dev/tty (works with curl | bash)
+  if [[ -e /dev/tty ]]; then
+    read -n 1 yn </dev/tty
+    echo
+
+    # Handle empty input (Enter) with default
+    if [[ -z "$yn" || "$yn" == $'\n' ]]; then
+      [[ "$default" == "y" ]] && return 0
+      [[ "$default" == "n" ]] && return 1
+    fi
+
+    [[ "$yn" =~ ^[Yy]$ ]] && return 0
+    [[ "$yn" =~ ^[Nn]$ ]] && return 1
+
+    continue_or_skip "$1" "$default"
+    return $?
+  fi
+
+  # Truly non-interactive: use defaults
   echo
-
-  # Handle empty input (Enter) with default
-  if [[ -z "$yn" || "$yn" == $'\n' ]]; then
-    [[ "$default" == "y" ]] && return 0
-    [[ "$default" == "n" ]] && return 1
-  fi
-
-  [[ "$yn" =~ ^[Yy]$ ]] && return 0
-  [[ "$yn" =~ ^[Nn]$ ]] && return 1
-
-  continue_or_skip "$1" "$default"
+  [[ "$default" == "y" ]] && return 0
+  return 1
 }
 
 # yes to continue, no to exit
@@ -45,35 +53,43 @@ function continue_or_exit {
 
   print_question "$1 Continue? $prompt "
 
-  # Handle non-interactive mode (e.g., curl | bash)
-  if $YES_OVERRIDE || [[ ! -t 0 ]]; then
+  # Handle YES_OVERRIDE (auto-accept all)
+  if $YES_OVERRIDE; then
     echo
-    if [[ "$default" == "y" ]] || $YES_OVERRIDE; then
-      return 0
-    else
-      echo "Non-interactive mode requires default=y. Exiting."
-      exit 1
-    fi
+    return 0
   fi
 
-  while true; do
-    read -n 1 yn </dev/tty
-    echo
+  # Try interactive input via /dev/tty (works with curl | bash)
+  if [[ -e /dev/tty ]]; then
+    while true; do
+      read -n 1 yn </dev/tty
+      echo
 
-    # Handle empty input (Enter) with default
-    if [[ -z "$yn" ]]; then
-      [[ "$default" == "y" ]] && break
-      [[ "$default" == "n" ]] && exit
-      echo " Please answer yes or no."
-      continue
-    fi
+      # Handle empty input (Enter) with default
+      if [[ -z "$yn" ]]; then
+        [[ "$default" == "y" ]] && break
+        [[ "$default" == "n" ]] && exit
+        echo " Please answer yes or no."
+        continue
+      fi
 
-    case $yn in
-    [Yy]*) break ;;
-    [Nn]*) exit ;;
-    *) echo " Please answer yes or no." ;;
-    esac
-  done
+      case $yn in
+      [Yy]*) break ;;
+      [Nn]*) exit ;;
+      *) echo " Please answer yes or no." ;;
+      esac
+    done
+    return 0
+  fi
+
+  # Truly non-interactive: use defaults or exit
+  echo
+  if [[ "$default" == "y" ]]; then
+    return 0
+  else
+    echo "Non-interactive mode requires default=y. Exiting."
+    exit 1
+  fi
 }
 
 function execute {
