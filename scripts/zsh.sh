@@ -40,27 +40,7 @@ else
   print_info 'oh-my-zsh is already installed. Skipping.'
 fi
 
-# Create our .zshrc that sources everything in the right order
-cat > "$HOME/.zshrc" << 'EOF'
-# Dotfiles ZSH Configuration
-# Sources config in order: dotfilesrc -> pre-omz -> oh-my-zsh -> post-omz -> original
-
-# Load dotfiles directory path
-[ -f ~/.dotfilesrc ] && source ~/.dotfilesrc
-
-# Pre oh-my-zsh configuration (exports, aliases, functions, plugins list)
-[ -n "$DOTFILES_DIR" ] && source "$DOTFILES_DIR/zsh/config.zsh"
-
-# Oh My Zsh
-export ZSH="$HOME/.oh-my-zsh"
-ZSH_THEME="tyom"
-source "$ZSH/oh-my-zsh.sh"
-
-# Post oh-my-zsh configuration
-[ -n "$DOTFILES_DIR" ] && [ -f "$DOTFILES_DIR/zsh/post-omz.zsh" ] && source "$DOTFILES_DIR/zsh/post-omz.zsh"
-
-# Source original zshrc if present
-[ -f ~/.zshrc.bak ] && source ~/.zshrc.bak
-EOF
+# Create .zshrc from template
+cp "$DOTFILES_DIR/zsh/zshrc.template.zsh" "$HOME/.zshrc"
 
 print_success "Created new .zshrc"

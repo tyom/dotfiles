@@ -130,7 +130,7 @@ done
 echo ""
 print_info "Checking shell config files..."
 
-for config in exports.sh aliases.sh functions.sh config.sh utils.sh; do
+for config in exports.sh aliases.sh functions.sh utils.sh; do
   if [ -f "$DOTFILES_DIR/shell/$config" ]; then
     print_success "shell/$config exists"
   else
