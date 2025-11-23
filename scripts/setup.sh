@@ -6,16 +6,16 @@ source shell/utils.sh
 echo -e "Installing dotfiles for $(which_os)…"
 
 continue_or_exit \
-  'Warning: this will modify your dotfiles configuration.'
+  'Warning: this will modify your dotfiles configuration.' 'y'
 
 continue_or_skip \
-  'Install Homebrew and useful packages? This may take a while.' &&
+  'Install Homebrew and useful packages? This may take a while.' 'y' &&
   source "$DOTFILES_DIR/scripts/install/brew.sh" ||
   print_info 'Skipping Homebrew'
 
 if [ "$(which_os)" == "macos" ]; then
   continue_or_skip \
-    'Install brew cask (macOS apps via Homebrew)?' &&
+    'Install brew cask (macOS apps via Homebrew)?' 'y' &&
     # source "$DOTFILES_DIR/scripts/install/brew-cask.sh" ||
     print_info 'Skipping Brew Cask'
 
@@ -24,7 +24,7 @@ if [ "$(which_os)" == "macos" ]; then
 fi
 
 # Add reference to dotfiles directory
-echo "export DOTFILES_DIR=$DOTFILES_DIR" > "$HOME/.dotfilesrc"
+echo "export DOTFILES_DIR=$DOTFILES_DIR" >"$HOME/.dotfilesrc"
 
 print_step 'Setting up zsh' &&
   source "$DOTFILES_DIR/scripts/zsh.sh"

@@ -1,27 +1,62 @@
 function continue_or_skip {
-  print_question "$1 (y/n) "
+  local default="${2:-}"
+  local prompt="(y/n)"
+
+  if [[ "$default" == "y" ]]; then
+    prompt="[Y/n]"
+  elif [[ "$default" == "n" ]]; then
+    prompt="[y/N]"
+  fi
+
+  print_question "$1 $prompt "
 
   if $YES_OVERRIDE; then echo && return 0; fi
 
   read -n 1 yn
+  echo
 
-  [[ "$yn" =~ ^[Yy]$ ]] && echo && return 0
-  [[ "$yn" =~ ^[Nn]$ ]] && echo && return 1
+  # Handle empty input (Enter) with default
+  if [[ -z "$yn" || "$yn" == $'\n' ]]; then
+    [[ "$default" == "y" ]] && return 0
+    [[ "$default" == "n" ]] && return 1
+  fi
 
-  echo && confirm_inline
+  [[ "$yn" =~ ^[Yy]$ ]] && return 0
+  [[ "$yn" =~ ^[Nn]$ ]] && return 1
+
+  continue_or_skip "$1" "$default"
 }
 
 # yes to continue, no to exit
 function continue_or_exit {
-  print_question "$1 Continue? (y/n) \n"
+  local default="${2:-}"
+  local prompt="(y/n)"
+
+  if [[ "$default" == "y" ]]; then
+    prompt="[Y/n]"
+  elif [[ "$default" == "n" ]]; then
+    prompt="[y/N]"
+  fi
+
+  print_question "$1 Continue? $prompt "
 
   while true; do
-    if $YES_OVERRIDE; then break; fi
+    if $YES_OVERRIDE; then echo && break; fi
 
     read -n 1 yn
+    echo
+
+    # Handle empty input (Enter) with default
+    if [[ -z "$yn" ]]; then
+      [[ "$default" == "y" ]] && break
+      [[ "$default" == "n" ]] && exit
+      echo " Please answer yes or no."
+      continue
+    fi
+
     case $yn in
-    [Yy]*) echo && break ;;
-    [Nn]*) echo && exit ;;
+    [Yy]*) break ;;
+    [Nn]*) exit ;;
     *) echo " Please answer yes or no." ;;
     esac
   done
