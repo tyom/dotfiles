@@ -1,0 +1,4 @@
+include:
+  - install.sh
+  - shell.png
+  - vim.png

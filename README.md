@@ -2,8 +2,8 @@
 
 This is a collection of Tyom's dotfiles and settings.
 
-![Shell screenshot](https://raw.githubusercontent.com/tyom/dotfiles/master/shell.png)
-![Vim screenshot](https://raw.githubusercontent.com/tyom/dotfiles/master/vim.png)
+![Shell screenshot](https://tyom.github.io/dotfiles/shell.png)
+![Vim screenshot](https://tyom.github.io/dotfiles/vim.png)
 
 ## Installation
 
@@ -22,7 +22,7 @@ make install
 ### Remote Installation
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/tyom/dotfiles/master/install.sh | bash
+curl -fsSL https://tyom.github.io/dotfiles/install.sh | bash
 ```
 
 You can customise the installation:
