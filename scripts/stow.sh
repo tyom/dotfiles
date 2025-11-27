@@ -6,8 +6,13 @@
 source "$DOTFILES_DIR/scripts/vars.sh"
 source "$DOTFILES_DIR/shell/utils.sh"
 
-# Ensure ~/bin exists for the bin package
+# Ensure required directories exist for stow packages
 mkdir -p "$HOME/bin"
+mkdir -p "$HOME/.claude"
+mkdir -p "$HOME/.claude/agents"
+mkdir -p "$HOME/.claude/skills"
+mkdir -p "$HOME/.claude/hooks"
+mkdir -p "$HOME/.claude/commands"
 
 # Use system stow on Linux (Homebrew stow has Perl dependency issues)
 # On macOS, use Homebrew stow
@@ -24,7 +29,8 @@ remove_conflicts() {
   local package_dir="$DOTFILES_DIR/$package"
 
   # Find all files in the package and remove corresponding files in home
-  find "$package_dir" -type f -name ".*" ! -name ".stow-local-ignore" | while read -r file; do
+  # Matches both top-level dotfiles and files inside dotfile directories
+  find "$package_dir" -type f ! -name ".stow-local-ignore" | while read -r file; do
     local rel_path="${file#$package_dir/}"
     local target="$HOME/$rel_path"
     if [ -f "$target" ] && [ ! -L "$target" ]; then
@@ -37,6 +43,11 @@ remove_conflicts() {
 # Stow each package
 for package in "${STOW_PACKAGES[@]}"; do
   if [ -d "$DOTFILES_DIR/$package" ]; then
+    # Skip claude-code if user already has settings (preserve existing config)
+    if [ "$package" = "claude-code" ] && [ -f "$HOME/.claude/settings.json" ] && [ ! -L "$HOME/.claude/settings.json" ]; then
+      echo "   Skipping $package: existing ~/.claude/settings.json preserved"
+      continue
+    fi
     echo "   Stowing $package..."
     remove_conflicts "$package"
     $STOW_CMD -v -d "$DOTFILES_DIR" -t "$HOME" "$package" 2>&1 | grep -v "^BUG" || true
