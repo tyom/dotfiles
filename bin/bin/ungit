@@ -1,0 +1,284 @@
+#!/usr/bin/env bash
+
+# Download a repository, directory, or file from GitHub
+# Supports shorthand, HTTPS URLs, and SSH formats
+
+set -euo pipefail
+
+print_usage() {
+  cat <<EOF
+Usage: ungit <source[@branch]> [destination]
+
+Download a repository, directory, or file from GitHub.
+
+Formats:
+  Shorthand:
+    ungit user/repo                      # Download entire repo to ./repo
+    ungit user/repo@branch               # From specific branch
+    ungit user/repo/path                 # Download specific path
+    ungit user/repo/path@branch          # Path from specific branch
+
+  HTTPS URL:
+    ungit https://github.com/user/repo                    # Whole repo
+    ungit https://github.com/user/repo.git                # With .git suffix
+    ungit https://github.com/user/repo.git@branch         # Specific branch
+
+  SSH:
+    ungit git@github.com:user/repo                        # Whole repo
+    ungit git@github.com:user/repo.git@branch             # Specific branch
+
+  GitHub tree URL (for directories/files):
+    ungit https://github.com/user/repo/tree/branch/path
+    ungit https://github.com/user/repo/tree/main/src
+    ungit https://github.com/user/repo/tree/abc123/path   # Permalink
+
+Examples:
+  ungit tyom/dotfiles                    # Download entire repo
+  ungit tyom/dotfiles@master             # From 'master' branch
+  ungit tyom/dotfiles/zsh                # Download specific directory
+  ungit tyom/dotfiles/zsh@master         # Directory from specific branch
+  ungit tyom/dotfiles ./my-dotfiles      # Custom destination
+  ungit git@github.com:tyom/dotfiles.git # SSH format
+  ungit https://github.com/tyom/dotfiles/tree/master/zsh
+EOF
+}
+
+# Colors
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+NC='\033[0m'
+
+error() {
+  echo -e "${RED}Error:${NC} $1" >&2
+  exit 1
+}
+
+info() {
+  echo -e "${GREEN}$1${NC}"
+}
+
+# Check dependencies
+check_deps() {
+  local missing=()
+  for cmd in curl tar; do
+    if ! command -v "$cmd" &>/dev/null; then
+      missing+=("$cmd")
+    fi
+  done
+  if [[ ${#missing[@]} -gt 0 ]]; then
+    error "Missing required commands: ${missing[*]}"
+  fi
+}
+
+# Check if a ref (branch, tag, or commit) exists
+check_ref_exists() {
+  local user="$1"
+  local repo="$2"
+  local ref="$3"
+
+  # Try branches API first
+  local http_code
+  http_code=$(curl -sL -o /dev/null -w "%{http_code}" \
+    "https://api.github.com/repos/$user/$repo/branches/$ref")
+  [[ "$http_code" == "200" ]] && return 0
+
+  # Try commits API (for SHAs and tags)
+  http_code=$(curl -sL -o /dev/null -w "%{http_code}" \
+    "https://api.github.com/repos/$user/$repo/commits/$ref")
+  [[ "$http_code" == "200" ]] && return 0
+
+  return 1
+}
+
+# Resolve branch and path from ambiguous tree URL segment
+# Branch names can contain slashes, so we need to probe the API
+# e.g., "klazuka/add-feature/src/lib" could be:
+#   - branch "klazuka", path "add-feature/src/lib"
+#   - branch "klazuka/add-feature", path "src/lib"
+#   - branch "klazuka/add-feature/src", path "lib"
+#   - branch "klazuka/add-feature/src/lib", no path
+resolve_branch_and_path() {
+  local user="$1"
+  local repo="$2"
+  local ref_and_path="$3"
+
+  # Split into segments
+  IFS='/' read -ra segments <<< "$ref_and_path"
+  local num_segments=${#segments[@]}
+
+  # Try progressively longer ref names until we find one that exists
+  local try_ref=""
+  for ((i=0; i<num_segments; i++)); do
+    if [[ -z "$try_ref" ]]; then
+      try_ref="${segments[i]}"
+    else
+      try_ref="$try_ref/${segments[i]}"
+    fi
+
+    if check_ref_exists "$user" "$repo" "$try_ref"; then
+      BRANCH="$try_ref"
+      # Remaining segments form the path
+      if [[ $((i + 1)) -lt $num_segments ]]; then
+        PATH_IN_REPO=$(IFS=/; echo "${segments[*]:$((i+1))}")
+      else
+        PATH_IN_REPO=""
+      fi
+      return 0
+    fi
+  done
+
+  # No ref found - use the whole thing (will fail later with clear error)
+  BRANCH="$ref_and_path"
+  PATH_IN_REPO=""
+  return 0
+}
+
+# Parse input and set USER, REPO, BRANCH, PATH_IN_REPO
+parse_input() {
+  local input="$1"
+  local branch=""
+
+  USER=""
+  REPO=""
+  BRANCH="HEAD"
+  PATH_IN_REPO=""
+
+  # GitHub tree URL: https://github.com/user/repo/tree/ref-and-path
+  # Branch names can contain slashes, so we need to resolve them via API
+  if [[ "$input" =~ ^https?://github\.com/([^/]+)/([^/]+)/tree/(.+)$ ]]; then
+    USER="${BASH_REMATCH[1]}"
+    REPO="${BASH_REMATCH[2]%.git}"
+    local ref_and_path="${BASH_REMATCH[3]}"
+    resolve_branch_and_path "$USER" "$REPO" "$ref_and_path"
+    return
+  fi
+
+  # Extract @branch suffix (before normalizing URL)
+  if [[ "$input" =~ ^(.+)@([^@/]+)$ ]]; then
+    branch="${BASH_REMATCH[2]}"
+    input="${BASH_REMATCH[1]}"
+  fi
+
+  # HTTPS URL: https://github.com/user/repo[.git]
+  if [[ "$input" =~ ^https?://github\.com/([^/]+)/([^/]+)/?$ ]]; then
+    USER="${BASH_REMATCH[1]}"
+    REPO="${BASH_REMATCH[2]%.git}"
+    [[ -n "$branch" ]] && BRANCH="$branch" || true
+    return
+  fi
+
+  # SSH format: git@github.com:user/repo[.git]
+  if [[ "$input" =~ ^git@github\.com:([^/]+)/([^/]+)/?$ ]]; then
+    USER="${BASH_REMATCH[1]}"
+    REPO="${BASH_REMATCH[2]%.git}"
+    [[ -n "$branch" ]] && BRANCH="$branch" || true
+    return
+  fi
+
+  # Shorthand: user/repo
+  if [[ "$input" =~ ^([^/]+)/([^/]+)$ ]]; then
+    USER="${BASH_REMATCH[1]}"
+    REPO="${BASH_REMATCH[2]%.git}"
+    [[ -n "$branch" ]] && BRANCH="$branch" || true
+    return
+  fi
+
+  # Shorthand with path: user/repo/path/to/dir
+  if [[ "$input" =~ ^([^/]+)/([^/]+)/(.+)$ ]]; then
+    USER="${BASH_REMATCH[1]}"
+    REPO="${BASH_REMATCH[2]%.git}"
+    PATH_IN_REPO="${BASH_REMATCH[3]}"
+    [[ -n "$branch" ]] && BRANCH="$branch" || true
+    return
+  fi
+
+  error "Invalid format: $input
+
+Supported formats:
+  user/repo[@branch]
+  user/repo/path[@branch]
+  https://github.com/user/repo[.git][@branch]
+  git@github.com:user/repo[.git][@branch]
+  https://github.com/user/repo/tree/branch/path"
+}
+
+main() {
+  if [[ $# -lt 1 ]] || [[ "$1" == "-h" ]] || [[ "$1" == "--help" ]]; then
+    print_usage
+    exit 0
+  fi
+
+  check_deps
+  parse_input "$1"
+
+  # Determine destination
+  local dest
+  if [[ -n "${2:-}" ]]; then
+    dest="$2"
+  elif [[ -n "$PATH_IN_REPO" ]]; then
+    dest=$(basename "$PATH_IN_REPO")
+  else
+    dest="$REPO"
+  fi
+
+  # Display what we're fetching
+  local fetch_desc="$USER/$REPO"
+  [[ -n "$PATH_IN_REPO" ]] && fetch_desc="$fetch_desc/$PATH_IN_REPO"
+  info "Fetching $fetch_desc (ref: $BRANCH)..."
+
+  # Create temp directory
+  UNGIT_TMPDIR=$(mktemp -d)
+  trap 'rm -rf "$UNGIT_TMPDIR"' EXIT INT TERM
+  local tmpdir="$UNGIT_TMPDIR"
+
+  # Download the tarball
+  local tarball_url="https://api.github.com/repos/$USER/$REPO/tarball/$BRANCH"
+  local tarball="$tmpdir/repo.tar.gz"
+
+  if ! curl -sL -o "$tarball" -w "%{http_code}" "$tarball_url" | grep -q "^200$"; then
+    local http_code
+    http_code=$(curl -sL -o /dev/null -w "%{http_code}" "$tarball_url")
+    if [[ "$http_code" == "404" ]]; then
+      error "Repository or branch not found: $USER/$REPO (ref: $BRANCH)"
+    else
+      error "Failed to download from GitHub (HTTP $http_code)"
+    fi
+  fi
+
+  # Extract tarball
+  tar -xzf "$tarball" -C "$tmpdir"
+
+  # Find the extracted directory (GitHub adds a prefix like user-repo-hash)
+  local extracted_dir
+  extracted_dir=$(find "$tmpdir" -maxdepth 1 -type d -name "$USER-$REPO-*" | head -1)
+
+  if [[ -z "$extracted_dir" ]]; then
+    error "Failed to extract repository archive"
+  fi
+
+  # Determine source path
+  local source_path="$extracted_dir"
+  if [[ -n "$PATH_IN_REPO" ]]; then
+    source_path="$extracted_dir/$PATH_IN_REPO"
+    if [[ ! -e "$source_path" ]]; then
+      error "Path not found in repository: $PATH_IN_REPO"
+    fi
+  fi
+
+  # Copy to destination
+  if [[ -d "$source_path" ]]; then
+    mkdir -p "$dest"
+    cp -R "$source_path/." "$dest/"
+    info "Downloaded to: $dest"
+  else
+    if [[ -d "$dest" ]]; then
+      cp "$source_path" "$dest/"
+      info "Downloaded file to: $dest/$(basename "$source_path")"
+    else
+      cp "$source_path" "$dest"
+      info "Downloaded file to: $dest"
+    fi
+  fi
+}
+
+main "$@"
