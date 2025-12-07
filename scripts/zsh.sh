@@ -35,9 +35,9 @@ else
 fi
 
 # Set up .zshrc to source our dotfiles config
-DOTFILES_SOURCE_LINE='source "$HOME/.dotfiles.zsh"'
+DOTFILES_SOURCE_LINE="export DOTFILES_DIR=\"$DOTFILES_DIR\" && source \"\$DOTFILES_DIR/zsh/dotfiles.zsh\""
 
-if grep -qF "$DOTFILES_SOURCE_LINE" "$HOME/.zshrc" 2>/dev/null; then
+if grep -qF "source \"\$DOTFILES_DIR/zsh/dotfiles.zsh\"" "$HOME/.zshrc" 2>/dev/null; then
   print_info "Dotfiles already sourced in .zshrc"
 else
   # Always append to existing .zshrc or create if it doesn't exist
@@ -61,7 +61,4 @@ else
   fi
 fi
 
-# Create/update the dotfiles zsh config
-cp "$DOTFILES_DIR/zsh/dotfiles.zsh" "$HOME/.dotfiles.zsh"
-
-print_success "Created ~/.dotfiles.zsh"
+print_success "Dotfiles configured (DOTFILES_DIR=$DOTFILES_DIR)"

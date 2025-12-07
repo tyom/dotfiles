@@ -3,7 +3,7 @@
 
 # Ensure DOTFILES_DIR is set
 if [ -z "$DOTFILES_DIR" ]; then
-  echo "\e[0;31m ✖ \$DOTFILES_DIR is not set. Source ~/.dotfilesrc first.\e[0m\n"
+  echo "\e[0;31m ✖ \$DOTFILES_DIR is not set. Re-run the install script.\e[0m\n"
   return
 fi
 

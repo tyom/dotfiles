@@ -25,9 +25,6 @@ continue_or_skip \
   source "$DOTFILES_DIR/scripts/install/curl.sh" ||
   print_info 'Skipping curl-based installs'
 
-# Add reference to dotfiles directory
-echo "export DOTFILES_DIR=$DOTFILES_DIR" >"$HOME/.dotfilesrc"
-
 print_step 'Setting up zsh' &&
   source "$DOTFILES_DIR/scripts/zsh.sh"
 

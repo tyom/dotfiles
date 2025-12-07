@@ -1,11 +1,8 @@
 # Dotfiles ZSH Configuration
-# Sources config in order: dotfilesrc -> config.zsh -> oh-my-zsh
-
-# Load dotfiles directory path
-[ -f ~/.dotfilesrc ] && source ~/.dotfilesrc
+# Sourced from ~/.zshrc with DOTFILES_DIR already exported
 
 # Pre oh-my-zsh configuration (exports, aliases, functions, plugins list)
-[ -n "$DOTFILES_DIR" ] && source "$DOTFILES_DIR/zsh/config.zsh"
+source "$DOTFILES_DIR/zsh/config.zsh"
 
 # Oh My Zsh
 export ZSH="$HOME/.oh-my-zsh"

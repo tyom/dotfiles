@@ -100,24 +100,24 @@ The installation process follows this sequence:
 
 ```
 install.sh (entry point)
-└── Clone/download repository to ~/.dotfiles
+├── If run from existing repo: use that location
+└── Otherwise: clone to ~/.dotfiles (or DOTFILES_DIR)
     └── Execute scripts/setup.sh
 
 setup.sh (orchestrator)
 ├── 1. Confirm user wants to proceed
 ├── 2. Install Homebrew and packages (optional)
-├── 3. Create ~/.dotfilesrc with DOTFILES_DIR
-├── 4. Set up Zsh and Oh My Zsh (scripts/zsh.sh)
+├── 3. Set up Zsh and Oh My Zsh (scripts/zsh.sh)
 │   ├── Install zsh if missing
 │   ├── Install Oh My Zsh if missing
 │   ├── Modify ~/.zshrc to source dotfiles
-│   └── Copy zsh/dotfiles.zsh to ~/.dotfiles.zsh
-├── 5. Create symlinks (scripts/stow.sh)
+│   └── Create ~/.dotfiles.zsh with DOTFILES_DIR embedded
+├── 4. Create symlinks (scripts/stow.sh)
 │   └── Symlink packages: git, vim, oh-my-zsh, bin
-├── 6. Install Vim plugins (scripts/install/vim.sh)
+├── 5. Install Vim plugins (scripts/install/vim.sh)
 │   ├── Install vim-plug
 │   └── Run PlugInstall
-└── 7. Validate installation (scripts/validate.sh)
+└── 6. Validate installation (scripts/validate.sh)
 ```
 
 ### Zsh Configuration Chain
@@ -126,8 +126,8 @@ The shell configuration is loaded in this order:
 
 ```
 ~/.zshrc
-└── sources ~/.dotfiles.zsh
-    ├── sources zsh/config.zsh (pre-oh-my-zsh setup)
+└── exports DOTFILES_DIR and sources $DOTFILES_DIR/zsh/dotfiles.zsh
+    ├── sources zsh/config.zsh
     │   ├── sources shell/utils.sh
     │   ├── sources shell/exports.sh
     │   ├── sources shell/aliases.sh
@@ -150,15 +150,6 @@ GNU Stow creates these symlinks in your home directory:
 | vim       | `vim/.vimrc.bundles`              | `~/.vimrc.bundles`                          |
 | oh-my-zsh | `oh-my-zsh/.oh-my-zsh/custom/...` | `~/.oh-my-zsh/custom/themes/tyom.zsh-theme` |
 | bin       | `bin/bin/*`                       | `~/bin/*`                                   |
-
-### Non-Symlinked Files
-
-These files are copied or created (not symlinked):
-
-| File              | Description                              |
-| ----------------- | ---------------------------------------- |
-| `~/.dotfilesrc`   | Sets `DOTFILES_DIR` environment variable |
-| `~/.dotfiles.zsh` | Copied from `zsh/dotfiles.zsh`           |
 
 ### Interactive Prompts
 
