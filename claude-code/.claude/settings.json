@@ -6,24 +6,21 @@
   },
   "permissions": {
     "allow": [
-      "Read(**)",
-      "Glob(**)",
-      "Grep(**)",
-      "LS(**)",
-      "WebFetch",
+      "Bash",
+      "Read",
+      "Write",
+      "Edit",
+      "MultiEdit",
+      "Glob",
+      "Grep",
+      "WebFetch(domain:*)",
       "WebSearch",
-      "Bash(npm test*)",
-      "Bash(npm run test*)",
-      "Bash(npx vitest*)",
-      "Bash(npx jest*)",
-      "Bash(pnpm test*)",
-      "Bash(bun test*)",
-      "Bash(yarn test*)",
-      "Bash(git status*)",
-      "Bash(git log*)",
-      "Bash(git diff*)",
-      "Bash(git branch*)",
-      "Bash(git show*)"
+      "NotebookRead",
+      "NotebookEdit",
+      "TodoWrite",
+      "ExitPlanMode",
+      "Task",
+      "mcp__*"
     ],
     "deny": [
       "Bash(diskutil partitionDisk)",
@@ -61,5 +58,6 @@
     ]
   },
   "includeCoAuthoredBy": false,
+  "enableAllProjectMcpServers": true,
   "hooks": {}
 }
