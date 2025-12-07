@@ -33,7 +33,6 @@ check_symlink "$HOME/.gitattributes" ".gitattributes"
 check_symlink "$HOME/.vimrc" ".vimrc"
 check_symlink "$HOME/.vimrc.bundles" ".vimrc.bundles"
 check_symlink "$HOME/.oh-my-zsh/custom/themes/tyom.zsh-theme" "zsh theme"
-check_symlink "$HOME/.dotfilesrc" ".dotfilesrc"
 
 # Check zsh configuration
 echo ""
@@ -46,17 +45,10 @@ else
   ERRORS=$((ERRORS + 1))
 fi
 
-if grep -qF 'source "$HOME/.dotfiles.zsh"' "$HOME/.zshrc" 2>/dev/null; then
+if grep -qF 'source "$DOTFILES_DIR/zsh/dotfiles.zsh"' "$HOME/.zshrc" 2>/dev/null; then
   print_success "dotfiles.zsh sourced in .zshrc"
 else
   print_error "dotfiles.zsh not sourced in .zshrc"
-  ERRORS=$((ERRORS + 1))
-fi
-
-if [ -f "$HOME/.dotfiles.zsh" ]; then
-  print_success ".dotfiles.zsh exists"
-else
-  print_error ".dotfiles.zsh missing"
   ERRORS=$((ERRORS + 1))
 fi
 
