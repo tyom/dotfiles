@@ -20,6 +20,8 @@
       "TodoWrite",
       "ExitPlanMode",
       "Task",
+      "Skill(tyom:ungit)",
+      "Bash(ungit:*)",
       "mcp__*"
     ],
     "deny": [
@@ -58,6 +60,5 @@
     ]
   },
   "includeCoAuthoredBy": false,
-  "enableAllProjectMcpServers": true,
-  "hooks": {}
+  "enableAllProjectMcpServers": true
 }

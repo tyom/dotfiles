@@ -1,0 +1,19 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "dotfiles",
+  "description": "Personal development tools and workflow automation",
+  "owner": {
+    "name": "tyom"
+  },
+  "plugins": [
+    {
+      "name": "tyom",
+      "description": "Development hooks, tools, and configurations",
+      "version": "1.0.0",
+      "author": {
+        "name": "tyom"
+      },
+      "source": "./"
+    }
+  ]
+}

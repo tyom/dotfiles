@@ -12,12 +12,14 @@ ungit -p [options] <source>
 ```
 
 **Source formats:**
+
 - `user/repo` - entire repository
 - `user/repo/path` - specific directory or file
 - `user/repo@branch` - specific branch
 - GitHub URLs (HTTPS, SSH, or tree URLs)
 
 **Options:**
+
 - `-p, --prompt` - Output as XML-formatted text (required for LLM context)
 - `-i, --include GLOB` - Only include files matching pattern (repeatable)
 - `-e, --exclude GLOB` - Exclude files matching pattern (repeatable)
@@ -38,13 +40,13 @@ ungit -p facebook/react/packages/react
 # Fetch from a branch
 ungit -p vercel/next.js/examples@canary
 
-# Only TypeScript files
+# Filter: Only TypeScript files
 ungit -p -i "*.ts" -i "*.tsx" user/repo/src
 
-# Exclude tests and config files
+# Filter: Exclude tests and config files
 ungit -p -e "*.test.*" -e "*.config.*" user/repo
 
-# Combine filters
+# Filter: Combine filters
 ungit -p -i "*.py" -e "*_test.py" user/repo/src
 ```
 

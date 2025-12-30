@@ -9,10 +9,7 @@ source "$DOTFILES_DIR/shell/utils.sh"
 # Ensure required directories exist for stow packages
 mkdir -p "$HOME/bin"
 mkdir -p "$HOME/.claude"
-mkdir -p "$HOME/.claude/agents"
-mkdir -p "$HOME/.claude/skills"
-mkdir -p "$HOME/.claude/hooks"
-mkdir -p "$HOME/.claude/commands"
+mkdir -p "$HOME/.claude/plugins"
 
 # Use system stow on Linux (Homebrew stow has Perl dependency issues)
 # On macOS, use Homebrew stow
