@@ -5,11 +5,24 @@
 
 set -euo pipefail
 
+# Maximum file size for prompt output (100KB)
+MAX_FILE_SIZE=102400
+
+# Filter patterns (populated by -i/-e flags)
+INCLUDE_PATTERNS=()
+EXCLUDE_PATTERNS=()
+
 print_usage() {
   cat <<EOF
-Usage: ungit <source[@branch]> [destination]
+Usage: ungit [options] <source[@branch]> [destination]
 
 Download a repository, directory, or file from GitHub.
+
+Options:
+  -p, --prompt        Output files as XML-formatted text for LLM prompts
+                      instead of downloading to disk
+  -i, --include GLOB  Only include files matching pattern (can be repeated)
+  -e, --exclude GLOB  Exclude files matching pattern (can be repeated)
 
 Formats:
   Shorthand:
@@ -55,6 +68,147 @@ error() {
 
 info() {
   echo -e "${GREEN}$1${NC}"
+}
+
+# Check if file is binary
+is_binary_file() {
+  local file="$1"
+  local mime
+  mime=$(file --mime-type -b "$file")
+  [[ ! "$mime" =~ ^text/ ]]
+}
+
+# Check if file matches include/exclude filters
+matches_filter() {
+  local rel_path="$1"
+  local basename
+  basename=$(basename "$rel_path")
+
+  # If include patterns exist, file must match at least one
+  if [[ ${#INCLUDE_PATTERNS[@]} -gt 0 ]]; then
+    local matched=false
+    for pattern in "${INCLUDE_PATTERNS[@]}"; do
+      # shellcheck disable=SC2053
+      if [[ "$rel_path" == $pattern ]] || [[ "$basename" == $pattern ]]; then
+        matched=true
+        break
+      fi
+    done
+    [[ "$matched" == false ]] && return 1
+  fi
+
+  # Check exclude patterns - if any match, exclude the file
+  for pattern in "${EXCLUDE_PATTERNS[@]}"; do
+    # shellcheck disable=SC2053
+    if [[ "$rel_path" == $pattern ]] || [[ "$basename" == $pattern ]]; then
+      return 1
+    fi
+  done
+
+  return 0
+}
+
+# Generate directory tree structure
+generate_tree() {
+  local base_dir="$1"
+  local prefix="${2:-}"
+  local root_path="${3:-$base_dir}"
+
+  while IFS= read -r entry; do
+    local name
+    name=$(basename "$entry")
+    local rel_path="${entry#$root_path/}"
+
+    if [[ -d "$entry" ]]; then
+      # For directories, check if any files inside would match
+      local has_matching_files=false
+      if [[ ${#INCLUDE_PATTERNS[@]} -eq 0 && ${#EXCLUDE_PATTERNS[@]} -eq 0 ]]; then
+        has_matching_files=true
+      else
+        while IFS= read -r subfile; do
+          local sub_rel="${subfile#$root_path/}"
+          if matches_filter "$sub_rel"; then
+            has_matching_files=true
+            break
+          fi
+        done < <(find "$entry" -type f 2>/dev/null)
+      fi
+
+      if [[ "$has_matching_files" == true ]]; then
+        echo "${prefix}${name}/"
+        generate_tree "$entry" "  ${prefix}" "$root_path"
+      fi
+    else
+      if matches_filter "$rel_path"; then
+        echo "${prefix}${name}"
+      fi
+    fi
+  done < <(find "$base_dir" -mindepth 1 -maxdepth 1 | sort)
+}
+
+# Output files in prompt format
+output_prompt_format() {
+  local source_path="$1"
+  local base_name="$2"
+
+  echo "<directory_structure>"
+  if [[ -d "$source_path" ]]; then
+    echo "${base_name}/"
+    generate_tree "$source_path" "  " "$source_path"
+  else
+    local file_basename
+    file_basename=$(basename "$source_path")
+    if matches_filter "$file_basename"; then
+      echo "$base_name"
+    fi
+  fi
+  echo "</directory_structure>"
+  echo ""
+  echo "<files>"
+
+  if [[ -d "$source_path" ]]; then
+    while IFS= read -r file; do
+      local rel_path="${file#$source_path/}"
+      local full_rel_path="${base_name}/${rel_path}"
+
+      # Apply filter
+      matches_filter "$rel_path" || continue
+
+      local file_size
+      file_size=$(stat -f%z "$file" 2>/dev/null || stat -c%s "$file" 2>/dev/null)
+
+      echo "<file path=\"${full_rel_path}\">"
+      if [[ "$file_size" -gt "$MAX_FILE_SIZE" ]]; then
+        echo "[file too large]"
+      elif is_binary_file "$file"; then
+        echo "[binary file]"
+      else
+        cat "$file"
+      fi
+      echo "</file>"
+      echo ""
+    done < <(find "$source_path" -type f | sort)
+  else
+    local file_basename
+    file_basename=$(basename "$source_path")
+
+    if matches_filter "$file_basename"; then
+      local file_size
+      file_size=$(stat -f%z "$source_path" 2>/dev/null || stat -c%s "$source_path" 2>/dev/null)
+
+      echo "<file path=\"${base_name}\">"
+      if [[ "$file_size" -gt "$MAX_FILE_SIZE" ]]; then
+        echo "[file too large]"
+      elif is_binary_file "$source_path"; then
+        echo "[binary file]"
+      else
+        cat "$source_path"
+      fi
+      echo "</file>"
+    fi
+  fi
+
+  echo "</files>"
 }
 
 # Check dependencies
@@ -103,12 +257,12 @@ resolve_branch_and_path() {
   local ref_and_path="$3"
 
   # Split into segments
-  IFS='/' read -ra segments <<< "$ref_and_path"
+  IFS='/' read -ra segments <<<"$ref_and_path"
   local num_segments=${#segments[@]}
 
   # Try progressively longer ref names until we find one that exists
   local try_ref=""
-  for ((i=0; i<num_segments; i++)); do
+  for ((i = 0; i < num_segments; i++)); do
     if [[ -z "$try_ref" ]]; then
       try_ref="${segments[i]}"
     else
@@ -119,7 +273,10 @@ resolve_branch_and_path() {
       BRANCH="$try_ref"
       # Remaining segments form the path
       if [[ $((i + 1)) -lt $num_segments ]]; then
-        PATH_IN_REPO=$(IFS=/; echo "${segments[*]:$((i+1))}")
+        PATH_IN_REPO=$(
+          IFS=/
+          echo "${segments[*]:$((i + 1))}"
+        )
       else
         PATH_IN_REPO=""
       fi
@@ -203,7 +360,36 @@ Supported formats:
 }
 
 main() {
-  if [[ $# -lt 1 ]] || [[ "$1" == "-h" ]] || [[ "$1" == "--help" ]]; then
+  local prompt_mode=false
+
+  # Parse flags
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      -p|--prompt)
+        prompt_mode=true
+        shift
+        ;;
+      -i|--include)
+        [[ -z "${2:-}" ]] && error "Option $1 requires a pattern argument"
+        INCLUDE_PATTERNS+=("$2")
+        shift 2
+        ;;
+      -e|--exclude)
+        [[ -z "${2:-}" ]] && error "Option $1 requires a pattern argument"
+        EXCLUDE_PATTERNS+=("$2")
+        shift 2
+        ;;
+      -h|--help)
+        print_usage
+        exit 0
+        ;;
+      *)
+        break
+        ;;
+    esac
+  done
+
+  if [[ $# -lt 1 ]]; then
     print_usage
     exit 0
   fi
@@ -211,7 +397,7 @@ main() {
   check_deps
   parse_input "$1"
 
-  # Determine destination
+  # Determine destination/base name
   local dest
   if [[ -n "${2:-}" ]]; then
     dest="$2"
@@ -221,10 +407,10 @@ main() {
     dest="$REPO"
   fi
 
-  # Display what we're fetching
+  # Display what we're fetching (skip in prompt mode for clean output)
   local fetch_desc="$USER/$REPO"
   [[ -n "$PATH_IN_REPO" ]] && fetch_desc="$fetch_desc/$PATH_IN_REPO"
-  info "Fetching $fetch_desc (ref: $BRANCH)..."
+  [[ "$prompt_mode" != true ]] && info "Fetching $fetch_desc (ref: $BRANCH)..."
 
   # Create temp directory
   UNGIT_TMPDIR=$(mktemp -d)
@@ -265,18 +451,43 @@ main() {
     fi
   fi
 
-  # Copy to destination
-  if [[ -d "$source_path" ]]; then
-    mkdir -p "$dest"
-    cp -R "$source_path/." "$dest/"
-    info "Downloaded to: $dest"
+  # Output in prompt format or copy to destination
+  if [[ "$prompt_mode" == true ]]; then
+    output_prompt_format "$source_path" "$dest"
   else
-    if [[ -d "$dest" ]]; then
-      cp "$source_path" "$dest/"
-      info "Downloaded file to: $dest/$(basename "$source_path")"
+    if [[ -d "$source_path" ]]; then
+      mkdir -p "$dest"
+      # If filters are set, copy files selectively
+      if [[ ${#INCLUDE_PATTERNS[@]} -gt 0 || ${#EXCLUDE_PATTERNS[@]} -gt 0 ]]; then
+        local file_count=0
+        while IFS= read -r file; do
+          local rel_path="${file#$source_path/}"
+          matches_filter "$rel_path" || continue
+
+          local dest_file="$dest/$rel_path"
+          mkdir -p "$(dirname "$dest_file")"
+          cp "$file" "$dest_file"
+          ((file_count++)) || true
+        done < <(find "$source_path" -type f)
+        info "Downloaded $file_count files to: $dest"
+      else
+        cp -R "$source_path/." "$dest/"
+        info "Downloaded to: $dest"
+      fi
     else
-      cp "$source_path" "$dest"
-      info "Downloaded file to: $dest"
+      local file_basename
+      file_basename=$(basename "$source_path")
+      if ! matches_filter "$file_basename"; then
+        error "File excluded by filter: $file_basename"
+      fi
+
+      if [[ -d "$dest" ]]; then
+        cp "$source_path" "$dest/"
+        info "Downloaded file to: $dest/$(basename "$source_path")"
+      else
+        cp "$source_path" "$dest"
+        info "Downloaded file to: $dest"
+      fi
     fi
   fi
 }
