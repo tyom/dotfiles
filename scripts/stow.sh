@@ -20,7 +20,8 @@ else
 fi
 
 # Remove conflicting files before stowing (backup handled separately)
-# remove_conflicts removes regular (non-symlink) files from $HOME that correspond to files in the given package so Stow can create symlinks; files named .stow-local-ignore are ignored.
+# remove_conflicts removes regular (non-symlink) files in $HOME that correspond to files in the specified package so GNU Stow can create symlinks; files named .stow-local-ignore are ignored and removed files are not backed up.
+# The single argument is the package name located under DOTFILES_DIR whose files are compared against $HOME.
 remove_conflicts() {
   local package="$1"
   local package_dir="$DOTFILES_DIR/$package"

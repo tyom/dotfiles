@@ -63,10 +63,10 @@ async function readStdin(): Promise<string> {
 }
 
 /**
- * Locate the nearest ancestor directory of `startPath` that contains a `package.json`.
+ * Locates the nearest ancestor directory of `startPath` that contains a `package.json`.
  *
  * @param startPath - File or directory path to start the upward search from
- * @returns The directory path that contains `package.json`, or `null` if no such directory is found up to the filesystem root
+ * @returns The directory path containing `package.json`, or `null` if none is found up to the filesystem root
  */
 async function findProjectRoot(startPath: string): Promise<string | null> {
   let currentDir = dirname(startPath);
@@ -80,14 +80,14 @@ async function findProjectRoot(startPath: string): Promise<string | null> {
 }
 
 /**
- * Executes a subprocess and returns its success status, combined output, and exit code.
+ * Execute a subprocess and collect its combined output and exit status.
  *
- * @param cmd - The executable or command to run.
- * @param args - Arguments to pass to the command.
- * @param cwd - Working directory in which to run the command.
- * @returns An object with:
- *  - `success`: `true` if the process exited with status `0` and had no signal or spawn error, `false` otherwise.
- *  - `output`: Combined stdout and stderr, with any spawn error or termination signal appended.
+ * @param cmd - The executable or command to run
+ * @param args - Arguments to pass to the command
+ * @param cwd - Working directory in which to run the command
+ * @returns An object containing:
+ *  - `success`: `true` if the process exited with status `0` and had no termination signal or spawn error, `false` otherwise.
+ *  - `output`: Combined stdout and stderr with any spawn error message or termination signal appended.
  *  - `status`: The numeric exit code of the process, or `null` if unavailable.
  */
 function runCommand(

@@ -44,14 +44,13 @@ async function readStdin(): Promise<string> {
 }
 
 /**
- * Determines whether a directory contains project test files or test directories.
+ * Detects whether a directory contains project test files or test directories.
  *
- * Checks the given directory (and its `src` subdirectory) for common test directories
- * and test file name patterns. Test directories considered: `test`, `tests`, `__tests__`,
- * `spec`, `specs`. Test file patterns considered: `.test.[jt]s[x]?`, `.spec.[jt]s[x]?`,
- * `_test.[jt]s[x]?`, `_spec.[jt]s[x]?`.
+ * Checks the given directory and its `src` subdirectory for common test directories
+ * (e.g., `test`, `tests`, `__tests__`, `spec`, `specs`) and common test file name
+ * patterns (for example `.test.js`, `.spec.tsx`, `_test.ts`).
  *
- * @param dir - The directory path to inspect for tests
+ * @param dir - Path of the directory to inspect
  * @returns `true` if the directory or its `src` subdirectory contains test files or test directories, `false` otherwise
  */
 function hasTestFiles(dir: string): boolean {
@@ -204,9 +203,9 @@ function runTests(config: TestConfig): { success: boolean; output: string } {
 }
 
 /**
- * Locate the nearest ancestor directory that contains a package.json file.
+ * Finds the nearest ancestor directory that contains a package.json file.
  *
- * @returns The path to the first ancestor directory (starting from CWD) that contains a `package.json`; if none is found, returns the original `CWD`.
+ * @returns Path to the nearest ancestor directory containing a `package.json`; if none is found, returns the original `CWD`.
  */
 async function findProjectRoot(): Promise<string> {
   let current = CWD;
@@ -220,11 +219,11 @@ async function findProjectRoot(): Promise<string> {
 }
 
 /**
- * Run project tests and block shutdown if tests fail.
+ * Run project tests and block shutdown when tests fail.
  *
- * Reads JSON input from stdin to detect an active stop hook; if present, allows stopping immediately.
- * Locates the project root and detects an appropriate test runner; if no runner is found or no test files exist, allows stopping.
- * Executes the detected test suite; if tests fail, writes a JSON decision object to stdout with `decision: "block"` and a `reason` that includes the test output, then exits.
+ * Reads optional JSON from stdin to detect an active stop hook; if a stop hook is already active, the function allows shutdown to continue.
+ * Locates the project root, detects an appropriate test runner and configuration, and verifies test files exist; if no runner or tests are found, it allows shutdown.
+ * Executes the detected test suite and, if any test fails, emits a JSON decision object to stdout with `decision: "block"` and a `reason` that includes the test output to prevent stopping.
  */
 async function main() {
   let input: StopHookInput = {};
