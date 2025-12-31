@@ -72,7 +72,7 @@ function runCommand(
   cmd: string,
   args: string[],
   cwd: string,
-): { success: boolean; output: string } {
+): { success: boolean; output: string; status: number | null } {
   const result = spawnSync(cmd, args, {
     cwd,
     encoding: "utf-8",
@@ -80,14 +80,23 @@ function runCommand(
     env: { ...process.env, FORCE_COLOR: "0" },
   });
 
-  const output = [result.stdout, result.stderr]
-    .filter(Boolean)
-    .join("\n")
-    .trim();
-  return {
-    success: result.status === 0,
-    output,
-  };
+  const outputParts = [result.stdout, result.stderr].filter(Boolean);
+
+  if (result.signal) {
+    outputParts.push(`Killed by ${result.signal}`);
+  }
+
+  if (result.error) {
+    outputParts.push(result.error.message);
+  }
+
+  const output = outputParts.join("\n").trim();
+  const success =
+    result.status === 0 &&
+    result.signal === undefined &&
+    result.error === undefined;
+
+  return { success, output, status: result.status };
 }
 
 async function main() {
@@ -239,15 +248,19 @@ async function main() {
       const hasEslintBin = await Bun.file(eslintPath).exists();
 
       if (hasEslintBin) {
+        // ESLint exit codes: 0 = success, 1 = lint errors, 2 = fatal error
         const eslintResult = runCommand(
           eslintPath,
-          ["--format", "stylish", "--max-warnings", "0", filePath],
+          ["--format", "stylish", filePath],
           projectRoot,
         );
-        if (!eslintResult.success && eslintResult.output) {
-          if (eslintResult.output.includes("error")) {
+        if (eslintResult.output) {
+          if (eslintResult.status === 1) {
             errors.push(`ESLint errors:\n${eslintResult.output}`);
-          } else {
+          } else if (eslintResult.status === 2) {
+            errors.push(`ESLint fatal error:\n${eslintResult.output}`);
+          } else if (eslintResult.status === 0) {
+            // Exit 0 with output means warnings only
             warnings.push(`ESLint warnings:\n${eslintResult.output}`);
           }
         }

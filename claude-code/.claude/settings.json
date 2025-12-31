@@ -53,10 +53,17 @@
       "Bash(sudo rm -rf /)",
       "Bash(sudo rm -rf /*)",
       "Bash(fork bomb)",
-      "Bash(dd if=/dev/zero of=/dev/sda)",
-      "Bash(mkfs.ext4 /dev/sda)",
-      "Bash( /dev/sda)",
-      "Bash(> /dev/sda)"
+      "Bash(dd if=/dev/zero of=/dev/sda:*)",
+      "Bash(dd if=/dev/random of=/dev/sda:*)",
+      "Bash(dd if=/dev/urandom of=/dev/sda:*)",
+      "Bash(dd of=/dev/sda:*)",
+      "Bash(mkfs /dev/sda:*)",
+      "Bash(mkfs.ext4 /dev/sda:*)",
+      "Bash(mkfs.ext3 /dev/sda:*)",
+      "Bash(mkfs.xfs /dev/sda:*)",
+      "Bash(mkfs.btrfs /dev/sda:*)",
+      "Bash(shred /dev/sda:*)",
+      "Bash(wipefs /dev/sda:*)"
     ]
   },
   "includeCoAuthoredBy": false,
