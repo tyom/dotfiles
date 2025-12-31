@@ -113,10 +113,7 @@ function runCommand(
   }
 
   const output = outputParts.join("\n").trim();
-  const success =
-    result.status === 0 &&
-    result.signal === undefined &&
-    result.error === undefined;
+  const success = result.status === 0 && !result.signal && !result.error;
 
   return { success, output, status: result.status };
 }
