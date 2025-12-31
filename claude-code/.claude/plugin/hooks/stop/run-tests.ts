@@ -131,7 +131,7 @@ async function detectTestRunner(dir: string): Promise<TestConfig | null> {
       (await Bun.file(join(dir, "bun.lockb")).exists()) ||
       (await Bun.file(join(dir, "bun.lock")).exists())
     ) {
-      return { runner: "bun", command: ["bun", "test"], cwd: dir };
+      return { runner: "bun", command: ["bun", "run", "test"], cwd: dir };
     }
     if (await Bun.file(join(dir, "pnpm-lock.yaml")).exists()) {
       return { runner: "pnpm", command: ["pnpm", "test"], cwd: dir };
