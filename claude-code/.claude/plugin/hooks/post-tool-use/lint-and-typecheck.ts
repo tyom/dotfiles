@@ -49,6 +49,11 @@ const PRETTIER_EXTENSIONS: Set<string> = new Set([
   ".html",
 ]);
 
+/**
+ * Reads all data from standard input and returns it as a UTF-8 string.
+ *
+ * @returns The concatenated stdin contents decoded as UTF-8.
+ */
 async function readStdin(): Promise<string> {
   const chunks: Buffer[] = [];
   for await (const chunk of Bun.stdin.stream()) {
@@ -57,6 +62,12 @@ async function readStdin(): Promise<string> {
   return Buffer.concat(chunks).toString("utf-8");
 }
 
+/**
+ * Locate the nearest ancestor directory of `startPath` that contains a `package.json`.
+ *
+ * @param startPath - File or directory path to start the upward search from
+ * @returns The directory path that contains `package.json`, or `null` if no such directory is found up to the filesystem root
+ */
 async function findProjectRoot(startPath: string): Promise<string | null> {
   let currentDir = dirname(startPath);
   while (currentDir !== "/") {
@@ -68,6 +79,17 @@ async function findProjectRoot(startPath: string): Promise<string | null> {
   return null;
 }
 
+/**
+ * Executes a subprocess and returns its success status, combined output, and exit code.
+ *
+ * @param cmd - The executable or command to run.
+ * @param args - Arguments to pass to the command.
+ * @param cwd - Working directory in which to run the command.
+ * @returns An object with:
+ *  - `success`: `true` if the process exited with status `0` and had no signal or spawn error, `false` otherwise.
+ *  - `output`: Combined stdout and stderr, with any spawn error or termination signal appended.
+ *  - `status`: The numeric exit code of the process, or `null` if unavailable.
+ */
 function runCommand(
   cmd: string,
   args: string[],
@@ -99,6 +121,23 @@ function runCommand(
   return { success, output, status: result.status };
 }
 
+/**
+ * Orchestrates type checking, formatting, and linting for a file specified via stdin.
+ *
+ * Reads a JSON object from stdin to obtain `tool_input.file_path`. If the file extension
+ * is supported and a project root (containing package.json) is found, performs:
+ * - TypeScript type checking when applicable and tsconfig/tsc are present.
+ * - Prettier formatting when a Prettier config and prettier binary are present (auto-formats files if needed).
+ * - ESLint linting for JS/TS files when an ESLint config and eslint binary are present.
+ *
+ * Aggregates tool outputs as errors or warnings. Prints errors to stderr and exits with code 2;
+ * prints warnings to stdout and exits with code 0 on success or when no action was necessary.
+ *
+ * @remarks
+ * Exit codes:
+ * - 0: success or no applicable action
+ * - 2: blocking errors detected (TypeScript, Prettier, or ESLint)
+ */
 async function main() {
   let input: ToolInput;
 

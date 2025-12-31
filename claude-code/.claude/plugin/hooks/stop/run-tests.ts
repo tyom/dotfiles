@@ -30,6 +30,11 @@ interface TestConfig {
 
 const CWD = process.cwd();
 
+/**
+ * Read all data from standard input and return it as a UTF-8 string.
+ *
+ * @returns The concatenated UTF-8 string read from stdin (empty string if no data).
+ */
 async function readStdin(): Promise<string> {
   const chunks: Buffer[] = [];
   for await (const chunk of Bun.stdin.stream()) {
@@ -38,6 +43,17 @@ async function readStdin(): Promise<string> {
   return Buffer.concat(chunks).toString("utf-8");
 }
 
+/**
+ * Determines whether a directory contains project test files or test directories.
+ *
+ * Checks the given directory (and its `src` subdirectory) for common test directories
+ * and test file name patterns. Test directories considered: `test`, `tests`, `__tests__`,
+ * `spec`, `specs`. Test file patterns considered: `.test.[jt]s[x]?`, `.spec.[jt]s[x]?`,
+ * `_test.[jt]s[x]?`, `_spec.[jt]s[x]?`.
+ *
+ * @param dir - The directory path to inspect for tests
+ * @returns `true` if the directory or its `src` subdirectory contains test files or test directories, `false` otherwise
+ */
 function hasTestFiles(dir: string): boolean {
   const testPatterns = [
     /\.test\.[jt]sx?$/,
@@ -78,6 +94,12 @@ function hasTestFiles(dir: string): boolean {
   return false;
 }
 
+/**
+ * Detects an appropriate test runner and the command to run tests for the project located at `dir`.
+ *
+ * @param dir - Path to the project directory to analyze
+ * @returns A `TestConfig` containing the selected `runner`, the `command` to invoke tests, and the `cwd`, or `null` if no suitable runner or test configuration is detected
+ */
 async function detectTestRunner(dir: string): Promise<TestConfig | null> {
   const packageJsonPath = join(dir, "package.json");
   const packageJsonFile = Bun.file(packageJsonPath);
@@ -109,7 +131,7 @@ async function detectTestRunner(dir: string): Promise<TestConfig | null> {
       (await Bun.file(join(dir, "bun.lockb")).exists()) ||
       (await Bun.file(join(dir, "bun.lock")).exists())
     ) {
-      return { runner: "bun", command: ["bun", "test"], cwd: dir };
+      return { runner: "bun", command: ["bun", "run", "test"], cwd: dir };
     }
     if (await Bun.file(join(dir, "pnpm-lock.yaml")).exists()) {
       return { runner: "pnpm", command: ["pnpm", "test"], cwd: dir };
@@ -157,6 +179,12 @@ async function detectTestRunner(dir: string): Promise<TestConfig | null> {
   return null;
 }
 
+/**
+ * Execute the configured test command and collect its combined output.
+ *
+ * @param config - Test runner configuration containing `command` (array where the first element is the executable and the rest are arguments) and `cwd` (working directory to run the command in)
+ * @returns An object with `success` set to `true` if the process exited with status 0, `false` otherwise, and `output` containing the trimmed concatenation of the process's stdout and stderr
+ */
 function runTests(config: TestConfig): { success: boolean; output: string } {
   const result = spawnSync(config.command[0], config.command.slice(1), {
     cwd: config.cwd,
@@ -175,6 +203,11 @@ function runTests(config: TestConfig): { success: boolean; output: string } {
   };
 }
 
+/**
+ * Locate the nearest ancestor directory that contains a package.json file.
+ *
+ * @returns The path to the first ancestor directory (starting from CWD) that contains a `package.json`; if none is found, returns the original `CWD`.
+ */
 async function findProjectRoot(): Promise<string> {
   let current = CWD;
   while (current !== "/") {
@@ -186,6 +219,13 @@ async function findProjectRoot(): Promise<string> {
   return CWD;
 }
 
+/**
+ * Run project tests and block shutdown if tests fail.
+ *
+ * Reads JSON input from stdin to detect an active stop hook; if present, allows stopping immediately.
+ * Locates the project root and detects an appropriate test runner; if no runner is found or no test files exist, allows stopping.
+ * Executes the detected test suite; if tests fail, writes a JSON decision object to stdout with `decision: "block"` and a `reason` that includes the test output, then exits.
+ */
 async function main() {
   let input: StopHookInput = {};
 
