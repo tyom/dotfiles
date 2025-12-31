@@ -42,7 +42,7 @@ if command -v claude &> /dev/null; then
     (cd "$HOME/.claude/plugin" && bun install --frozen-lockfile 2>/dev/null || bun install)
   fi
   claude plugin marketplace add "$HOME/.claude/plugin" 2>/dev/null || true
-  claude plugin install tyom@dotfiles --scope user 2>/dev/null || true
+  claude plugin install dotfiles@dotfiles --scope user 2>/dev/null || true
 fi
 
 print_step 'Validating installation'

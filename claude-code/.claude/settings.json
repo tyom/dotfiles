@@ -20,7 +20,7 @@
       "TodoWrite",
       "ExitPlanMode",
       "Task",
-      "Skill(tyom:ungit)",
+      "Skill(dotfiles:ungit)",
       "Bash(ungit:*)",
       "mcp__*"
     ],

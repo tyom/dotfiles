@@ -1,22 +1,28 @@
 # Dotfiles testing environment
-FROM homebrew/brew:latest
+FROM ubuntu:22.04
 
 ENV TERM=xterm-256color
+ENV DEBIAN_FRONTEND=noninteractive
 
-# Install additional packages via apt (run as root temporarily)
-USER root
+# Install system packages
 RUN apt-get update -qq && \
-  apt-get install -y stow vim locales zsh && \
+  apt-get install -y git stow vim locales zsh curl unzip build-essential && \
   apt-get clean && \
   rm -rf /var/lib/apt/lists/* && \
   localedef -i en_GB -f UTF-8 en_GB.UTF-8
 
-# Switch back to linuxbrew user
-USER linuxbrew
+# Create non-root user
+RUN useradd -m -s /bin/zsh dev
+USER dev
+ENV HOME=/home/dev
+
+# Install Bun for testing Claude Code plugin
+RUN curl -fsSL https://bun.sh/install | bash
+ENV PATH="${HOME}/.bun/bin:${PATH}"
 
 # Copy dotfiles
-COPY --chown=linuxbrew:linuxbrew . /home/linuxbrew/dotfiles
-WORKDIR /home/linuxbrew/dotfiles
+COPY --chown=dev:dev . ${HOME}/dotfiles
+WORKDIR ${HOME}/dotfiles
 
 # Make entrypoint executable
 RUN chmod +x scripts/docker-entrypoint.sh
