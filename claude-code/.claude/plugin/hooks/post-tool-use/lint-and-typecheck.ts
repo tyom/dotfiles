@@ -70,7 +70,7 @@ async function readStdin(): Promise<string> {
  */
 async function findProjectRoot(startPath: string): Promise<string | null> {
   let currentDir = dirname(startPath);
-  while (currentDir !== "/") {
+  while (currentDir !== dirname(currentDir)) {
     if (await Bun.file(resolve(currentDir, "package.json")).exists()) {
       return currentDir;
     }

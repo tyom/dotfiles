@@ -210,7 +210,7 @@ function runTests(config: TestConfig): { success: boolean; output: string } {
  */
 async function findProjectRoot(): Promise<string> {
   let current = CWD;
-  while (current !== "/") {
+  while (current !== resolve(current, "..")) {
     if (await Bun.file(join(current, "package.json")).exists()) {
       return current;
     }
