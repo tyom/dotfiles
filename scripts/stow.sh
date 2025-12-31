@@ -20,7 +20,7 @@ else
 fi
 
 # Remove conflicting files before stowing (backup handled separately)
-# This ensures our dotfiles take precedence over installer-generated files
+# remove_conflicts removes regular (non-symlink) files from $HOME that correspond to files in the given package so Stow can create symlinks; files named .stow-local-ignore are ignored.
 remove_conflicts() {
   local package="$1"
   local package_dir="$DOTFILES_DIR/$package"
