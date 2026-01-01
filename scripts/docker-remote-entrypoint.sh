@@ -27,8 +27,13 @@ remote-test-local)
   python3 -m http.server 8080 &
   SERVER_PID=$!
 
-  # Wait for server to start
-  sleep 1
+  # Wait for server to be ready
+  for i in {1..10}; do
+    if curl -fsSL --max-time 1 http://localhost:8080/ >/dev/null 2>&1; then
+      break
+    fi
+    sleep 0.5
+  done
 
   # Test the install
   echo "Fetching from http://localhost:8080/install.sh"
