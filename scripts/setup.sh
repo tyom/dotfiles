@@ -57,13 +57,16 @@ print_step 'Symlinking dotfiles' &&
 print_step 'Installing Vim plugins' &&
   source "$DOTFILES_DIR/scripts/install/vim.sh"
 
-# Install Claude Code dotfiles plugin if claude is available
+# Install Claude Code plugin dependencies (always, so they're ready when Claude is installed)
+PLUGIN_DIR="$DOTFILES_DIR/claude-code/.claude/plugin"
+if [ -f "$PLUGIN_DIR/package.json" ]; then
+  print_step 'Installing Claude Code plugin dependencies'
+  (cd "$PLUGIN_DIR" && bun install --frozen-lockfile 2>/dev/null || bun install)
+fi
+
+# Register Claude Code plugin if claude is available
 if command -v claude &> /dev/null; then
-  print_step 'Installing Claude Code dotfiles plugin'
-  # Install plugin dependencies
-  if [ -f "$HOME/.claude/plugin/package.json" ]; then
-    (cd "$HOME/.claude/plugin" && bun install --frozen-lockfile 2>/dev/null || bun install)
-  fi
+  print_step 'Registering Claude Code dotfiles plugin'
   claude plugin marketplace add "$HOME/.claude/plugin" 2>/dev/null || true
   claude plugin install dotfiles@dotfiles --scope user 2>/dev/null || true
 fi
