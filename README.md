@@ -55,6 +55,7 @@ dotfiles/
 ├── oh-my-zsh/     # Oh-my-zsh custom theme
 ├── bin/           # Custom scripts (~/bin/)
 ├── shell/         # Shell modules (sourced by .zshrc, not symlinked)
+├── claude-code/   # Claude Code plugin (commands, agents, skills)
 └── scripts/       # Installation and setup scripts
 ```
 
@@ -84,6 +85,12 @@ Add machine-specific vim configuration here.
 
 ## What Gets Installed
 
+### Core Tools
+
+- **Bun** - Fast JavaScript runtime and package manager
+- **Volta** - Node.js version manager
+- **Node.js** - Installed via Volta
+
 ### Homebrew Packages
 
 See [scripts/install/brew.sh](./scripts/install/brew.sh) for the list of installed packages.
@@ -107,17 +114,20 @@ install.sh (entry point)
 setup.sh (orchestrator)
 ├── 1. Confirm user wants to proceed
 ├── 2. Install Homebrew and packages (optional)
-├── 3. Set up Zsh and Oh My Zsh (scripts/zsh.sh)
+├── 3. Install Bun and Volta (JS tooling)
+├── 4. Install Node.js via Volta
+├── 5. Set up Zsh and Oh My Zsh (scripts/zsh.sh)
 │   ├── Install zsh if missing
 │   ├── Install Oh My Zsh if missing
 │   ├── Modify ~/.zshrc to source dotfiles
 │   └── Create ~/.dotfiles.zsh with DOTFILES_DIR embedded
-├── 4. Create symlinks (scripts/stow.sh)
+├── 6. Create symlinks (scripts/stow.sh)
 │   └── Symlink packages: git, vim, oh-my-zsh, bin
-├── 5. Install Vim plugins (scripts/install/vim.sh)
+├── 7. Install Vim plugins (scripts/install/vim.sh)
 │   ├── Install vim-plug
 │   └── Run PlugInstall
-└── 6. Validate installation (scripts/validate.sh)
+├── 8. Install Claude Code plugin dependencies
+└── 9. Validate installation (scripts/validate.sh)
 ```
 
 ### Zsh Configuration Chain
@@ -192,3 +202,21 @@ Run `make` to see all available commands:
 | `make docker-setup` | Run setup and drop into shell      |
 | `make docker-shell` | Start persistent shell in Docker   |
 | `make docker-clean` | Remove persistent Docker container |
+
+## Claude Code Plugin
+
+The `claude-code/` directory contains a local [Claude Code](https://docs.anthropic.com/en/docs/claude-code) plugin with custom commands, agents, and skills.
+
+### Commands
+
+- `/explain-code` - Analyse and explain code functionality
+- `/review-code` - Review code for bugs, security, and quality issues
+- `/refactor-code` - Refactor code with analysis and pattern application
+
+### Agents
+
+- `code-quality-reviewer` - Proactively reviews code after completing features
+
+### Skills
+
+- `ungit` - Fetch code from GitHub repositories as LLM-friendly context
