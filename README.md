@@ -188,20 +188,36 @@ make docker-setup
 make docker-clean
 ```
 
+### Testing Remote Install
+
+Test the remote install script in isolation:
+
+```bash
+# Test local changes via HTTP server (before deployment)
+make docker-test-remote-local
+
+# Smoke test the deployed URL (after merge to master)
+make docker-test-remote
+```
+
+The `docker-test-remote-local` command starts a local HTTP server to serve `docs/install.sh`, simulating the remote install flow without requiring deployment. This is useful for testing changes to the install script before merging.
+
 ## Makefile Commands
 
 Run `make` to see all available commands:
 
-| Command             | Description                        |
-| ------------------- | ---------------------------------- |
-| `make install`      | Install dotfiles on local machine  |
-| `make uninstall`    | Remove dotfiles symlinks           |
-| `make brew`         | Install Homebrew packages          |
-| `make docker-build` | Build Docker test image            |
-| `make docker-test`  | Run setup and validation in Docker |
-| `make docker-setup` | Run setup and drop into shell      |
-| `make docker-shell` | Start persistent shell in Docker   |
-| `make docker-clean` | Remove persistent Docker container |
+| Command                         | Description                               |
+| ------------------------------- | ----------------------------------------- |
+| `make install`                  | Install dotfiles on local machine         |
+| `make uninstall`                | Remove dotfiles symlinks                  |
+| `make brew`                     | Install Homebrew packages                 |
+| `make docker-build`             | Build Docker test image                   |
+| `make docker-test`              | Run setup and validation in Docker        |
+| `make docker-setup`             | Run setup and drop into shell             |
+| `make docker-shell`             | Start persistent shell in Docker          |
+| `make docker-clean`             | Remove persistent Docker container        |
+| `make docker-test-remote`       | Smoke test remote install (deployed URL)  |
+| `make docker-test-remote-local` | Test remote install via local HTTP server |
 
 ## Claude Code Plugin
 

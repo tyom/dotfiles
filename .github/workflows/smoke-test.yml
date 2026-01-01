@@ -1,0 +1,37 @@
+name: Smoke Test
+
+on:
+  push:
+    branches: [master]
+
+env:
+  FORCE_COLOR: 3
+
+jobs:
+  smoke-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Wait for GitHub Pages deployment to complete for this commit
+      - name: Wait for Pages deployment
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          echo "Waiting for Pages deployment of ${{ github.sha }}..."
+          for i in {1..30}; do
+            response=$(gh api repos/${{ github.repository }}/pages/builds/latest 2>/dev/null || echo '{}')
+            status=$(echo "$response" | jq -r '.status')
+            commit=$(echo "$response" | jq -r '.commit')
+            if [ "$status" = "built" ] && [ "$commit" = "${{ github.sha }}" ]; then
+              echo "Pages deployment completed successfully"
+              exit 0
+            fi
+            echo "Status: $status, Commit: ${commit:0:7} - waiting... ($i/30)"
+            sleep 10
+          done
+          echo "Pages deployment timed out"
+          exit 1
+
+      - name: Test remote install
+        run: make docker-test-remote
