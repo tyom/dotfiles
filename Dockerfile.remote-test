@@ -1,5 +1,6 @@
 # Clean environment for testing remote install
-FROM homebrew/brew:latest
+# Pinned for reproducible builds - check https://hub.docker.com/r/homebrew/brew/tags for updates
+FROM homebrew/brew:4.6.20
 
 ENV TERM=xterm-256color
 
