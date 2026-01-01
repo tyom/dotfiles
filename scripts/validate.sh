@@ -142,14 +142,41 @@ else
   ERRORS=$((ERRORS + 1))
 fi
 
+# Check JS tooling
+echo ""
+print_info "Checking JS tooling..."
+
+if command -v bun >/dev/null 2>&1; then
+  print_success "Bun is installed ($(bun --version))"
+else
+  print_error "Bun is not installed"
+  print_info "Install with: curl -fsSL https://bun.sh/install | bash"
+  ERRORS=$((ERRORS + 1))
+fi
+
+if command -v volta >/dev/null 2>&1; then
+  print_success "Volta is installed ($(volta --version))"
+  if command -v node >/dev/null 2>&1; then
+    print_success "Node.js is installed ($(node --version))"
+  else
+    print_error "Node.js is not installed via Volta"
+    print_info "Install with: volta install node"
+    ERRORS=$((ERRORS + 1))
+  fi
+else
+  print_error "Volta is not installed"
+  print_info "Install with: curl -fsSL https://get.volta.sh | bash"
+  ERRORS=$((ERRORS + 1))
+fi
+
 # Check Claude Code plugin
 echo ""
 print_info "Checking Claude Code plugin..."
 
 PLUGIN_DIR="$DOTFILES_DIR/claude-code/.claude/plugin"
 if [ -d "$PLUGIN_DIR" ] && [ -f "$PLUGIN_DIR/package.json" ]; then
+  # Install dependencies if needed (requires Bun, checked above)
   if command -v bun >/dev/null 2>&1; then
-    # Install dependencies if needed
     if [ ! -d "$PLUGIN_DIR/node_modules" ]; then
       print_info "Installing plugin dependencies..."
       (cd "$PLUGIN_DIR" && bun install --frozen-lockfile 2>/dev/null || bun install)
@@ -161,8 +188,6 @@ if [ -d "$PLUGIN_DIR" ] && [ -f "$PLUGIN_DIR/package.json" ]; then
       print_error "Claude Code plugin type check failed"
       ERRORS=$((ERRORS + 1))
     fi
-  else
-    print_info "Bun not installed, skipping Claude Code plugin check"
   fi
 else
   print_info "Claude Code plugin not found, skipping"
