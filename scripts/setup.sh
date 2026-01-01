@@ -20,10 +20,33 @@ if [ "$(which_os)" == "macos" ]; then
     print_info 'Skipping Brew Cask'
 fi
 
-continue_or_skip \
-  'Install tools via curl (Bun, etc.)?' 'y' &&
-  source "$DOTFILES_DIR/scripts/install/curl.sh" ||
-  print_info 'Skipping curl-based installs'
+# Install Bun (required for Claude Code plugin and JS tooling)
+if ! command -v bun &> /dev/null; then
+  print_step 'Installing Bun'
+  curl -fsSL https://bun.sh/install | bash
+  export BUN_INSTALL="$HOME/.bun"
+  export PATH="$BUN_INSTALL/bin:$PATH"
+else
+  print_info 'Bun already installed'
+fi
+
+# Install Volta (Node.js version manager)
+if ! command -v volta &> /dev/null; then
+  print_step 'Installing Volta'
+  curl -fsSL https://get.volta.sh | bash -s -- --skip-setup
+  export VOLTA_HOME="$HOME/.volta"
+  export PATH="$VOLTA_HOME/bin:$PATH"
+else
+  print_info 'Volta already installed'
+fi
+
+# Install default Node.js via Volta
+if command -v volta &> /dev/null && ! volta list node 2>/dev/null | grep -q 'node@'; then
+  print_step 'Installing Node.js via Volta'
+  volta install node
+else
+  print_info 'Node.js already installed via Volta'
+fi
 
 print_step 'Setting up zsh' &&
   source "$DOTFILES_DIR/scripts/zsh.sh"
@@ -38,7 +61,7 @@ print_step 'Installing Vim plugins' &&
 if command -v claude &> /dev/null; then
   print_step 'Installing Claude Code dotfiles plugin'
   # Install plugin dependencies
-  if command -v bun &> /dev/null && [ -f "$HOME/.claude/plugin/package.json" ]; then
+  if [ -f "$HOME/.claude/plugin/package.json" ]; then
     (cd "$HOME/.claude/plugin" && bun install --frozen-lockfile 2>/dev/null || bun install)
   fi
   claude plugin marketplace add "$HOME/.claude/plugin" 2>/dev/null || true
