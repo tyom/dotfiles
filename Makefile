@@ -31,4 +31,12 @@ docker-setup: docker-build ## Run setup and drop into shell
 docker-clean: ## Remove persistent Docker container
 	docker rm -f $(CONTAINER_NAME) 2>/dev/null || true
 
-.PHONY: help install uninstall brew docker-build docker-test docker-shell docker-setup docker-clean
+docker-test-remote: ## Smoke test remote install from deployed URL
+	docker build -f Dockerfile.remote-test -t $(IMAGE_NAME)-remote .
+	docker run --rm $(IMAGE_NAME)-remote remote-test
+
+docker-test-remote-local: ## Test remote install using local HTTP server
+	docker build -f Dockerfile.remote-test -t $(IMAGE_NAME)-remote .
+	docker run --rm $(IMAGE_NAME)-remote remote-test-local
+
+.PHONY: help install uninstall brew docker-build docker-test docker-shell docker-setup docker-clean docker-test-remote docker-test-remote-local

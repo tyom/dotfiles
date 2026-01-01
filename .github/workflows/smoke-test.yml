@@ -1,0 +1,21 @@
+name: Smoke Test
+
+on:
+  push:
+    branches: [master]
+
+env:
+  FORCE_COLOR: 3
+
+jobs:
+  smoke-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Small delay to allow GitHub Pages to deploy
+      - name: Wait for Pages deployment
+        run: sleep 30
+
+      - name: Test remote install
+        run: make docker-test-remote
