@@ -142,6 +142,32 @@ else
   ERRORS=$((ERRORS + 1))
 fi
 
+# Check Claude Code plugin
+echo ""
+print_info "Checking Claude Code plugin..."
+
+PLUGIN_DIR="$DOTFILES_DIR/claude-code/.claude/plugin"
+if [ -d "$PLUGIN_DIR" ] && [ -f "$PLUGIN_DIR/package.json" ]; then
+  if command -v bun >/dev/null 2>&1; then
+    # Install dependencies if needed
+    if [ ! -d "$PLUGIN_DIR/node_modules" ]; then
+      print_info "Installing plugin dependencies..."
+      (cd "$PLUGIN_DIR" && bun install --frozen-lockfile 2>/dev/null || bun install)
+    fi
+    # Type check the plugin
+    if (cd "$PLUGIN_DIR" && bun run tsc --noEmit 2>&1); then
+      print_success "Claude Code plugin type check passed"
+    else
+      print_error "Claude Code plugin type check failed"
+      ERRORS=$((ERRORS + 1))
+    fi
+  else
+    print_info "Bun not installed, skipping Claude Code plugin check"
+  fi
+else
+  print_info "Claude Code plugin not found, skipping"
+fi
+
 # Summary
 echo ""
 if [ $ERRORS -eq 0 ]; then

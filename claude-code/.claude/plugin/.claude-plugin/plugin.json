@@ -1,0 +1,8 @@
+{
+  "name": "dotfiles",
+  "description": "Personal development workflow automation - hooks, tools, and configurations",
+  "version": "1.0.0",
+  "author": {
+    "name": "dotfiles"
+  }
+}

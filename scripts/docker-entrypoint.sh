@@ -9,7 +9,7 @@
 
 set -e
 
-DOTFILES_DIR="/home/linuxbrew/dotfiles"
+DOTFILES_DIR="$HOME/dotfiles"
 cd "$DOTFILES_DIR"
 
 case "${1:-shell}" in
