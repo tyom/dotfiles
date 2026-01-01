@@ -41,7 +41,7 @@ else
 fi
 
 # Install default Node.js via Volta
-if command -v volta &> /dev/null && ! volta list node 2>/dev/null | grep -q 'node@'; then
+if command -v volta &> /dev/null && ! volta which node &>/dev/null; then
   print_step 'Installing Node.js via Volta'
   volta install node
 else
