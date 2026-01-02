@@ -26,6 +26,12 @@ find "$STOW_DIR" -type f | while read -r file; do
 done
 
 # Stow the entire stow/ directory
-$STOW_CMD -v -d "$DOTFILES_DIR" -t "$HOME" stow 2>&1 | grep -v "^BUG" || true
+STOW_OUTPUT=$($STOW_CMD -v -d "$DOTFILES_DIR" -t "$HOME" stow 2>&1)
+STOW_EXIT=$?
+echo "$STOW_OUTPUT" | grep -v "^BUG" || true
+if [ $STOW_EXIT -ne 0 ]; then
+  print_error "Stow failed. Check conflicts above and resolve manually."
+  exit 1
+fi
 
 print_success "Symlinks created via Stow"
