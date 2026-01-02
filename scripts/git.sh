@@ -30,7 +30,7 @@ else
   fi
 fi
 
-# Copy .gitignore if it doesn't exist (user can customize it)
+# Copy .gitignore if it doesn't exist (user can customise it)
 if [ ! -f "$HOME/.gitignore" ]; then
   cp "$GITIGNORE_PATH" "$HOME/.gitignore"
   print_success "Copied .gitignore to ~/.gitignore"

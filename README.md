@@ -175,7 +175,7 @@ The zsh theme is symlinked separately by `zsh.sh`:
 Git configuration is handled separately (not via stow):
 
 - `~/.gitconfig` - An `[include]` directive is added to load the dotfiles config
-- `~/.gitignore` - Copied during setup (if it doesn't exist) so you can customize it
+- `~/.gitignore` - Copied during setup (if it doesn't exist) so you can customise it
 
 ### Interactive Prompts
 
