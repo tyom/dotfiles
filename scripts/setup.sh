@@ -71,7 +71,7 @@ fi
 if command -v claude &> /dev/null; then
   print_step 'Registering Claude Code dotfiles plugin'
   claude plugin marketplace add "$PLUGIN_DIR" 2>/dev/null || true
-  claude plugin install dotfiles@dotfiles --scope user 2>/dev/null || true
+  claude plugin install dotfiles@tyom --scope user 2>/dev/null || true
 fi
 
 print_step 'Validating installation'
