@@ -34,6 +34,16 @@ else
   print_info 'oh-my-zsh is already installed. Skipping.'
 fi
 
+# Symlink custom theme
+mkdir -p "$HOME/.oh-my-zsh/custom/themes"
+THEME_TARGET="$HOME/.oh-my-zsh/custom/themes/tyom.zsh-theme"
+if [ -e "$THEME_TARGET" ] && [ ! -L "$THEME_TARGET" ]; then
+  print_warning "Existing theme file found: $THEME_TARGET (skipping symlink)"
+else
+  ln -sf "$DOTFILES_DIR/zsh/tyom.zsh-theme" "$THEME_TARGET"
+  print_success "Custom theme symlinked"
+fi
+
 # Set up .zshrc to source our dotfiles config
 DOTFILES_SOURCE_LINE="export DOTFILES_DIR=\"$DOTFILES_DIR\" && source \"\$DOTFILES_DIR/zsh/dotfiles.zsh\""
 

@@ -27,12 +27,33 @@ check_symlink() {
 echo ""
 print_info "Checking symlinks..."
 
-check_symlink "$HOME/.gitconfig" ".gitconfig"
-check_symlink "$HOME/.gitignore" ".gitignore"
-check_symlink "$HOME/.gitattributes" ".gitattributes"
+# Git files are handled separately (not symlinked)
+if [ -f "$HOME/.gitconfig" ]; then
+  print_success ".gitconfig exists"
+else
+  print_error ".gitconfig missing"
+  ERRORS=$((ERRORS + 1))
+fi
+if [ -f "$HOME/.gitignore" ]; then
+  print_success ".gitignore exists"
+else
+  print_error ".gitignore missing"
+  ERRORS=$((ERRORS + 1))
+fi
 check_symlink "$HOME/.vimrc" ".vimrc"
 check_symlink "$HOME/.vimrc.bundles" ".vimrc.bundles"
 check_symlink "$HOME/.oh-my-zsh/custom/themes/tyom.zsh-theme" "zsh theme"
+
+# Check Vim configuration
+echo ""
+print_info "Checking Vim configuration..."
+
+if [ -f "$HOME/.vim/autoload/plug.vim" ]; then
+  print_success "vim-plug installed"
+else
+  print_error "vim-plug not installed"
+  ERRORS=$((ERRORS + 1))
+fi
 
 # Check zsh configuration
 echo ""
@@ -42,6 +63,13 @@ if [ -f "$HOME/.zshrc" ]; then
   print_success ".zshrc exists"
 else
   print_error ".zshrc missing"
+  ERRORS=$((ERRORS + 1))
+fi
+
+if [ -d "$HOME/.oh-my-zsh" ]; then
+  print_success "Oh My Zsh installed"
+else
+  print_error "Oh My Zsh not installed"
   ERRORS=$((ERRORS + 1))
 fi
 
@@ -56,6 +84,14 @@ if [ -f "$DOTFILES_DIR/zsh/config.zsh" ]; then
   print_success "zsh/config.zsh exists"
 else
   print_error "zsh/config.zsh missing"
+  ERRORS=$((ERRORS + 1))
+fi
+
+DOTFILES_DIR_CHECK=$(zsh -c 'source ~/.zshrc 2>/dev/null; echo $DOTFILES_DIR')
+if [ -n "$DOTFILES_DIR_CHECK" ] && [ -d "$DOTFILES_DIR_CHECK" ]; then
+  print_success "DOTFILES_DIR exported: $DOTFILES_DIR_CHECK"
+else
+  print_error "DOTFILES_DIR not properly exported"
   ERRORS=$((ERRORS + 1))
 fi
 
@@ -93,6 +129,15 @@ else
   ERRORS=$((ERRORS + 1))
 fi
 
+# Check scmpuff_status function exists (used by gs alias)
+SCMPUFF_CHECK=$(zsh -c 'source ~/.zshrc 2>/dev/null; type scmpuff_status' 2>&1)
+if echo "$SCMPUFF_CHECK" | grep -q "function"; then
+  print_success "scmpuff_status function available"
+else
+  print_error "scmpuff_status function not available (gs alias will fail)"
+  ERRORS=$((ERRORS + 1))
+fi
+
 # Check if fzf plugin is configured - only if fzf is installed
 if command -v fzf >/dev/null 2>&1; then
   echo ""
@@ -114,7 +159,7 @@ fi
 echo ""
 print_info "Checking bin scripts..."
 
-for script in color-test gb git-author; do
+for script in color-test gb git-author ungit; do
   check_symlink "$HOME/bin/$script" "bin/$script"
 done
 
@@ -139,6 +184,13 @@ if git config --global --get alias.s >/dev/null 2>&1; then
   print_success "Git aliases configured"
 else
   print_error "Git aliases not loaded"
+  ERRORS=$((ERRORS + 1))
+fi
+
+if grep -qF "path = $DOTFILES_DIR/git/.gitconfig" "$HOME/.gitconfig" 2>/dev/null; then
+  print_success "Git dotfiles include configured"
+else
+  print_error "Git dotfiles include not configured in ~/.gitconfig"
   ERRORS=$((ERRORS + 1))
 fi
 
@@ -173,7 +225,7 @@ fi
 echo ""
 print_info "Checking Claude Code plugin..."
 
-PLUGIN_DIR="$DOTFILES_DIR/claude-code/.claude/plugin"
+PLUGIN_DIR="$DOTFILES_DIR/claude-plugin"
 if [ -d "$PLUGIN_DIR" ] && [ -f "$PLUGIN_DIR/package.json" ]; then
   # Install dependencies if needed (requires Bun, checked above)
   if command -v bun >/dev/null 2>&1; then
@@ -191,6 +243,20 @@ if [ -d "$PLUGIN_DIR" ] && [ -f "$PLUGIN_DIR/package.json" ]; then
   fi
 else
   print_info "Claude Code plugin not found, skipping"
+fi
+
+# Check Homebrew packages (optional - warnings only)
+if command -v brew >/dev/null 2>&1; then
+  echo ""
+  print_info "Checking Homebrew packages (optional)..."
+
+  for pkg in scmpuff bat git-delta; do
+    if brew list "$pkg" &>/dev/null; then
+      print_success "$pkg installed"
+    else
+      print_warning "$pkg not installed (optional)"
+    fi
+  done
 fi
 
 # Summary

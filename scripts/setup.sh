@@ -54,11 +54,14 @@ print_step 'Setting up zsh' &&
 print_step 'Symlinking dotfiles' &&
   source "$DOTFILES_DIR/scripts/stow.sh"
 
+print_step 'Setting up git' &&
+  source "$DOTFILES_DIR/scripts/git.sh"
+
 print_step 'Installing Vim plugins' &&
   source "$DOTFILES_DIR/scripts/install/vim.sh"
 
 # Install Claude Code plugin dependencies (always, so they're ready when Claude is installed)
-PLUGIN_DIR="$DOTFILES_DIR/claude-code/.claude/plugin"
+PLUGIN_DIR="$DOTFILES_DIR/claude-plugin"
 if [ -f "$PLUGIN_DIR/package.json" ]; then
   print_step 'Installing Claude Code plugin dependencies'
   (cd "$PLUGIN_DIR" && bun install --frozen-lockfile 2>/dev/null || bun install)
@@ -67,8 +70,8 @@ fi
 # Register Claude Code plugin if claude is available
 if command -v claude &> /dev/null; then
   print_step 'Registering Claude Code dotfiles plugin'
-  claude plugin marketplace add "$HOME/.claude/plugin" 2>/dev/null || true
-  claude plugin install dotfiles@dotfiles --scope user 2>/dev/null || true
+  claude plugin marketplace add "$PLUGIN_DIR" 2>/dev/null || true
+  claude plugin install dotfiles@tyom --scope user 2>/dev/null || true
 fi
 
 print_step 'Validating installation'

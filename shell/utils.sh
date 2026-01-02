@@ -109,16 +109,16 @@ function print_info {
   printf "\e[0;35m » $1\e[0m\n"
 }
 
-function print_info {
-  printf "\e[0;35m » $1\e[0m\n"
-}
-
 function print_success {
   printf "\e[0;32m ✔ $1\e[0m\n"
 }
 
 function print_error {
   printf "\e[0;31m ✖ $1 $2\e[0m\n"
+}
+
+function print_warning {
+  printf "\e[0;33m ⚠ $1\e[0m\n"
 }
 
 function print_result {

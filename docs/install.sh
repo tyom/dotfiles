@@ -5,6 +5,12 @@
 # Remote install (clones to ~/.dotfiles):
 #   curl -fsSL https://tyom.github.io/dotfiles/install.sh | bash
 #
+# Remote install to custom location:
+#   DOTFILES_DIR=~/Code/dotfiles curl -fsSL https://tyom.github.io/dotfiles/install.sh | bash
+#
+# Non-interactive (skip prompts during setup):
+#   curl -fsSL https://tyom.github.io/dotfiles/install.sh | bash -s -- -y
+#
 # Local install (from existing repo):
 #   ./docs/install.sh
 #   # or: make install
@@ -13,6 +19,18 @@ set -e
 
 DOTFILES_REPO="https://github.com/tyom/dotfiles"
 DOTFILES_BRANCH="${DOTFILES_BRANCH:-master}"
+YES_OVERRIDE=false
+
+# Parse arguments
+while [[ $# -gt 0 ]]; do
+  case $1 in
+    -y|--yes) YES_OVERRIDE=true; shift ;;
+    *) shift ;;
+  esac
+done
+
+# Export for setup.sh to use
+export YES_OVERRIDE
 
 # Detect if running from within an existing dotfiles repo
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
