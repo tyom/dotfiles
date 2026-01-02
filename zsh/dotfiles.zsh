@@ -12,4 +12,7 @@ source "$ZSH/oh-my-zsh.sh"
 # scmpuff for easier Git commits
 if command -v scmpuff &>/dev/null; then
   eval "$(scmpuff init -s --aliases=false)"
+else
+  # Fallback when scmpuff is not installed
+  scmpuff_status() { git status; }
 fi
