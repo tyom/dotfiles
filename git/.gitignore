@@ -1,8 +1,6 @@
 # IDEs support files
 .idea/
 .vscode/
-*.sublime-project
-*.sublime-workspace
 
 # Compiled Python files
 *.pyc
@@ -15,7 +13,6 @@ Thumbs.db
 .netrw*
 
 # Locals
-*ssh/config
 .gitconfig.local
 private
 

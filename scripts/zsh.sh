@@ -34,6 +34,9 @@ else
   print_info 'oh-my-zsh is already installed. Skipping.'
 fi
 
+# Symlink custom theme
+ln -sf "$DOTFILES_DIR/zsh/tyom.zsh-theme" "$HOME/.oh-my-zsh/custom/themes/"
+
 # Set up .zshrc to source our dotfiles config
 DOTFILES_SOURCE_LINE="export DOTFILES_DIR=\"$DOTFILES_DIR\" && source \"\$DOTFILES_DIR/zsh/dotfiles.zsh\""
 

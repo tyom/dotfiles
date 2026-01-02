@@ -27,9 +27,19 @@ check_symlink() {
 echo ""
 print_info "Checking symlinks..."
 
-check_symlink "$HOME/.gitconfig" ".gitconfig"
-check_symlink "$HOME/.gitignore" ".gitignore"
-check_symlink "$HOME/.gitattributes" ".gitattributes"
+# Git files are handled separately (not symlinked)
+if [ -f "$HOME/.gitconfig" ]; then
+  print_success ".gitconfig exists"
+else
+  print_error ".gitconfig missing"
+  ERRORS=$((ERRORS + 1))
+fi
+if [ -f "$HOME/.gitignore" ]; then
+  print_success ".gitignore exists"
+else
+  print_error ".gitignore missing"
+  ERRORS=$((ERRORS + 1))
+fi
 check_symlink "$HOME/.vimrc" ".vimrc"
 check_symlink "$HOME/.vimrc.bundles" ".vimrc.bundles"
 check_symlink "$HOME/.oh-my-zsh/custom/themes/tyom.zsh-theme" "zsh theme"
@@ -173,7 +183,7 @@ fi
 echo ""
 print_info "Checking Claude Code plugin..."
 
-PLUGIN_DIR="$DOTFILES_DIR/claude-code/.claude/plugin"
+PLUGIN_DIR="$DOTFILES_DIR/claude-plugin"
 if [ -d "$PLUGIN_DIR" ] && [ -f "$PLUGIN_DIR/package.json" ]; then
   # Install dependencies if needed (requires Bun, checked above)
   if command -v bun >/dev/null 2>&1; then

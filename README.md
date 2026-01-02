@@ -45,39 +45,47 @@ make uninstall
 
 ## Structure
 
-This repository uses [GNU Stow](https://www.gnu.org/software/stow/) for symlink management. Each top-level directory is a "stow package" that mirrors the home directory structure:
+This repository uses [GNU Stow](https://www.gnu.org/software/stow/) for symlink management:
 
 ```
 dotfiles/
-├── git/           # Git configuration (.gitconfig, .gitignore, .gitattributes)
-├── vim/           # Vim configuration (.vimrc, .vimrc.bundles)
-├── zsh/           # Zsh configuration (sourced, not symlinked)
-├── oh-my-zsh/     # Oh-my-zsh custom theme
-├── bin/           # Custom scripts (~/bin/)
-├── shell/         # Shell modules (sourced by .zshrc, not symlinked)
-├── claude-code/   # Claude Code plugin (commands, agents, skills)
-└── scripts/       # Installation and setup scripts
+├── stow/              # Symlinked to ~/
+│   ├── .vimrc
+│   ├── .vimrc.bundles
+│   └── bin/           # Shell scripts
+├── git/               # Git config (included via ~/.gitconfig)
+├── zsh/               # Zsh config + theme (sourced/symlinked)
+├── shell/             # Shell modules
+├── claude-plugin/     # Claude Code plugin (registered directly)
+└── scripts/           # Installation scripts
 ```
 
-See [STRUCTURE.md](./STRUCTURE.md) for detailed documentation.
+See [docs/STRUCTURE.md](./docs/STRUCTURE.md) for detailed documentation.
 
 ## Customisation
 
-These dotfiles are meant to be read-only. Additional configuration should be added to local dotfiles:
+The dotfiles in this repository are meant to be read-only. Your local configuration files are preserved and extended:
 
-### `~/.zshrc`
+### `~/.gitconfig`
 
-Your existing `.zshrc` is preserved. The installer adds a single source line to load the dotfiles config. Add machine-specific shell configuration directly to `~/.zshrc`.
-
-### `~/.gitconfig.local`
-
-Add your personal git configuration:
+Your existing `.gitconfig` is preserved. The installer adds an `[include]` directive to load the dotfiles config. Add your personal git configuration directly to `~/.gitconfig`:
 
 ```ini
 [user]
     name = Your Name
     email = your@email.com
+
+[include]
+    path = /path/to/dotfiles/git/.gitconfig
 ```
+
+### `~/.gitignore`
+
+A global `.gitignore` is copied to your home directory during setup (if one doesn't exist). You can edit it freely.
+
+### `~/.zshrc`
+
+Your existing `.zshrc` is preserved. The installer adds a single source line to load the dotfiles config. Add machine-specific shell configuration directly to `~/.zshrc`.
 
 ### `~/.vimrc.local`
 
@@ -122,12 +130,15 @@ setup.sh (orchestrator)
 │   ├── Modify ~/.zshrc to source dotfiles
 │   └── Create ~/.dotfiles.zsh with DOTFILES_DIR embedded
 ├── 6. Create symlinks (scripts/stow.sh)
-│   └── Symlink packages: git, vim, oh-my-zsh, bin
-├── 7. Install Vim plugins (scripts/install/vim.sh)
+│   └── Symlink packages: vim, oh-my-zsh, bin
+├── 7. Set up git (scripts/git.sh)
+│   ├── Add [include] to ~/.gitconfig
+│   └── Copy ~/.gitignore if missing
+├── 8. Install Vim plugins (scripts/install/vim.sh)
 │   ├── Install vim-plug
 │   └── Run PlugInstall
-├── 8. Install Claude Code plugin dependencies
-└── 9. Validate installation (scripts/validate.sh)
+├── 9. Install Claude Code plugin dependencies
+└── 10. Validate installation (scripts/validate.sh)
 ```
 
 ### Zsh Configuration Chain
@@ -149,17 +160,22 @@ The shell configuration is loaded in this order:
 
 ### Symlinked Files
 
-GNU Stow creates these symlinks in your home directory:
+GNU Stow creates these symlinks from `stow/` to your home directory:
 
-| Package   | Source                            | Target                                      |
-| --------- | --------------------------------- | ------------------------------------------- |
-| git       | `git/.gitconfig`                  | `~/.gitconfig`                              |
-| git       | `git/.gitignore`                  | `~/.gitignore`                              |
-| git       | `git/.gitattributes`              | `~/.gitattributes`                          |
-| vim       | `vim/.vimrc`                      | `~/.vimrc`                                  |
-| vim       | `vim/.vimrc.bundles`              | `~/.vimrc.bundles`                          |
-| oh-my-zsh | `oh-my-zsh/.oh-my-zsh/custom/...` | `~/.oh-my-zsh/custom/themes/tyom.zsh-theme` |
-| bin       | `bin/bin/*`                       | `~/bin/*`                                   |
+| Source                | Target             |
+| --------------------- | ------------------ |
+| `stow/.vimrc`         | `~/.vimrc`         |
+| `stow/.vimrc.bundles` | `~/.vimrc.bundles` |
+| `stow/bin/*`          | `~/bin/*`          |
+
+The zsh theme is symlinked separately by `zsh.sh`:
+
+- `zsh/tyom.zsh-theme` → `~/.oh-my-zsh/custom/themes/tyom.zsh-theme`
+
+Git configuration is handled separately (not via stow):
+
+- `~/.gitconfig` - An `[include]` directive is added to load the dotfiles config
+- `~/.gitignore` - Copied during setup (if it doesn't exist) so you can customize it
 
 ### Interactive Prompts
 
@@ -221,7 +237,7 @@ Run `make` to see all available commands:
 
 ## Claude Code Plugin
 
-The `claude-code/` directory contains a local [Claude Code](https://docs.anthropic.com/en/docs/claude-code) plugin with custom commands, agents, and skills.
+The `claude-plugin/` directory contains a local [Claude Code](https://docs.anthropic.com/en/docs/claude-code) plugin with custom commands, agents, and skills.
 
 ### Commands
 
