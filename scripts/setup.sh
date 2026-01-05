@@ -22,12 +22,14 @@ fi
 
 # Install Bun via Homebrew (optional, for faster JS tooling)
 if command -v brew &>/dev/null; then
-  if ! command -v bun &>/dev/null; then
-    print_step 'Installing Bun'
-    brew install oven-sh/bun/bun
-  else
-    print_info 'Bun already installed'
-  fi
+  continue_or_skip 'Install Bun (faster JS tooling)?' 'y' && {
+    if ! command -v bun &>/dev/null; then
+      print_step 'Installing Bun'
+      brew install oven-sh/bun/bun
+    else
+      print_info 'Bun already installed'
+    fi
+  } || print_info 'Skipping Bun'
 fi
 
 # Install Volta (Node.js version manager)
@@ -85,12 +87,12 @@ if [ -f "$PLUGIN_DIR/package.json" ]; then
     # Register plugin if claude is available
     if command -v claude &>/dev/null; then
       print_step 'Registering Claude Code dotfiles plugin'
-      if claude plugin marketplace add "$PLUGIN_DIR" 2>&1; then
+      if claude plugin marketplace add "$PLUGIN_DIR" &>/dev/null; then
         print_success 'Plugin marketplace entry added'
       else
         print_info 'Plugin marketplace entry may already exist'
       fi
-      if claude plugin install dotfiles@tyom --scope user 2>&1; then
+      if claude plugin install dotfiles@tyom --scope user &>/dev/null; then
         print_success 'Plugin installed successfully'
       else
         print_info 'Plugin may already be installed'
