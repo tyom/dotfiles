@@ -67,9 +67,17 @@ if [ -f "$PLUGIN_DIR/package.json" ]; then
     'Install Claude Code plugin?' 'y' && {
     print_step 'Installing Claude Code plugin dependencies'
     if command -v bun &>/dev/null; then
-      (cd "$PLUGIN_DIR" && bun install --frozen-lockfile 2>/dev/null || bun install)
+      if (cd "$PLUGIN_DIR" && bun install --frozen-lockfile 2>/dev/null || bun install); then
+        print_success 'Dependencies installed via bun'
+      else
+        print_error 'Failed to install dependencies via bun'
+      fi
     elif command -v npm &>/dev/null; then
-      (cd "$PLUGIN_DIR" && npm install)
+      if (cd "$PLUGIN_DIR" && npm install); then
+        print_success 'Dependencies installed via npm'
+      else
+        print_error 'Failed to install dependencies via npm'
+      fi
     else
       print_info 'Skipping: neither bun nor npm available'
     fi
