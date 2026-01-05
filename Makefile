@@ -37,8 +37,7 @@ docker-setup: docker-build ## Run setup and drop into shell (use VARIANT=minimal
 	docker run -it --rm $(IMAGE) setup$(CMD_SUFFIX)
 
 docker-clean: ## Remove persistent Docker containers
-	docker rm -f $(CONTAINER_NAME) 2>/dev/null || true
-	docker rm -f $(CONTAINER_NAME)-minimal 2>/dev/null || true
+	docker rm -f $(CONTAINER_NAME) $(CONTAINER_NAME)-minimal 2>/dev/null || true
 
 docker-test-remote: ## Smoke test remote install from deployed URL
 	docker build -f Dockerfile.remote-test -t $(IMAGE_NAME)-remote .
