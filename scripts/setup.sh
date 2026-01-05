@@ -21,9 +21,9 @@ if [ "$(which_os)" == "macos" ]; then
 fi
 
 # Install Bun (required for Claude Code plugin and JS tooling)
-if ! command -v bun &> /dev/null; then
+if ! command -v bun &>/dev/null; then
   print_step 'Installing Bun'
-  curl -fsSL https://bun.sh/install | bash
+  curl -fsSL https://bun.com/install | bash
   export BUN_INSTALL="$HOME/.bun"
   export PATH="$BUN_INSTALL/bin:$PATH"
 else
@@ -31,7 +31,7 @@ else
 fi
 
 # Install Volta (Node.js version manager)
-if ! command -v volta &> /dev/null; then
+if ! command -v volta &>/dev/null; then
   print_step 'Installing Volta'
   curl -fsSL https://get.volta.sh | bash -s -- --skip-setup
   export VOLTA_HOME="$HOME/.volta"
@@ -41,7 +41,7 @@ else
 fi
 
 # Install default Node.js via Volta
-if command -v volta &> /dev/null && ! volta which node &>/dev/null; then
+if command -v volta &>/dev/null && ! volta which node &>/dev/null; then
   print_step 'Installing Node.js via Volta'
   volta install node
 else
@@ -68,7 +68,7 @@ if [ -f "$PLUGIN_DIR/package.json" ]; then
 fi
 
 # Register Claude Code plugin if claude is available
-if command -v claude &> /dev/null; then
+if command -v claude &>/dev/null; then
   print_step 'Registering Claude Code dotfiles plugin'
   claude plugin marketplace add "$PLUGIN_DIR" 2>/dev/null || true
   claude plugin install dotfiles@tyom --scope user 2>/dev/null || true

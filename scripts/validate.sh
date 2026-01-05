@@ -143,8 +143,8 @@ if command -v fzf >/dev/null 2>&1; then
   echo ""
   print_info "Checking fzf configuration..."
 
-  if grep -q "plugins.*fzf" "$DOTFILES_DIR/zsh/config.zsh" 2>/dev/null || \
-     grep -q 'plugins+=(fzf)' "$DOTFILES_DIR/zsh/config.zsh" 2>/dev/null; then
+  if grep -q "plugins.*fzf" "$DOTFILES_DIR/zsh/config.zsh" 2>/dev/null ||
+    grep -q 'plugins+=(fzf)' "$DOTFILES_DIR/zsh/config.zsh" 2>/dev/null; then
     print_success "fzf plugin configured"
   else
     print_error "fzf plugin not configured in zsh/config.zsh"
@@ -202,7 +202,7 @@ if command -v bun >/dev/null 2>&1; then
   print_success "Bun is installed ($(bun --version))"
 else
   print_error "Bun is not installed"
-  print_info "Install with: curl -fsSL https://bun.sh/install | bash"
+  print_info "Install with: curl -fsSL https://bun.com/install | bash"
   ERRORS=$((ERRORS + 1))
 fi
 
