@@ -123,9 +123,9 @@ fi
 # Check if ~/bin is in PATH (where stow symlinks bin scripts)
 HOME_BIN_CHECK=$(zsh -c 'source ~/.zshrc 2>/dev/null; echo $PATH' | grep -c "$HOME/bin" || true)
 if [ "$HOME_BIN_CHECK" -gt 0 ]; then
-  print_success "~/bin is in PATH"
+  print_success "$HOME/bin is in PATH"
 else
-  print_error "~/bin not in PATH"
+  print_error "$HOME/bin not in PATH"
   ERRORS=$((ERRORS + 1))
 fi
 
