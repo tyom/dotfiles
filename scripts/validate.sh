@@ -228,9 +228,17 @@ if [ -d "$PLUGIN_DIR" ] && [ -f "$PLUGIN_DIR/package.json" ]; then
   if [ ! -d "$PLUGIN_DIR/node_modules" ]; then
     print_info "Installing plugin dependencies..."
     if command -v bun >/dev/null 2>&1; then
-      (cd "$PLUGIN_DIR" && bun install --frozen-lockfile 2>/dev/null || bun install)
+      if (cd "$PLUGIN_DIR" && bun install --frozen-lockfile 2>/dev/null || bun install); then
+        print_success "Dependencies installed with bun"
+      else
+        print_error "Failed to install dependencies with bun"
+      fi
     elif command -v npm >/dev/null 2>&1; then
-      (cd "$PLUGIN_DIR" && npm install)
+      if (cd "$PLUGIN_DIR" && npm install); then
+        print_success "Dependencies installed with npm"
+      else
+        print_error "Failed to install dependencies with npm"
+      fi
     else
       print_skip "Neither bun nor npm available, skipping plugin check"
     fi
