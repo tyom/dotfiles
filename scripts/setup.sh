@@ -20,14 +20,14 @@ if [ "$(which_os)" == "macos" ]; then
     print_info 'Skipping Brew Cask'
 fi
 
-# Install Bun (required for Claude Code plugin and JS tooling)
-if ! command -v bun &>/dev/null; then
-  print_step 'Installing Bun'
-  curl -fsSL https://bun.com/install | bash
-  export BUN_INSTALL="$HOME/.bun"
-  export PATH="$BUN_INSTALL/bin:$PATH"
-else
-  print_info 'Bun already installed'
+# Install Bun via Homebrew (optional, for faster JS tooling)
+if command -v brew &>/dev/null; then
+  if ! command -v bun &>/dev/null; then
+    print_step 'Installing Bun'
+    brew install oven-sh/bun/bun
+  else
+    print_info 'Bun already installed'
+  fi
 fi
 
 # Install Volta (Node.js version manager)
@@ -60,18 +60,27 @@ print_step 'Setting up git' &&
 print_step 'Installing Vim plugins' &&
   source "$DOTFILES_DIR/scripts/install/vim.sh"
 
-# Install Claude Code plugin dependencies (always, so they're ready when Claude is installed)
+# Claude Code plugin setup (optional)
 PLUGIN_DIR="$DOTFILES_DIR/claude-plugin"
 if [ -f "$PLUGIN_DIR/package.json" ]; then
-  print_step 'Installing Claude Code plugin dependencies'
-  (cd "$PLUGIN_DIR" && bun install --frozen-lockfile 2>/dev/null || bun install)
-fi
+  continue_or_skip \
+    'Install Claude Code plugin?' 'y' && {
+    print_step 'Installing Claude Code plugin dependencies'
+    if command -v bun &>/dev/null; then
+      (cd "$PLUGIN_DIR" && bun install --frozen-lockfile 2>/dev/null || bun install)
+    elif command -v npm &>/dev/null; then
+      (cd "$PLUGIN_DIR" && npm install)
+    else
+      print_info 'Skipping: neither bun nor npm available'
+    fi
 
-# Register Claude Code plugin if claude is available
-if command -v claude &>/dev/null; then
-  print_step 'Registering Claude Code dotfiles plugin'
-  claude plugin marketplace add "$PLUGIN_DIR" 2>/dev/null || true
-  claude plugin install dotfiles@tyom --scope user 2>/dev/null || true
+    # Register plugin if claude is available
+    if command -v claude &>/dev/null; then
+      print_step 'Registering Claude Code dotfiles plugin'
+      claude plugin marketplace add "$PLUGIN_DIR" 2>/dev/null || true
+      claude plugin install dotfiles@tyom --scope user 2>/dev/null || true
+    fi
+  } || print_info 'Skipping Claude Code plugin'
 fi
 
 print_step 'Validating installation'

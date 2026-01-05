@@ -33,5 +33,13 @@ jobs:
           echo "Pages deployment timed out"
           exit 1
 
-      - name: Test remote install
+      - name: Test remote install (with Homebrew)
         run: make docker-test-remote
+
+  minimal-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Test setup without Homebrew
+        run: make docker-test-minimal

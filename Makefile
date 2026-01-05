@@ -39,4 +39,10 @@ docker-test-remote-local: ## Test remote install using local HTTP server
 	docker build -f Dockerfile.remote-test -t $(IMAGE_NAME)-remote .
 	docker run --rm $(IMAGE_NAME)-remote remote-test-local
 
-.PHONY: help install uninstall brew docker-build docker-test docker-shell docker-setup docker-clean docker-test-remote docker-test-remote-local
+docker-build-minimal: ## Build minimal Docker image (no Homebrew)
+	docker build -f Dockerfile.minimal -t $(IMAGE_NAME)-minimal .
+
+docker-test-minimal: docker-build-minimal ## Test setup without Homebrew
+	docker run --rm $(IMAGE_NAME)-minimal test
+
+.PHONY: help install uninstall brew docker-build docker-test docker-shell docker-setup docker-clean docker-test-remote docker-test-remote-local docker-build-minimal docker-test-minimal

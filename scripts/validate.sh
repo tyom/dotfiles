@@ -201,9 +201,7 @@ print_info "Checking JS tooling..."
 if command -v bun >/dev/null 2>&1; then
   print_success "Bun is installed ($(bun --version))"
 else
-  print_error "Bun is not installed"
-  print_info "Install with: curl -fsSL https://bun.com/install | bash"
-  ERRORS=$((ERRORS + 1))
+  print_info "Bun not installed (optional, install via Homebrew)"
 fi
 
 if command -v volta >/dev/null 2>&1; then
@@ -227,18 +225,33 @@ print_info "Checking Claude Code plugin..."
 
 PLUGIN_DIR="$DOTFILES_DIR/claude-plugin"
 if [ -d "$PLUGIN_DIR" ] && [ -f "$PLUGIN_DIR/package.json" ]; then
-  # Install dependencies if needed (requires Bun, checked above)
-  if command -v bun >/dev/null 2>&1; then
-    if [ ! -d "$PLUGIN_DIR/node_modules" ]; then
-      print_info "Installing plugin dependencies..."
+  # Install dependencies if needed
+  if [ ! -d "$PLUGIN_DIR/node_modules" ]; then
+    print_info "Installing plugin dependencies..."
+    if command -v bun >/dev/null 2>&1; then
       (cd "$PLUGIN_DIR" && bun install --frozen-lockfile 2>/dev/null || bun install)
-    fi
-    # Type check the plugin
-    if (cd "$PLUGIN_DIR" && bun run tsc --noEmit 2>&1); then
-      print_success "Claude Code plugin type check passed"
+    elif command -v npm >/dev/null 2>&1; then
+      (cd "$PLUGIN_DIR" && npm install)
     else
-      print_error "Claude Code plugin type check failed"
-      ERRORS=$((ERRORS + 1))
+      print_info "Neither bun nor npm available, skipping plugin check"
+    fi
+  fi
+  # Type check the plugin if dependencies are installed
+  if [ -d "$PLUGIN_DIR/node_modules" ]; then
+    if command -v bun >/dev/null 2>&1; then
+      if (cd "$PLUGIN_DIR" && bun run tsc --noEmit 2>&1); then
+        print_success "Claude Code plugin type check passed"
+      else
+        print_error "Claude Code plugin type check failed"
+        ERRORS=$((ERRORS + 1))
+      fi
+    elif command -v npx >/dev/null 2>&1; then
+      if (cd "$PLUGIN_DIR" && npx tsc --noEmit 2>&1); then
+        print_success "Claude Code plugin type check passed"
+      else
+        print_error "Claude Code plugin type check failed"
+        ERRORS=$((ERRORS + 1))
+      fi
     fi
   fi
 else
