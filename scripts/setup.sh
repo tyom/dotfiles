@@ -67,7 +67,7 @@ if [ -f "$PLUGIN_DIR/package.json" ]; then
     'Install Claude Code plugin?' 'y' && {
     print_step 'Installing Claude Code plugin dependencies'
     if command -v bun &>/dev/null; then
-      if (cd "$PLUGIN_DIR" && bun install --frozen-lockfile 2>/dev/null || bun install); then
+      if (cd "$PLUGIN_DIR" && (bun install --frozen-lockfile || bun install)); then
         print_success 'Dependencies installed via bun'
       else
         print_error 'Failed to install dependencies via bun'
@@ -85,8 +85,16 @@ if [ -f "$PLUGIN_DIR/package.json" ]; then
     # Register plugin if claude is available
     if command -v claude &>/dev/null; then
       print_step 'Registering Claude Code dotfiles plugin'
-      claude plugin marketplace add "$PLUGIN_DIR" 2>/dev/null || true
-      claude plugin install dotfiles@tyom --scope user 2>/dev/null || true
+      if claude plugin marketplace add "$PLUGIN_DIR" 2>&1; then
+        print_success 'Plugin marketplace entry added'
+      else
+        print_info 'Plugin marketplace entry may already exist'
+      fi
+      if claude plugin install dotfiles@tyom --scope user 2>&1; then
+        print_success 'Plugin installed successfully'
+      else
+        print_info 'Plugin may already be installed'
+      fi
     fi
   } || print_info 'Skipping Claude Code plugin'
 fi
