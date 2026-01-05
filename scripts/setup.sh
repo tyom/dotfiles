@@ -8,10 +8,14 @@ echo -e "Installing dotfiles for $(which_os)…"
 continue_or_exit \
   'This will install dotfiles for your system and update your .zshrc file.' 'y'
 
-continue_or_skip \
-  'Install Homebrew and useful packages? This may take a while.' 'y' &&
-  source "$DOTFILES_DIR/scripts/install/brew.sh" ||
-  print_info 'Skipping Homebrew'
+if [[ "${MINIMAL_SETUP:-}" == "true" ]]; then
+  print_info 'Skipping Homebrew (minimal setup)'
+else
+  continue_or_skip \
+    'Install Homebrew and useful packages? This may take a while.' 'y' &&
+    source "$DOTFILES_DIR/scripts/install/brew.sh" ||
+    print_info 'Skipping Homebrew'
+fi
 
 if [ "$(which_os)" == "macos" ]; then
   continue_or_skip \
@@ -20,12 +24,16 @@ if [ "$(which_os)" == "macos" ]; then
     print_info 'Skipping Brew Cask'
 fi
 
-# Install Bun via Homebrew (optional, for faster JS tooling)
-if command -v brew &>/dev/null; then
+# Install Bun (optional, for faster JS tooling)
+if [[ "${MINIMAL_SETUP:-}" == "true" ]]; then
+  print_info 'Skipping Bun (minimal setup)'
+else
   continue_or_skip 'Install Bun (faster JS tooling)?' 'y' && {
     if ! command -v bun &>/dev/null; then
       print_step 'Installing Bun'
-      brew install oven-sh/bun/bun
+      curl -fsSL https://bun.com/install | bash
+      export BUN_INSTALL="$HOME/.bun"
+      export PATH="$BUN_INSTALL/bin:$PATH"
     else
       print_info 'Bun already installed'
     fi

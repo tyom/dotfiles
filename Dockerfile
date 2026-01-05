@@ -16,8 +16,8 @@ USER linuxbrew
 ENV HOME=/home/linuxbrew
 
 # Copy dotfiles
-COPY --chown=linuxbrew:linuxbrew . ${HOME}/dotfiles
-WORKDIR ${HOME}/dotfiles
+COPY --chown=linuxbrew:linuxbrew . ${HOME}/.dotfiles
+WORKDIR ${HOME}/.dotfiles
 
 # Make entrypoint executable
 RUN chmod +x scripts/docker-entrypoint.sh

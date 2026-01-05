@@ -18,9 +18,12 @@ USER testuser
 ENV HOME=/home/testuser
 WORKDIR ${HOME}
 
+# Prevent zsh new user wizard
+RUN touch ~/.zshrc
+
 # Copy dotfiles
-COPY --chown=testuser:testuser . ${HOME}/dotfiles
-WORKDIR ${HOME}/dotfiles
+COPY --chown=testuser:testuser . ${HOME}/.dotfiles
+WORKDIR ${HOME}/.dotfiles
 
 # Make entrypoint executable
 RUN chmod +x scripts/docker-entrypoint.sh
