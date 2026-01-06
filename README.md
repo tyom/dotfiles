@@ -1,17 +1,20 @@
 # Dotfiles
 
-This is a collection of Tyom's dotfiles and settings.
+Personal dotfiles for macOS and Linux, designed for a smooth developer experience. Includes Zsh, Git, Vim configuration, and a Claude Code plugin.
+
+## What's Included
+
+- **Shell**: Zsh with Oh-My-Zsh and a custom theme displaying git status, Node version, and conda environment
+- **Git**: Useful aliases, global gitignore, and streamlined configuration
+- **Vim**: Pre-configured with vim-plug and curated plugins
+- **Dev Tools**: Volta and Node.js; Bun (optional)
+- **Bin Scripts**: Handy commands like `ungit` (clone GitHub repos/subdirs as files or text)
+- **Claude Code Plugin**: Custom commands for code review, explanation, and refactoring
 
 ![Shell screenshot](https://tyom.github.io/dotfiles/shell.png)
 ![Vim screenshot](https://tyom.github.io/dotfiles/vim.png)
 
 ## Installation
-
-Installation may take a few minutes as it will download and install a number of packages.
-
-Setup can be run multiple times. It will update if necessary.
-
-Admin password will be required during the setup process.
 
 ```bash
 git clone https://github.com/tyom/dotfiles.git ~/.dotfiles
@@ -19,25 +22,28 @@ cd ~/.dotfiles
 make install
 ```
 
+Installation takes a few minutes to download and configure packages. Setup can be run multiple times safely.
+
 ### Remote Installation
 
 ```bash
 curl -fsSL https://tyom.github.io/dotfiles/install.sh | bash
 ```
 
-You can customise the installation:
+Options:
 
 ```bash
+# Non-interactive (skip all prompts)
+curl -fsSL https://tyom.github.io/dotfiles/install.sh | bash -s -- -y
+
 # Install to a different directory
-DOTFILES_DIR=~/my-dotfiles curl -fsSL ... | bash
+DOTFILES_DIR=~/my-dotfiles curl -fsSL https://tyom.github.io/dotfiles/install.sh | bash
 
 # Install from a different branch
-DOTFILES_BRANCH=next curl -fsSL ... | bash
+DOTFILES_BRANCH=next curl -fsSL https://tyom.github.io/dotfiles/install.sh | bash
 ```
 
 ### Uninstall
-
-To remove all symlinks:
 
 ```bash
 make uninstall
@@ -56,7 +62,7 @@ dotfiles/
 ├── git/               # Git config (included via ~/.gitconfig)
 ├── zsh/               # Zsh config + theme (sourced/symlinked)
 ├── shell/             # Shell modules
-├── claude-plugin/     # Claude Code plugin (registered directly)
+├── claude-plugin/     # Claude Code plugin
 └── scripts/           # Installation scripts
 ```
 
@@ -64,11 +70,11 @@ See [docs/STRUCTURE.md](./docs/STRUCTURE.md) for detailed documentation.
 
 ## Customisation
 
-The dotfiles in this repository are meant to be read-only. Your local configuration files are preserved and extended:
+Your local configuration files are preserved and extended. The dotfiles in this repository are read-only.
 
 ### `~/.gitconfig`
 
-Your existing `.gitconfig` is preserved. The installer adds an `[include]` directive to load the dotfiles config. Add your personal git configuration directly to `~/.gitconfig`:
+The installer adds an `[include]` directive to load the dotfiles config. Add your personal settings directly:
 
 ```ini
 [user]
@@ -76,42 +82,41 @@ Your existing `.gitconfig` is preserved. The installer adds an `[include]` direc
     email = your@email.com
 
 [include]
-    path = /path/to/dotfiles/git/.gitconfig
+    path = ~/.dotfiles/git/.gitconfig
 ```
 
 ### `~/.gitignore`
 
-A global `.gitignore` is copied to your home directory during setup (if one doesn't exist). You can edit it freely.
+A global `.gitignore` is copied during setup (if one doesn't exist). Edit it freely.
 
 ### `~/.zshrc`
 
-Your existing `.zshrc` is preserved. The installer adds a single source line to load the dotfiles config. Add machine-specific shell configuration directly to `~/.zshrc`.
+The installer adds a single source line. Add machine-specific configuration directly to your `.zshrc`.
 
 ### `~/.vimrc.local`
 
-Add machine-specific vim configuration here.
+Add machine-specific Vim configuration here.
 
 ## What Gets Installed
 
-### Core Tools
+### Dev Tools
 
-- **Bun** - Fast JavaScript runtime and package manager
-- **Volta** - Node.js version manager
-- **Node.js** - Installed via Volta
+- **[Volta](https://volta.sh/)** - JavaScript tool manager
+- **[Node.js](https://nodejs.org/)** - Installed via Volta
+- **[Bun](https://bun.sh/)** (optional) - Fast JavaScript runtime and package manager
 
-### Homebrew Packages
+### Homebrew Packages (optional)
 
-See [scripts/install/brew.sh](./scripts/install/brew.sh) for the list of installed packages.
+See [scripts/install/brew.sh](./scripts/install/brew.sh) for the full list.
 
-### Shell Tools
+### Shell
 
-- Zsh with Oh-my-zsh
-- Custom theme with git status, node version, and conda environment display
+- Zsh with Oh-My-Zsh
+- Custom theme with git status, Node version, and conda environment
 - fzf integration for fuzzy finding
 
-## Installation Flow
-
-The installation process follows this sequence:
+<details>
+<summary><strong>Installation Flow</strong></summary>
 
 ```
 install.sh (entry point)
@@ -122,28 +127,33 @@ install.sh (entry point)
 setup.sh (orchestrator)
 ├── 1. Confirm user wants to proceed
 ├── 2. Install Homebrew and packages (optional)
-├── 3. Install Bun and Volta (JS tooling)
-├── 4. Install Node.js via Volta
-├── 5. Set up Zsh and Oh My Zsh (scripts/zsh.sh)
+├── 3. Install Brew Cask / macOS apps (optional, macOS only)
+├── 4. Install Bun (optional)
+├── 5. Install Volta
+├── 6. Install Node.js via Volta
+├── 7. Set up Zsh and Oh My Zsh (scripts/zsh.sh)
 │   ├── Install zsh if missing
 │   ├── Install Oh My Zsh if missing
-│   ├── Modify ~/.zshrc to source dotfiles
-│   └── Create ~/.dotfiles.zsh with DOTFILES_DIR embedded
-├── 6. Create symlinks (scripts/stow.sh)
-│   └── Symlink packages: vim, oh-my-zsh, bin
-├── 7. Set up git (scripts/git.sh)
+│   ├── Add source line to ~/.zshrc (exports DOTFILES_DIR)
+│   └── Symlink custom theme
+├── 8. Create symlinks (scripts/stow.sh)
+│   └── Symlink stow/ contents to ~/
+├── 9. Set up git (scripts/git.sh)
 │   ├── Add [include] to ~/.gitconfig
 │   └── Copy ~/.gitignore if missing
-├── 8. Install Vim plugins (scripts/install/vim.sh)
-│   ├── Install vim-plug
-│   └── Run PlugInstall
-├── 9. Install Claude Code plugin dependencies
-└── 10. Validate installation (scripts/validate.sh)
+├── 10. Install Vim plugins (scripts/install/vim.sh)
+│    ├── Install vim-plug
+│    └── Run PlugInstall
+├── 11. Install Claude Code plugin (optional)
+│    ├── Install dependencies (bun or npm)
+│    └── Register plugin (if claude installed)
+└── 12. Validate installation (scripts/validate.sh)
 ```
 
-### Zsh Configuration Chain
+</details>
 
-The shell configuration is loaded in this order:
+<details>
+<summary><strong>Zsh Configuration Chain</strong></summary>
 
 ```
 ~/.zshrc
@@ -158,7 +168,10 @@ The shell configuration is loaded in this order:
         └── loads theme and plugins
 ```
 
-### Symlinked Files
+</details>
+
+<details>
+<summary><strong>Symlinked Files</strong></summary>
 
 GNU Stow creates these symlinks from `stow/` to your home directory:
 
@@ -177,14 +190,7 @@ Git configuration is handled separately (not via stow):
 - `~/.gitconfig` - An `[include]` directive is added to load the dotfiles config
 - `~/.gitignore` - Copied during setup (if it doesn't exist) so you can customise it
 
-### Interactive Prompts
-
-During installation, you'll be asked:
-
-1. **Confirmation to proceed** - "Warning: this will modify your dotfiles configuration." [Y/n]
-2. **Homebrew installation** - "Install Homebrew and useful packages?" [Y/n]
-
-To skip prompts (for CI/automation), set `YES_OVERRIDE=true`.
+</details>
 
 ## Development
 
@@ -223,8 +229,6 @@ The minimal variant uses a bare Ubuntu image instead of the Homebrew base image,
 
 ### Testing Remote Install
 
-Test the remote install script in isolation:
-
 ```bash
 # Test local changes via HTTP server (before deployment)
 make docker-test-remote-local
@@ -232,8 +236,6 @@ make docker-test-remote-local
 # Smoke test the deployed URL (after merge to master)
 make docker-test-remote
 ```
-
-The `docker-test-remote-local` command starts a local HTTP server to serve `docs/install.sh`, simulating the remote install flow without requiring deployment. This is useful for testing changes to the install script before merging.
 
 ## Makefile Commands
 
@@ -256,7 +258,7 @@ Docker commands support `VARIANT=minimal` for testing without Homebrew/Bun (e.g.
 
 ## Claude Code Plugin
 
-The `claude-plugin/` directory contains a local [Claude Code](https://docs.anthropic.com/en/docs/claude-code) plugin with custom commands, agents, and skills.
+The `claude-plugin/` directory contains a [Claude Code](https://docs.anthropic.com/en/docs/claude-code) plugin with custom commands, agents, and skills.
 
 ### Commands
 
@@ -270,4 +272,4 @@ The `claude-plugin/` directory contains a local [Claude Code](https://docs.anthr
 
 ### Skills
 
-- `ungit` - Fetch code from GitHub repositories as LLM-friendly context
+- `ungit` - Fetch GitHub repos/subdirs as LLM-friendly text (supports include/exclude filters)
