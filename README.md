@@ -1,5 +1,8 @@
 # Dotfiles
 
+[![Smoke Test](https://github.com/tyom/dotfiles/actions/workflows/smoke-test.yml/badge.svg)](https://github.com/tyom/dotfiles/actions/workflows/smoke-test.yml)
+[![CI](https://github.com/tyom/dotfiles/actions/workflows/ci.yml/badge.svg)](https://github.com/tyom/dotfiles/actions/workflows/ci.yml)
+
 Personal dotfiles for macOS and Linux, designed for a smooth developer experience. Includes Zsh, Git, Vim configuration, and a Claude Code plugin.
 
 ## What's Included
