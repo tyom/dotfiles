@@ -3,13 +3,14 @@
 [![Smoke Test](https://github.com/tyom/dotfiles/actions/workflows/smoke-test.yml/badge.svg)](https://github.com/tyom/dotfiles/actions/workflows/smoke-test.yml)
 [![CI](https://github.com/tyom/dotfiles/actions/workflows/ci.yml/badge.svg)](https://github.com/tyom/dotfiles/actions/workflows/ci.yml)
 
-Personal dotfiles for macOS and Linux, designed for a smooth developer experience. Includes Zsh, Git, Vim configuration, and a Claude Code plugin.
+Personal dotfiles for macOS and Linux, designed for a smooth developer experience. Includes Zsh, Git, Vim configuration, Homebrew CLI tools (bat, fzf, git-delta), and a Claude Code plugin.
 
 ## What's Included
 
 - **Shell**: Zsh with Oh-My-Zsh and a custom theme displaying git status, Node version, and conda environment
 - **Git**: Useful aliases, global gitignore, and streamlined configuration
 - **Vim**: Pre-configured with vim-plug and curated plugins
+- **CLI Tools**: bat (syntax-highlighted cat), fzf (fuzzy finder), git-delta (better diffs), and more via Homebrew
 - **Dev Tools**: Volta and Node.js; Bun (optional)
 - **Bin Scripts**: Handy commands like `ungit` (clone GitHub repos/subdirs as files or text)
 - **Claude Code Plugin**: Custom commands for code review, explanation, and refactoring
