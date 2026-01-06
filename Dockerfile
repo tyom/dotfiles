@@ -15,13 +15,9 @@ RUN apt-get update -qq && \
 USER linuxbrew
 ENV HOME=/home/linuxbrew
 
-# Install Bun for testing Claude Code plugin
-RUN curl -fsSL https://bun.sh/install | bash
-ENV PATH="${HOME}/.bun/bin:${PATH}"
-
 # Copy dotfiles
-COPY --chown=linuxbrew:linuxbrew . ${HOME}/dotfiles
-WORKDIR ${HOME}/dotfiles
+COPY --chown=linuxbrew:linuxbrew . ${HOME}/.dotfiles
+WORKDIR ${HOME}/.dotfiles
 
 # Make entrypoint executable
 RUN chmod +x scripts/docker-entrypoint.sh

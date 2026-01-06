@@ -200,9 +200,26 @@ make docker-shell
 # Run setup and drop into shell
 make docker-setup
 
-# Clean up persistent container
+# Clean up persistent containers
 make docker-clean
 ```
+
+### Minimal Setup (No Homebrew/Bun)
+
+Test the fallback paths without Homebrew or Bun using the `VARIANT=minimal` flag:
+
+```bash
+# Run minimal setup and validation
+make docker-test VARIANT=minimal
+
+# Interactive shell with minimal setup (persistent state)
+make docker-shell VARIANT=minimal
+
+# Run minimal setup and drop into shell
+make docker-setup VARIANT=minimal
+```
+
+The minimal variant uses a bare Ubuntu image instead of the Homebrew base image, testing that the dotfiles install correctly when Homebrew and Bun are not available.
 
 ### Testing Remote Install
 
@@ -231,9 +248,11 @@ Run `make` to see all available commands:
 | `make docker-test`              | Run setup and validation in Docker        |
 | `make docker-setup`             | Run setup and drop into shell             |
 | `make docker-shell`             | Start persistent shell in Docker          |
-| `make docker-clean`             | Remove persistent Docker container        |
+| `make docker-clean`             | Remove persistent Docker containers       |
 | `make docker-test-remote`       | Smoke test remote install (deployed URL)  |
 | `make docker-test-remote-local` | Test remote install via local HTTP server |
+
+Docker commands support `VARIANT=minimal` for testing without Homebrew/Bun (e.g., `make docker-test VARIANT=minimal`).
 
 ## Claude Code Plugin
 

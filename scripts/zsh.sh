@@ -29,7 +29,8 @@ fi
 if [[ ! -d $HOME/.oh-my-zsh/ ]]; then
   # RUNZSH=no: Don't start zsh after install
   # KEEP_ZSHRC=yes: Don't overwrite .zshrc
-  RUNZSH=no KEEP_ZSHRC=yes sh -c "$(curl -fsSL https://raw.githubusercontent.com/robbyrussell/oh-my-zsh/master/tools/install.sh)"
+  # CHSH=no: Don't prompt to change shell (user can do this manually)
+  RUNZSH=no KEEP_ZSHRC=yes CHSH=no sh -c "$(curl -fsSL https://raw.githubusercontent.com/robbyrussell/oh-my-zsh/master/tools/install.sh)"
 else
   print_info 'oh-my-zsh is already installed. Skipping.'
 fi

@@ -1,7 +1,9 @@
 {
   "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
   "name": "tyom",
-  "description": "Personal development tools and workflow automation",
+  "metadata": {
+    "description": "Personal development tools and workflow automation"
+  },
   "owner": {
     "name": "tyom"
   },

@@ -109,6 +109,10 @@ function print_info {
   printf "\e[0;35m » $1\e[0m\n"
 }
 
+function print_skip {
+  printf "\e[0;33m ○ $1\e[0m\n"
+}
+
 function print_success {
   printf "\e[0;32m ✔ $1\e[0m\n"
 }

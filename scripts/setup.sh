@@ -8,10 +8,14 @@ echo -e "Installing dotfiles for $(which_os)…"
 continue_or_exit \
   'This will install dotfiles for your system and update your .zshrc file.' 'y'
 
-continue_or_skip \
-  'Install Homebrew and useful packages? This may take a while.' 'y' &&
-  source "$DOTFILES_DIR/scripts/install/brew.sh" ||
-  print_info 'Skipping Homebrew'
+if [[ "${MINIMAL_SETUP:-}" == "true" ]]; then
+  print_info 'Skipping Homebrew (minimal setup)'
+else
+  continue_or_skip \
+    'Install Homebrew and useful packages? This may take a while.' 'y' &&
+    source "$DOTFILES_DIR/scripts/install/brew.sh" ||
+    print_info 'Skipping Homebrew'
+fi
 
 if [ "$(which_os)" == "macos" ]; then
   continue_or_skip \
@@ -20,18 +24,24 @@ if [ "$(which_os)" == "macos" ]; then
     print_info 'Skipping Brew Cask'
 fi
 
-# Install Bun (required for Claude Code plugin and JS tooling)
-if ! command -v bun &> /dev/null; then
-  print_step 'Installing Bun'
-  curl -fsSL https://bun.sh/install | bash
-  export BUN_INSTALL="$HOME/.bun"
-  export PATH="$BUN_INSTALL/bin:$PATH"
+# Install Bun (optional, for faster JS tooling)
+if [[ "${MINIMAL_SETUP:-}" == "true" ]]; then
+  print_info 'Skipping Bun (minimal setup)'
 else
-  print_info 'Bun already installed'
+  continue_or_skip 'Install Bun (faster JS tooling)?' 'y' && {
+    if ! command -v bun &>/dev/null; then
+      print_step 'Installing Bun'
+      curl -fsSL https://bun.com/install | bash
+      export BUN_INSTALL="$HOME/.bun"
+      export PATH="$BUN_INSTALL/bin:$PATH"
+    else
+      print_info 'Bun already installed'
+    fi
+  } || print_info 'Skipping Bun'
 fi
 
 # Install Volta (Node.js version manager)
-if ! command -v volta &> /dev/null; then
+if ! command -v volta &>/dev/null; then
   print_step 'Installing Volta'
   curl -fsSL https://get.volta.sh | bash -s -- --skip-setup
   export VOLTA_HOME="$HOME/.volta"
@@ -41,7 +51,7 @@ else
 fi
 
 # Install default Node.js via Volta
-if command -v volta &> /dev/null && ! volta which node &>/dev/null; then
+if command -v volta &>/dev/null && ! volta which node &>/dev/null; then
   print_step 'Installing Node.js via Volta'
   volta install node
 else
@@ -60,18 +70,43 @@ print_step 'Setting up git' &&
 print_step 'Installing Vim plugins' &&
   source "$DOTFILES_DIR/scripts/install/vim.sh"
 
-# Install Claude Code plugin dependencies (always, so they're ready when Claude is installed)
+# Claude Code plugin setup (optional)
 PLUGIN_DIR="$DOTFILES_DIR/claude-plugin"
 if [ -f "$PLUGIN_DIR/package.json" ]; then
-  print_step 'Installing Claude Code plugin dependencies'
-  (cd "$PLUGIN_DIR" && bun install --frozen-lockfile 2>/dev/null || bun install)
-fi
+  continue_or_skip \
+    'Install Claude Code plugin?' 'y' && {
+    print_step 'Installing Claude Code plugin dependencies'
+    if command -v bun &>/dev/null; then
+      if (cd "$PLUGIN_DIR" && (bun install --frozen-lockfile || bun install)); then
+        print_success 'Dependencies installed via bun'
+      else
+        print_error 'Failed to install dependencies via bun'
+      fi
+    elif command -v npm &>/dev/null; then
+      if (cd "$PLUGIN_DIR" && npm install); then
+        print_success 'Dependencies installed via npm'
+      else
+        print_error 'Failed to install dependencies via npm'
+      fi
+    else
+      print_info 'Skipping: neither bun nor npm available'
+    fi
 
-# Register Claude Code plugin if claude is available
-if command -v claude &> /dev/null; then
-  print_step 'Registering Claude Code dotfiles plugin'
-  claude plugin marketplace add "$PLUGIN_DIR" 2>/dev/null || true
-  claude plugin install dotfiles@tyom --scope user 2>/dev/null || true
+    # Register plugin if claude is available
+    if command -v claude &>/dev/null; then
+      print_step 'Registering Claude Code dotfiles plugin'
+      if claude plugin marketplace add "$PLUGIN_DIR" &>/dev/null; then
+        print_success 'Plugin marketplace entry added'
+      else
+        print_info 'Plugin marketplace entry may already exist'
+      fi
+      if claude plugin install dotfiles@tyom --scope user &>/dev/null; then
+        print_success 'Plugin installed successfully'
+      else
+        print_info 'Plugin may already be installed'
+      fi
+    fi
+  } || print_info 'Skipping Claude Code plugin'
 fi
 
 print_step 'Validating installation'

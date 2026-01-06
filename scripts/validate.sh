@@ -117,15 +117,15 @@ if command -v fzf >/dev/null 2>&1; then
     ERRORS=$((ERRORS + 1))
   fi
 else
-  print_info "fzf not installed, skipping FZF_BASE check"
+  print_skip "fzf not installed, skipping FZF_BASE check"
 fi
 
-# Check if our PATH modifications are loaded
-DOTFILES_BIN_CHECK=$(zsh -c 'source ~/.zshrc 2>/dev/null; echo $PATH' | grep -c "$DOTFILES_DIR/bin")
-if [ "$DOTFILES_BIN_CHECK" -gt 0 ]; then
-  print_success "DOTFILES_DIR/bin is in PATH"
+# Check if ~/bin is in PATH (where stow symlinks bin scripts)
+HOME_BIN_CHECK=$(zsh -c 'source ~/.zshrc 2>/dev/null; echo $PATH' | grep -c "$HOME/bin" || true)
+if [ "$HOME_BIN_CHECK" -gt 0 ]; then
+  print_success "$HOME/bin is in PATH"
 else
-  print_error "DOTFILES_DIR/bin not in PATH"
+  print_error "$HOME/bin not in PATH"
   ERRORS=$((ERRORS + 1))
 fi
 
@@ -143,16 +143,15 @@ if command -v fzf >/dev/null 2>&1; then
   echo ""
   print_info "Checking fzf configuration..."
 
-  if grep -q "plugins.*fzf" "$DOTFILES_DIR/zsh/config.zsh" 2>/dev/null || \
-     grep -q 'plugins+=(fzf)' "$DOTFILES_DIR/zsh/config.zsh" 2>/dev/null; then
+  if grep -q "plugins.*fzf" "$DOTFILES_DIR/zsh/config.zsh" 2>/dev/null ||
+    grep -q 'plugins+=(fzf)' "$DOTFILES_DIR/zsh/config.zsh" 2>/dev/null; then
     print_success "fzf plugin configured"
   else
     print_error "fzf plugin not configured in zsh/config.zsh"
     ERRORS=$((ERRORS + 1))
   fi
 else
-  echo ""
-  print_info "fzf not installed, skipping fzf check"
+  print_skip "fzf not installed, skipping fzf check"
 fi
 
 # Check bin scripts
@@ -180,8 +179,8 @@ done
 echo ""
 print_info "Checking git configuration..."
 
-if git config --global --get alias.s >/dev/null 2>&1; then
-  print_success "Git aliases configured"
+if git config --global --includes --get alias.s >/dev/null 2>&1; then
+  print_success "Git aliases loaded"
 else
   print_error "Git aliases not loaded"
   ERRORS=$((ERRORS + 1))
@@ -201,9 +200,7 @@ print_info "Checking JS tooling..."
 if command -v bun >/dev/null 2>&1; then
   print_success "Bun is installed ($(bun --version))"
 else
-  print_error "Bun is not installed"
-  print_info "Install with: curl -fsSL https://bun.sh/install | bash"
-  ERRORS=$((ERRORS + 1))
+  print_skip "Bun not installed (optional)"
 fi
 
 if command -v volta >/dev/null 2>&1; then
@@ -227,22 +224,49 @@ print_info "Checking Claude Code plugin..."
 
 PLUGIN_DIR="$DOTFILES_DIR/claude-plugin"
 if [ -d "$PLUGIN_DIR" ] && [ -f "$PLUGIN_DIR/package.json" ]; then
-  # Install dependencies if needed (requires Bun, checked above)
-  if command -v bun >/dev/null 2>&1; then
-    if [ ! -d "$PLUGIN_DIR/node_modules" ]; then
-      print_info "Installing plugin dependencies..."
-      (cd "$PLUGIN_DIR" && bun install --frozen-lockfile 2>/dev/null || bun install)
+  # Install dependencies if needed
+  if [ ! -d "$PLUGIN_DIR/node_modules" ]; then
+    print_info "Installing plugin dependencies..."
+    INSTALL_SUCCESS=false
+    if command -v bun >/dev/null 2>&1; then
+      if (cd "$PLUGIN_DIR" && bun install --frozen-lockfile 2>/dev/null || bun install); then
+        print_success "Dependencies installed with bun"
+        INSTALL_SUCCESS=true
+      else
+        print_error "Failed to install dependencies with bun"
+      fi
     fi
-    # Type check the plugin
-    if (cd "$PLUGIN_DIR" && bun run tsc --noEmit 2>&1); then
-      print_success "Claude Code plugin type check passed"
+    if [ "$INSTALL_SUCCESS" = false ] && command -v npm >/dev/null 2>&1; then
+      if (cd "$PLUGIN_DIR" && npm install); then
+        print_success "Dependencies installed with npm"
+        INSTALL_SUCCESS=true
+      else
+        print_error "Failed to install dependencies with npm"
+      fi
+    fi
+  fi
+  # Type check the plugin if dependencies are installed
+  if [ -d "$PLUGIN_DIR/node_modules" ]; then
+    if command -v bun >/dev/null 2>&1; then
+      if (cd "$PLUGIN_DIR" && bun run tsc --noEmit 2>&1); then
+        print_success "Claude Code plugin type check passed"
+      else
+        print_error "Claude Code plugin type check failed"
+        ERRORS=$((ERRORS + 1))
+      fi
+    elif command -v npx >/dev/null 2>&1; then
+      if (cd "$PLUGIN_DIR" && npx tsc --noEmit 2>&1); then
+        print_success "Claude Code plugin type check passed"
+      else
+        print_error "Claude Code plugin type check failed"
+        ERRORS=$((ERRORS + 1))
+      fi
     else
-      print_error "Claude Code plugin type check failed"
-      ERRORS=$((ERRORS + 1))
+      print_skip "No type checker available (bun/npx required)"
     fi
   fi
 else
-  print_info "Claude Code plugin not found, skipping"
+  print_skip "Claude Code plugin not found, skipping"
 fi
 
 # Check Homebrew packages (optional - warnings only)
