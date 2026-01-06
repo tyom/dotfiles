@@ -42,4 +42,4 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Test setup without Homebrew
-        run: make docker-test-minimal
+        run: make docker-test VARIANT=minimal
