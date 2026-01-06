@@ -227,19 +227,24 @@ if [ -d "$PLUGIN_DIR" ] && [ -f "$PLUGIN_DIR/package.json" ]; then
   # Install dependencies if needed
   if [ ! -d "$PLUGIN_DIR/node_modules" ]; then
     print_info "Installing plugin dependencies..."
+    INSTALL_SUCCESS=false
     if command -v bun >/dev/null 2>&1; then
       if (cd "$PLUGIN_DIR" && bun install --frozen-lockfile 2>/dev/null || bun install); then
         print_success "Dependencies installed with bun"
+        INSTALL_SUCCESS=true
       else
         print_error "Failed to install dependencies with bun"
       fi
-    elif command -v npm >/dev/null 2>&1; then
+    fi
+    if [ "$INSTALL_SUCCESS" = false ] && command -v npm >/dev/null 2>&1; then
       if (cd "$PLUGIN_DIR" && npm install); then
         print_success "Dependencies installed with npm"
+        INSTALL_SUCCESS=true
       else
         print_error "Failed to install dependencies with npm"
       fi
-    else
+    fi
+    if [ "$INSTALL_SUCCESS" = false ]; then
       print_skip "Neither bun nor npm available, skipping plugin check"
     fi
   fi
@@ -259,6 +264,8 @@ if [ -d "$PLUGIN_DIR" ] && [ -f "$PLUGIN_DIR/package.json" ]; then
         print_error "Claude Code plugin type check failed"
         ERRORS=$((ERRORS + 1))
       fi
+    else
+      print_skip "No type checker available (bun/npx required)"
     fi
   fi
 else
