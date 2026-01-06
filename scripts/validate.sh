@@ -244,9 +244,6 @@ if [ -d "$PLUGIN_DIR" ] && [ -f "$PLUGIN_DIR/package.json" ]; then
         print_error "Failed to install dependencies with npm"
       fi
     fi
-    if [ "$INSTALL_SUCCESS" = false ]; then
-      print_skip "Neither bun nor npm available, skipping plugin check"
-    fi
   fi
   # Type check the plugin if dependencies are installed
   if [ -d "$PLUGIN_DIR/node_modules" ]; then
