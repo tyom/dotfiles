@@ -225,8 +225,15 @@ async function findProjectRoot(): Promise<string> {
  * Reads JSON input from stdin to detect an active stop hook; if present, allows stopping immediately.
  * Locates the project root and detects an appropriate test runner; if no runner is found or no test files exist, allows stopping.
  * Executes the detected test suite; if tests fail, writes a JSON decision object to stdout with `decision: "block"` and a `reason` that includes the test output, then exits.
+ *
+ * Can be disabled by setting RUN_TESTS_ON_STOP=false environment variable.
  */
 async function main() {
+  // Check if tests on stop are disabled via environment variable (default: enabled)
+  if (process.env.RUN_TESTS_ON_STOP === "false") {
+    process.exit(0);
+  }
+
   let input: StopHookInput = {};
 
   try {
