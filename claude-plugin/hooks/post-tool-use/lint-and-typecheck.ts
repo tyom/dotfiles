@@ -130,12 +130,19 @@ function runCommand(
  * Aggregates tool outputs as errors or warnings. Prints errors to stderr and exits with code 2;
  * prints warnings to stdout and exits with code 0 on success or when no action was necessary.
  *
+ * Can be disabled by setting LINT_ON_SAVE=false environment variable.
+ *
  * @remarks
  * Exit codes:
  * - 0: success or no applicable action
  * - 2: blocking errors detected (TypeScript, Prettier, or ESLint)
  */
 async function main() {
+  // Check if linting is disabled via environment variable (default: enabled)
+  if (process.env.LINT_ON_SAVE === "false") {
+    process.exit(0);
+  }
+
   let input: ToolInput;
 
   try {
