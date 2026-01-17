@@ -11,10 +11,27 @@ if (( $(echo "$USED_PCT == 0" | bc -l) )); then
   exit 0
 fi
 
+# Clamp percentage to 0-100 range
+CLAMPED_PCT=$(echo "if ($USED_PCT < 0) 0 else if ($USED_PCT > 100) 100 else $USED_PCT" | bc -l)
+
 # Build progress bar (20 squares total, each full = 5%, half = 2.5%)
-FULL_SQUARES=$(echo "scale=0; $USED_PCT / 5" | bc)
-REMAINDER=$(echo "scale=1; $USED_PCT - ($FULL_SQUARES * 5)" | bc)
-HAS_HALF=$(echo "$REMAINDER >= 2.5" | bc -l)
+FULL_SQUARES=$(echo "scale=0; $CLAMPED_PCT / 5" | bc)
+if [ "$FULL_SQUARES" -gt 20 ]; then
+  FULL_SQUARES=20
+fi
+
+REMAINDER=$(echo "scale=1; $CLAMPED_PCT - ($FULL_SQUARES * 5)" | bc)
+if [ "$FULL_SQUARES" -lt 20 ] && (( $(echo "$REMAINDER >= 2.5" | bc -l) )); then
+  HAS_HALF=1
+else
+  HAS_HALF=0
+fi
+
+HALF_COUNT=$((HAS_HALF))
+EMPTY_SQUARES=$((20 - FULL_SQUARES - HALF_COUNT))
+if [ "$EMPTY_SQUARES" -lt 0 ]; then
+  EMPTY_SQUARES=0
+fi
 
 BAR=""
 for ((i=0; i<FULL_SQUARES; i++)); do
@@ -22,9 +39,6 @@ for ((i=0; i<FULL_SQUARES; i++)); do
 done
 if [ "$HAS_HALF" -eq 1 ]; then
   BAR+="◧"
-  EMPTY_SQUARES=$((20 - FULL_SQUARES - 1))
-else
-  EMPTY_SQUARES=$((20 - FULL_SQUARES))
 fi
 for ((i=0; i<EMPTY_SQUARES; i++)); do
   BAR+="□"

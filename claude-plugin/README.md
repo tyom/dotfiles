@@ -29,5 +29,5 @@ Opus 4.5 | ctx ■■■■■□□□□□□□□□□□□□□□ 25%
 Colors change based on usage:
 
 - Grey: < 60%
-- Orange: 60-80%
-- Red: > 80%
+- Orange: 60–79%
+- Red: ≥ 80%
