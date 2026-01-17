@@ -6,6 +6,8 @@ Personal development workflow automation - hooks, tools, and configurations.
 
 A custom status bar showing model name and context usage with a visual progress bar.
 
+Requires: `jq`
+
 ### Enable
 
 Add to `~/.claude/settings.json`:

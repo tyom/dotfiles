@@ -1,4 +1,11 @@
 #!/bin/bash
+
+# Requires: jq
+if ! command -v jq &>/dev/null; then
+  echo "statusline: jq required" >&2
+  exit 1
+fi
+
 # Read JSON input from stdin
 input=$(cat)
 
