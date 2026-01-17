@@ -3,38 +3,42 @@
 input=$(cat)
 
 # Extract context stats using jq
-USED_TOKENS=$(echo "$input" | jq -r '(.context_window.total_input_tokens // 0) + (.context_window.total_output_tokens // 0)')
 USED_PCT=$(echo "$input" | jq -r '.context_window.used_percentage // 0')
+MODEL=$(echo "$input" | jq -r '.model.display_name // .model // "unknown"')
 
-# Calculate total context window from percentage
-if (( $(echo "$USED_PCT > 0" | bc -l) )); then
-  MAX_TOKENS=$(echo "scale=0; $USED_TOKENS * 100 / $USED_PCT" | bc)
-else
-  MAX_TOKENS=0
+# Don't show anything for 0%
+if (( $(echo "$USED_PCT == 0" | bc -l) )); then
+  exit 0
 fi
 
-# Format token counts (e.g., 15234 -> 15.2k)
-format_tokens() {
-  local tokens=$1
-  if [ "$tokens" -ge 1000 ]; then
-    echo "$(echo "scale=1; $tokens / 1000" | bc)k"
-  else
-    echo "$tokens"
-  fi
-}
+# Build progress bar (20 squares total, each full = 5%, half = 2.5%)
+FULL_SQUARES=$(echo "scale=0; $USED_PCT / 5" | bc)
+REMAINDER=$(echo "scale=1; $USED_PCT - ($FULL_SQUARES * 5)" | bc)
+HAS_HALF=$(echo "$REMAINDER >= 2.5" | bc -l)
 
-USED_FMT=$(format_tokens "$USED_TOKENS")
-MAX_FMT=$(format_tokens "$MAX_TOKENS")
+BAR=""
+for ((i=0; i<FULL_SQUARES; i++)); do
+  BAR+="■"
+done
+if [ "$HAS_HALF" -eq 1 ]; then
+  BAR+="◧"
+  EMPTY_SQUARES=$((20 - FULL_SQUARES - 1))
+else
+  EMPTY_SQUARES=$((20 - FULL_SQUARES))
+fi
+for ((i=0; i<EMPTY_SQUARES; i++)); do
+  BAR+="□"
+done
 
-# Color based on usage (green < 50%, yellow 50-75%, red > 75%)
-if (( $(echo "$USED_PCT < 50" | bc -l) )); then
-  COLOR="\033[32m"  # Green
-elif (( $(echo "$USED_PCT < 75" | bc -l) )); then
-  COLOR="\033[33m"  # Yellow
+# Color based on usage (grey < 60%, orange 60-80%, red > 80%)
+if (( $(echo "$USED_PCT < 60" | bc -l) )); then
+  COLOR="\033[90m"  # Grey
+elif (( $(echo "$USED_PCT < 80" | bc -l) )); then
+  COLOR="\033[38;5;208m"  # Orange
 else
   COLOR="\033[31m"  # Red
 fi
 RESET="\033[0m"
 
-# Output: 68.4k/200k tokens (20%)
-printf "%s/%s tokens ${COLOR}(%.0f%%)${RESET}" "$USED_FMT" "$MAX_FMT" "$USED_PCT"
+# Output: opus 4.5 | context: ■■■■■■◧□□□□□□□□□□□□□ 62%
+printf "%s | ctx ${COLOR}%s %.0f%%${RESET}" "$MODEL" "$BAR" "$USED_PCT"
