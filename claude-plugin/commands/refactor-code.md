@@ -1,11 +1,13 @@
 ---
 description: Refactor code with analysis, pattern application, and test verification
-argument-hint: [file/function/description of what to refactor]
+argument-hint: [optional: file/function/description]
 ---
 
 # Refactor Code
 
 Refactor the following: **$ARGUMENTS**
+
+If no arguments were provided, use the currently selected code in the editor. If nothing is selected, use the currently open file.
 
 ## Approach
 
