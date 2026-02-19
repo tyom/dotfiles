@@ -63,20 +63,65 @@ async function readStdin(): Promise<string> {
 }
 
 /**
- * Locate the nearest ancestor directory of `startPath` that contains a `package.json`.
+ * Locate the root of the project or monorepo containing `startPath`.
+ *
+ * Walks up from `startPath` looking for the workspace/monorepo root rather than
+ * the nearest `package.json`, which in a monorepo would be a sub-package that
+ * typically lacks top-level configs (prettier, eslint, tsconfig).
+ *
+ * A directory is considered the project root if it contains `package.json` AND any of:
+ * - A `workspaces` field in package.json
+ * - A lockfile (bun.lock, bun.lockb, package-lock.json, yarn.lock, pnpm-lock.yaml)
+ * - A `.git` directory
+ *
+ * Falls back to the nearest `package.json` if no root indicators are found.
  *
  * @param startPath - File or directory path to start the upward search from
- * @returns The directory path that contains `package.json`, or `null` if no such directory is found up to the filesystem root
+ * @returns The directory path of the project root, or `null` if no `package.json` is found
  */
 async function findProjectRoot(startPath: string): Promise<string | null> {
   let currentDir = dirname(startPath);
+  let nearestPkgDir: string | null = null;
+
+  const lockfiles = [
+    "bun.lock",
+    "bun.lockb",
+    "package-lock.json",
+    "yarn.lock",
+    "pnpm-lock.yaml",
+  ];
+
   while (currentDir !== dirname(currentDir)) {
-    if (await Bun.file(resolve(currentDir, "package.json")).exists()) {
-      return currentDir;
+    const pkgPath = resolve(currentDir, "package.json");
+    if (await Bun.file(pkgPath).exists()) {
+      if (!nearestPkgDir) {
+        nearestPkgDir = currentDir;
+      }
+
+      // Check for monorepo/root indicators
+      try {
+        const pkgJson = await Bun.file(pkgPath).json();
+        if (pkgJson.workspaces) {
+          return currentDir;
+        }
+      } catch {}
+
+      for (const lockfile of lockfiles) {
+        if (await Bun.file(resolve(currentDir, lockfile)).exists()) {
+          return currentDir;
+        }
+      }
+
+      try {
+        const { statSync } = await import("fs");
+        statSync(resolve(currentDir, ".git"));
+        return currentDir;
+      } catch {}
     }
     currentDir = dirname(currentDir);
   }
-  return null;
+
+  return nearestPkgDir;
 }
 
 /**
