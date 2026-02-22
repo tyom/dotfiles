@@ -39,6 +39,7 @@ const PRETTIER_EXTENSIONS: Set<string> = new Set([
   ".jsx",
   ".mjs",
   ".mts",
+  ".svelte",
   ".md",
   ".mdx",
   ".json",
