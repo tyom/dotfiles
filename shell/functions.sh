@@ -84,6 +84,44 @@ function webmify {
   ffmpeg -i "$1" -vcodec libvpx -acodec libvorbis -isync -copyts -aq 80 -threads 3 -qmax 30 -y "$2" "$1.webm"
 }
 
+# git worktree helpers
+function _git_toplevel {
+  git rev-parse --show-toplevel 2>/dev/null
+}
+
+function gwa {
+  local branch="$1"
+  if [ -z "$branch" ]; then
+    echo "Add a git worktree"
+    echo "Usage: gwa <branch>"
+    return 1
+  fi
+  local toplevel
+  toplevel=$(_git_toplevel) || { echo "Not a git repository"; return 1; }
+  git worktree add "$toplevel/.worktrees/$branch" "$branch" 2>/dev/null \
+    || git worktree add -b "$branch" "$toplevel/.worktrees/$branch"
+}
+
+function gwl {
+  git worktree list
+}
+
+function gwp {
+  git worktree prune
+}
+
+function gwd {
+  local branch="$1"
+  if [ -z "$branch" ]; then
+    echo "Remove a git worktree"
+    echo "Usage: gwd <branch>"
+    return 1
+  fi
+  local toplevel
+  toplevel=$(_git_toplevel) || { echo "Not a git repository"; return 1; }
+  git worktree remove "$toplevel/.worktrees/$branch"
+}
+
 # fcs - get git commit sha
 # example usage: git rebase -i `fcs`
 fcs() {
