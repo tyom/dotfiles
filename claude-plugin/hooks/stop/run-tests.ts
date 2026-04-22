@@ -63,6 +63,18 @@ function hasTestFiles(dir: string): boolean {
   ];
 
   const testDirs = ["test", "tests", "__tests__", "spec", "specs"];
+  const ignoredDirs = new Set([
+    "node_modules",
+    ".git",
+    "dist",
+    "build",
+    ".next",
+    ".convex",
+    ".turbo",
+    ".cache",
+    "coverage",
+    "out",
+  ]);
 
   // Check for test directories
   for (const testDir of testDirs) {
@@ -82,6 +94,10 @@ function hasTestFiles(dir: string): boolean {
     try {
       const files = readdirSync(checkDir, { recursive: true }) as string[];
       for (const file of files) {
+        const segments = file.split(/[\\/]/);
+        if (segments.some((s) => ignoredDirs.has(s))) {
+          continue;
+        }
         if (testPatterns.some((pattern) => pattern.test(file))) {
           return true;
         }
@@ -197,8 +213,12 @@ function runTests(config: TestConfig): { success: boolean; output: string } {
     .filter(Boolean)
     .join("\n")
     .trim();
+
+  // Bun exits non-zero when no tests are found; treat that as success.
+  const noTestsFound = result.status !== 0 && /No tests found/i.test(output);
+
   return {
-    success: result.status === 0,
+    success: result.status === 0 || noTestsFound,
     output,
   };
 }
