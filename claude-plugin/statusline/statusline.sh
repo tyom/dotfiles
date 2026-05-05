@@ -11,39 +11,51 @@ input=$(cat)
 
 # Extract context stats using jq
 USED_PCT=$(echo "$input" | jq -r '.context_window.used_percentage // 0')
+USED_TOKENS=$(echo "$input" | jq -r '
+  (.context_window.current_usage // {}) as $u
+  | (($u.input_tokens // 0)
+     + ($u.output_tokens // 0)
+     + ($u.cache_creation_input_tokens // 0)
+     + ($u.cache_read_input_tokens // 0))
+')
 MODEL=$(echo "$input" | jq -r '.model.display_name // .model // "unknown"')
+
+# Format token count as "Nk" (e.g. 14523 -> "14k", 1234567 -> "1.2M")
+format_tokens() {
+  local n=$1
+  n=${n%.*}
+  if [ "$n" -ge 1000000 ]; then
+    awk -v n="$n" 'BEGIN { printf "%.1fM", n/1000000 }'
+  elif [ "$n" -ge 1000 ]; then
+    awk -v n="$n" 'BEGIN { printf "%.1fk", n/1000 }'
+  else
+    echo "$n"
+  fi
+}
+TOKENS_LABEL=$(format_tokens "$USED_TOKENS")
 
 # Don't show anything for 0%
 if (( $(echo "$USED_PCT == 0" | bc -l) )); then
   exit 0
 fi
 
-# Auto-compact threshold is 77.5% (22.5% buffer)
-# Calculate effective percentage against the 77.5% threshold
-EFFECTIVE_PCT=$(echo "scale=2; $USED_PCT / 77.5 * 100" | bc -l)
-if (( $(echo "$EFFECTIVE_PCT > 100" | bc -l) )); then
-  EFFECTIVE_PCT=100
+# Clamp raw percentage to 0-100
+CLAMPED_PCT=$(echo "if ($USED_PCT < 0) 0 else if ($USED_PCT > 100) 100 else $USED_PCT" | bc -l)
+
+# Build progress bar: 10 squares spanning 0-100% (each square = 10%, half = 5%)
+FULL_SQUARES=$(echo "scale=0; $CLAMPED_PCT / 10" | bc)
+if [ "$FULL_SQUARES" -gt 10 ]; then
+  FULL_SQUARES=10
 fi
 
-# Clamp raw percentage to 0-77.5 range (usable portion)
-CLAMPED_PCT=$(echo "if ($USED_PCT < 0) 0 else if ($USED_PCT > 77.5) 77.5 else $USED_PCT" | bc -l)
-
-# Build progress bar: 15 usable squares (75%) + 5 reserved squares (25%)
-# Each square = 5% of total context
-FULL_SQUARES=$(echo "scale=0; $CLAMPED_PCT / 5" | bc)
-if [ "$FULL_SQUARES" -gt 15 ]; then
-  FULL_SQUARES=15
-fi
-
-REMAINDER=$(echo "scale=1; $CLAMPED_PCT - ($FULL_SQUARES * 5)" | bc)
-if [ "$FULL_SQUARES" -lt 15 ] && (( $(echo "$REMAINDER >= 2.5" | bc -l) )); then
+REMAINDER=$(echo "scale=1; $CLAMPED_PCT - ($FULL_SQUARES * 10)" | bc)
+if [ "$FULL_SQUARES" -lt 10 ] && (( $(echo "$REMAINDER >= 5" | bc -l) )); then
   HAS_HALF=1
 else
   HAS_HALF=0
 fi
 
-HALF_COUNT=$((HAS_HALF))
-EMPTY_SQUARES=$((15 - FULL_SQUARES - HALF_COUNT))
+EMPTY_SQUARES=$((10 - FULL_SQUARES - HAS_HALF))
 if [ "$EMPTY_SQUARES" -lt 0 ]; then
   EMPTY_SQUARES=0
 fi
@@ -59,17 +71,25 @@ for ((i=0; i<EMPTY_SQUARES; i++)); do
   BAR+="□"
 done
 
-# Color based on effective usage (grey < 75%, orange 75-94%, red >= 94%)
-# These thresholds correspond to 60%/75%/80% of total context
-if (( $(echo "$EFFECTIVE_PCT < 75" | bc -l) )); then
-  COLOR="\033[90m"  # Grey
-elif (( $(echo "$EFFECTIVE_PCT < 94" | bc -l) )); then
-  COLOR="\033[38;5;208m"  # Orange (75% effective = 60% total)
+# Bar color: grey < 60%, orange 60-80%, red >= 80% (auto-compact at 77.5%)
+if (( $(echo "$CLAMPED_PCT < 60" | bc -l) )); then
+  COLOR="\033[90m"
+elif (( $(echo "$CLAMPED_PCT < 80" | bc -l) )); then
+  COLOR="\033[38;5;208m"
 else
-  COLOR="\033[31m"  # Red (94% effective ≈ 75% total, near limit)
+  COLOR="\033[31m"
 fi
 RESET="\033[0m"
-DARK_GRAY="\033[38;5;240m"  # Dark gray for reserved blocks
 
-# Output: Opus 4.5 | ctx ■■■■■■■■■■■■■■□▨▨▨▨▨ 89%
-printf "%s | ctx ${COLOR}%s${DARK_GRAY}▨▨▨▨▨${COLOR} %.0f%%${RESET}" "$MODEL" "$BAR" "$EFFECTIVE_PCT"
+# Color the token count by absolute usage: green ≤100k, yellow 100k-600k, red >600k
+TOKENS_INT=${USED_TOKENS%.*}
+if [ "$TOKENS_INT" -le 100000 ]; then
+  TOKEN_COLOR="\033[32m"
+elif [ "$TOKENS_INT" -le 600000 ]; then
+  TOKEN_COLOR="\033[33m"
+else
+  TOKEN_COLOR="\033[31m"
+fi
+
+# Output: Opus 4.5 | 14k ■■■■■■■■■■■■■■■■■■■■ 89%
+printf "%s | ${TOKEN_COLOR}%s${RESET} ${COLOR}%s %.0f%%${RESET}" "$MODEL" "$TOKENS_LABEL" "$BAR" "$CLAMPED_PCT"
