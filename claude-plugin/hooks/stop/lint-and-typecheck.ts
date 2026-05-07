@@ -343,7 +343,7 @@ async function main() {
       if (targets.length > 0) {
         const r = runCommand(
           eslintPath,
-          ["--format", "stylish", ...targets],
+          ["--format", "stylish", "--no-error-on-unmatched-pattern", ...targets],
           projectRoot,
         );
         if (r.output) {
