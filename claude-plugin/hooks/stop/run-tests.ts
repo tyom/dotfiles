@@ -304,7 +304,7 @@ function buildRunCommand(
     return [setup.binPath, "related", ...rel, "--run"];
   }
   if (setup.framework === "jest" && setup.binPath) {
-    return [setup.binPath, "--findRelatedTests", ...rel];
+    return [setup.binPath, "--findRelatedTests", "--passWithNoTests", ...rel];
   }
   if (setup.framework === "bun") {
     // bun test takes file paths; only safe to narrow when all edits are test files.
