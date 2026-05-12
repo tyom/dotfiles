@@ -159,7 +159,12 @@ async function getEditedFiles(
       }
     }
   }
-  return result;
+  // Drop paths that no longer exist — files written earlier in the session
+  // may have been deleted, and eslint/prettier fatal-error on missing paths.
+  const existence = await Promise.all(
+    result.map((p) => Bun.file(p).exists()),
+  );
+  return result.filter((_, i) => existence[i]);
 }
 
 interface Categorized {
