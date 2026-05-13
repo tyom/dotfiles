@@ -5,6 +5,85 @@ executable at `stow/bin/repo-intel` is built from the files here — the
 HTML template is embedded into the script so the artifact is
 single-file and depends only on Python 3 + `git`.
 
+`repo-intel` reads commit history from either the current git repo or
+a remote GitHub repo and writes a self-contained HTML dashboard
+showing top contributors, weekly/daily activity, time-of-day patterns,
+and per-author commit feeds.
+
+## Usage
+
+```
+repo-intel [N] [REPO] [options]
+```
+
+- `N` — number of top contributors to include (default `10`).
+- `REPO` — `owner/repo`, `https://github.com/owner/repo`, or
+  `remote:owner/repo`. Omit to use the cwd's git repo.
+
+Run `repo-intel --help` for the full flag reference.
+
+### Modes
+
+- **Local** — no `REPO`. Reads `git log` from the current working directory.
+- **Remote (GraphQL)** — `REPO` plus a GitHub token from
+  `gh auth token -h github.com` or `$GITHUB_TOKEN`. Fetches via the
+  GitHub GraphQL API.
+- **Remote (bare-clone fallback)** — `REPO` with no token. Clones to
+  `/tmp/repo-intel-<owner>-<repo>.git` and reads locally. Subsequent
+  runs `git fetch` the cached bare clone.
+
+### Filtering commits
+
+| Flag                  | Meaning                                                                  |
+| --------------------- | ------------------------------------------------------------------------ |
+| `--commits N`         | Last `N` commits (newest)                                                |
+| `--commits A-B`       | Positions `[A, B)` counted from the oldest commit (0-indexed, half-open) |
+| `--since YYYY-MM-DD`  | Commits on or after the date (inclusive)                                 |
+| `--until YYYY-MM-DD`  | Commits on or before the date (inclusive)                                |
+
+Filters compose: date bounds apply first, then the position slice. The
+run prints `filtered: X/total commits` so you can see what was kept.
+
+### Output
+
+| Flag                  | Default                                                                                  |
+| --------------------- | ---------------------------------------------------------------------------------------- |
+| `-o, --output PATH`   | `/tmp/<owner>--<repo>.html` (or `/tmp/<repo>.html` for a local repo without a GitHub origin) |
+| `--no-open`           | Opens the result in your default browser                                                 |
+
+`--output` creates parent directories if they don't exist.
+
+### Cache
+
+Remote runs cache commit nodes per repo under
+`$XDG_CACHE_HOME/repo-intel` (default `~/.cache/repo-intel`), one JSON
+file per repo. The next run paginates from HEAD and stops at the first
+already-cached SHA, so only new commits since the last fetch hit the
+network.
+
+- `--no-cache` — ignore the cache and re-fetch everything (also skips
+  `git fetch` on the bare-clone fallback).
+- Delete the relevant `<owner>-<repo>.json` to force a fresh fetch for
+  one repo.
+
+The cache assumes linear history extension; force-pushes that rewrite
+history may leave orphan SHAs in the cache. Pass `--no-cache` after a
+known force-push if precision matters.
+
+### Examples
+
+```bash
+repo-intel                                            # cwd, top 10
+repo-intel 20                                         # cwd, top 20
+repo-intel tyom/dotfiles                              # remote, top 10
+repo-intel --commits 100 tyom/dotfiles                # last 100 commits
+repo-intel --commits 0-100 tyom/dotfiles              # first 100 commits
+repo-intel --commits 400-800 facebook/react           # 400 commits at positions 400..799
+repo-intel --since 2024-01-01 --until 2024-12-31 .    # all of 2024 in cwd
+repo-intel --no-open -o ./stats.html tyom/dotfiles    # save without opening
+repo-intel --no-cache tyom/dotfiles                   # bypass cache
+```
+
 ## Files
 
 | File            | Purpose                                                                 |
