@@ -981,6 +981,22 @@ function buildTimeline() {
       const bw = Math.max(1, right - left - 1);
       hctx.strokeRect(bx, 0.5, bw, histHeight - 1);
     }
+    drawSelectionPreview();
+  }
+
+  let mmMode = null;
+  let mmDragging = false, mmStartX = 0, mmStartSL = 0, mmPointerId = -1;
+  let mmSelStartX = 0, mmSelCurX = 0, mmSelMoved = false;
+  function drawSelectionPreview() {
+    if (mmMode !== 'select' || !mmSelMoved) return;
+    const x1 = Math.max(0, Math.min(mmSelStartX, mmSelCurX));
+    const x2 = Math.min(canvasViewW, Math.max(mmSelStartX, mmSelCurX));
+    if (x2 <= x1) return;
+    hctx.fillStyle = 'rgba(88,166,255,0.22)';
+    hctx.fillRect(x1, 0, x2 - x1, histHeight);
+    hctx.strokeStyle = 'rgba(88,166,255,0.95)';
+    hctx.lineWidth = 1;
+    hctx.strokeRect(x1 + 0.5, 0.5, Math.max(1, x2 - x1 - 1), histHeight - 1);
   }
 
   applyLayout();
@@ -1095,7 +1111,6 @@ function buildTimeline() {
   scrollDiv.addEventListener('mouseup', release);
   scrollDiv.addEventListener('mouseleave', release);
 
-  let mmDragging = false, mmStartX = 0, mmStartSL = 0, mmPointerId = -1;
   function clampSL(sl) {
     return Math.max(0, Math.min(currentWidth - canvasViewW, sl));
   }
@@ -1104,15 +1119,20 @@ function buildTimeline() {
     return x >= left && x <= right;
   }
   function endMmDrag() {
-    if (!mmDragging) return;
+    if (mmMode === null) return;
+    const wasSelecting = mmMode === 'select' && mmSelMoved;
+    mmMode = null;
     mmDragging = false;
+    mmSelMoved = false;
     document.body.style.cursor = '';
     histCanvas.style.cursor = '';
     if (mmPointerId !== -1 && histCanvas.hasPointerCapture(mmPointerId)) {
       histCanvas.releasePointerCapture(mmPointerId);
     }
     mmPointerId = -1;
+    if (wasSelecting) drawHistogram();
   }
+  const MM_SEL_THRESHOLD = 4;
   histCanvas.addEventListener('mousedown', e => e.stopPropagation());
   histCanvas.addEventListener('pointerdown', e => {
     if (e.button !== 0) return;
@@ -1122,31 +1142,71 @@ function buildTimeline() {
     tooltip.classList.remove('visible');
     const rect = histCanvas.getBoundingClientRect();
     const x = e.clientX - rect.left;
-    if (!mmWindowAtX(x)) {
-      const frac = x / Math.max(1, canvasViewW);
-      scrollDiv.scrollLeft = clampSL(frac * currentWidth - canvasViewW / 2);
-    }
-    mmDragging = true;
-    mmStartX = e.clientX;
-    mmStartSL = scrollDiv.scrollLeft;
     mmPointerId = e.pointerId;
     histCanvas.setPointerCapture(e.pointerId);
-    document.body.style.cursor = 'grabbing';
-    histCanvas.style.cursor = 'grabbing';
+    if (mmWindowAtX(x)) {
+      mmMode = 'pan';
+      mmDragging = true;
+      mmStartX = e.clientX;
+      mmStartSL = scrollDiv.scrollLeft;
+      document.body.style.cursor = 'grabbing';
+      histCanvas.style.cursor = 'grabbing';
+    } else {
+      mmMode = 'select';
+      mmSelStartX = x;
+      mmSelCurX = x;
+      mmSelMoved = false;
+      document.body.style.cursor = 'crosshair';
+      histCanvas.style.cursor = 'crosshair';
+    }
   });
   histCanvas.addEventListener('pointermove', e => {
-    if (mmDragging) {
+    if (mmMode === 'pan') {
       e.preventDefault();
       const dx = e.clientX - mmStartX;
       const slDelta = (dx / Math.max(1, canvasViewW)) * currentWidth;
       scrollDiv.scrollLeft = clampSL(mmStartSL + slDelta);
       return;
     }
+    if (mmMode === 'select') {
+      e.preventDefault();
+      const rect = histCanvas.getBoundingClientRect();
+      mmSelCurX = Math.max(0, Math.min(canvasViewW, e.clientX - rect.left));
+      if (!mmSelMoved && Math.abs(mmSelCurX - mmSelStartX) >= MM_SEL_THRESHOLD) {
+        mmSelMoved = true;
+      }
+      if (mmSelMoved) drawHistogram();
+      return;
+    }
     const rect = histCanvas.getBoundingClientRect();
     histCanvas.style.cursor = mmWindowAtX(e.clientX - rect.left) ? 'grab' : 'pointer';
   });
-  histCanvas.addEventListener('pointerup', endMmDrag);
-  histCanvas.addEventListener('pointercancel', endMmDrag);
+  function commitMmPointer(e) {
+    if (mmMode === 'select') {
+      if (mmSelMoved) {
+        const x1 = Math.max(0, Math.min(mmSelStartX, mmSelCurX));
+        const x2 = Math.min(canvasViewW, Math.max(mmSelStartX, mmSelCurX));
+        const span = x2 - x1;
+        if (span >= 1 && currentWidth > 0 && canvasViewW > 0) {
+          const sl1 = (x1 / canvasViewW) * currentWidth;
+          const sl2 = (x2 / canvasViewW) * currentWidth;
+          const daysSpan = Math.max(1e-6, (sl2 - sl1) / currentPxPerDay);
+          const newPxPerDay = Math.max(minPxPerDay, Math.min(maxPxPerDay, canvasViewW / daysSpan));
+          const frac = sl1 / currentWidth;
+          currentPxPerDay = newPxPerDay;
+          applyLayout();
+          scrollDiv.scrollLeft = clampSL(frac * currentWidth);
+          drawCanvas();
+        }
+      } else {
+        const frac = mmSelStartX / Math.max(1, canvasViewW);
+        scrollDiv.scrollLeft = clampSL(frac * currentWidth - canvasViewW / 2);
+      }
+    }
+    endMmDrag();
+  }
+  histCanvas.addEventListener('pointerup', commitMmPointer);
+  histCanvas.addEventListener('pointercancel', () => { mmSelMoved = false; endMmDrag(); });
 
   let scrollFrameQueued = false;
   scrollDiv.addEventListener('scroll', () => {
