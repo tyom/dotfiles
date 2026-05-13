@@ -310,6 +310,29 @@ const subtitleNetHtml = totals.net > 0
 const sizeStr = fmtSize(D.repoSizeKb);
 document.getElementById('subtitle').innerHTML = `${D.dateRange.start} \u2014 ${D.dateRange.end} \u00b7 ${fmt(totals.commits)} commits \u00b7 <span style="color:${colorAdded}">+${fmt(totals.added)}</span> <span style="color:${colorDeleted}">-${fmt(totals.deleted)}</span> (net ${subtitleNetHtml}) \u00b7 ${fmt(totalContribCount)} contributor${totalContribCount === 1 ? '' : 's'}${sizeStr ? ` \u00b7 ${sizeStr}` : ''}`;
 
+function fmtTimelineDuration(start, end) {
+  const s = new Date(start); const e = new Date(end);
+  if (isNaN(s) || isNaN(e)) return '';
+  const pl = (n, w) => `${n} ${w}${n === 1 ? '' : 's'}`;
+  let years = e.getFullYear() - s.getFullYear();
+  let months = e.getMonth() - s.getMonth();
+  if (e.getDate() < s.getDate()) months -= 1;
+  if (months < 0) { years -= 1; months += 12; }
+  const totalMonths = years * 12 + months;
+  if (totalMonths < 1) {
+    const days = Math.max(1, Math.round((e - s) / 86400000) + 1);
+    return pl(days, 'day');
+  }
+  if (totalMonths < 12) return pl(totalMonths, 'month');
+  if (years < 10) return months === 0 ? pl(years, 'year') : `${pl(years, 'year')} and ${pl(months, 'month')}`;
+  return pl(years, 'year');
+}
+const timelineHeadingEl = document.querySelector('.timeline-h');
+if (timelineHeadingEl) {
+  const dur = fmtTimelineDuration(D.dateRange.start, D.dateRange.end);
+  if (dur) timelineHeadingEl.textContent = `Commit timeline: ${dur}`;
+}
+
 const cd = Chart.defaults;
 cd.color = cs.getPropertyValue('--text-muted').trim(); cd.borderColor = cs.getPropertyValue('--border-subtle').trim(); cd.font.family = 'system-ui'; cd.font.size = 11;
 
