@@ -227,12 +227,17 @@ def parse_args(argv):
     return top_n, remote, output, no_open, no_cache, commits_filter, since, until
 
 
+def login_from_email(email):
+    m = NOREPLY_RE.fullmatch(email or "")
+    return m.group(1) if m else ""
+
+
 def avatar_url(email, override=None):
     if override:
         return override
-    m = NOREPLY_RE.fullmatch(email)
-    if m:
-        return f"https://github.com/{m.group(1)}.png?size=64"
+    login = login_from_email(email)
+    if login:
+        return f"https://github.com/{login}.png?size=64"
     h = hashlib.md5(email.strip().lower().encode()).hexdigest()
     return f"https://www.gravatar.com/avatar/{h}?d=mp&s=64"
 
@@ -381,6 +386,7 @@ def collect_local(cwd=None, suppress_current_user=False):
         commits_meta,
         line_stats,
         {},
+        {},
         default_branch,
         repo_disk_kb(cwd=cwd),
         collect_local_tags(cwd=cwd),
@@ -401,6 +407,124 @@ def gh_graphql(query, variables, token):
     )
     with urllib.request.urlopen(req) as resp:
         return json.loads(resp.read())
+
+
+def get_github_token():
+    try:
+        token = subprocess.check_output(
+            ["gh", "auth", "token", "-h", "github.com"],
+            text=True,
+            stderr=subprocess.DEVNULL,
+        ).strip()
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        token = ""
+    return token or os.environ.get("GITHUB_TOKEN") or None
+
+
+def fetch_logins_for_commits(owner, repo, oids_by_email, token):
+    """Look up GitHub author login for each email using a few sample oids.
+
+    Used in the local-repo path where the commit walk doesn't know logins.
+    Local commits not yet pushed return null, so multiple oids per email are
+    queried in one batched GraphQL call; the first that resolves wins.
+    Returns {email: login}.
+    """
+    if not oids_by_email or not token:
+        return {}
+    aliases = []
+    oid_values = []
+    for email, oids in oids_by_email.items():
+        for oid in oids:
+            aliases.append((len(oid_values), email))
+            oid_values.append(oid)
+    if not aliases:
+        return {}
+    var_decls = ", ".join(f"$oid{i}: GitObjectID!" for i in range(len(oid_values)))
+    fragments = " ".join(
+        f"c{i}: object(oid: $oid{i}) {{ ... on Commit {{ author {{ user {{ login }} }} }} }}"
+        for i in range(len(oid_values))
+    )
+    query = (
+        f"query($owner: String!, $repo: String!, {var_decls}) "
+        f"{{ repository(owner: $owner, name: $repo) {{ {fragments} }} }}"
+    )
+    variables = {"owner": owner, "repo": repo}
+    for i, oid in enumerate(oid_values):
+        variables[f"oid{i}"] = oid
+
+    try:
+        body = gh_graphql(query, variables, token)
+    except urllib.error.URLError as exc:
+        print(f"  warning: login lookup failed: {exc}", file=sys.stderr)
+        return {}
+    if "errors" in body:
+        print(f"  warning: login lookup errors: {body['errors']}", file=sys.stderr)
+    repo_node = (body.get("data") or {}).get("repository") or {}
+    out = {}
+    for i, email in aliases:
+        if email in out:
+            continue
+        node = repo_node.get(f"c{i}") or {}
+        user = ((node.get("author") or {}).get("user")) or {}
+        login = user.get("login")
+        if login:
+            out[email] = login
+    return out
+
+
+def fetch_user_profiles(logins, token):
+    """Fetch GitHub profile fields for `logins` in one aliased GraphQL query.
+
+    Returns {login: {login,name,bio,location,websiteUrl,followers,following,publicRepos}}.
+    Missing/renamed users are silently skipped.
+    """
+    if not logins or not token:
+        return {}
+    unique = []
+    seen = set()
+    for login in logins:
+        if login and login not in seen:
+            seen.add(login)
+            unique.append(login)
+    if not unique:
+        return {}
+
+    fields = (
+        "login name bio location websiteUrl "
+        "followers { totalCount } following { totalCount } "
+        "repositories(privacy: PUBLIC, ownerAffiliations: OWNER) { totalCount }"
+    )
+    var_decls = ", ".join(f"$l{i}: String!" for i in range(len(unique)))
+    fragments = " ".join(
+        f"u{i}: user(login: $l{i}) {{ {fields} }}" for i in range(len(unique))
+    )
+    query = f"query({var_decls}) {{ {fragments} }}"
+    variables = {f"l{i}": login for i, login in enumerate(unique)}
+
+    try:
+        body = gh_graphql(query, variables, token)
+    except urllib.error.URLError as exc:
+        print(f"  warning: profile fetch failed: {exc}", file=sys.stderr)
+        return {}
+    if "errors" in body:
+        print(f"  warning: profile fetch errors: {body['errors']}", file=sys.stderr)
+    data = body.get("data") or {}
+    out = {}
+    for i, login in enumerate(unique):
+        node = data.get(f"u{i}")
+        if not node:
+            continue
+        out[login] = {
+            "login": node.get("login") or login,
+            "name": node.get("name") or "",
+            "bio": node.get("bio") or "",
+            "location": node.get("location") or "",
+            "websiteUrl": node.get("websiteUrl") or "",
+            "followers": (node.get("followers") or {}).get("totalCount") or 0,
+            "following": (node.get("following") or {}).get("totalCount") or 0,
+            "publicRepos": (node.get("repositories") or {}).get("totalCount") or 0,
+        }
+    return out
 
 
 def fetch_remote_tags(owner, repo, token):
@@ -469,15 +593,7 @@ query($owner: String!, $repo: String!, $cursor: String) {
 
 def collect_remote(slug, no_cache=False, commits_filter=None, since=None, until=None):
     owner, repo = slug.split("/", 1)
-    token = None
-    try:
-        token = subprocess.check_output(
-            ["gh", "auth", "token", "-h", "github.com"],
-            text=True,
-            stderr=subprocess.DEVNULL,
-        ).strip()
-    except (subprocess.CalledProcessError, FileNotFoundError):
-        token = os.environ.get("GITHUB_TOKEN")
+    token = get_github_token()
 
     if not token:
         print("No GitHub token — falling back to bare clone.", file=sys.stderr)
@@ -504,6 +620,7 @@ def collect_remote(slug, no_cache=False, commits_filter=None, since=None, until=
             commits_meta,
             line_stats,
             _,
+            _,
             default_branch,
             repo_size_kb,
             tags,
@@ -516,6 +633,7 @@ def collect_remote(slug, no_cache=False, commits_filter=None, since=None, until=
             "",
             commits_meta,
             line_stats,
+            {},
             {},
             default_branch,
             repo_size_kb,
@@ -615,7 +733,7 @@ query($owner: String!, $repo: String!, $cursor: String) {
     if not no_cache and nodes:
         save_cache(slug, nodes, new_complete)
 
-    commits_meta, line_stats, avatars = {}, {}, {}
+    commits_meta, line_stats, avatars, logins = {}, {}, {}, {}
     for n in nodes:
         author = n.get("author") or {}
         email = (author.get("email") or "").lower()
@@ -627,8 +745,11 @@ query($owner: String!, $repo: String!, $cursor: String) {
         }
         line_stats[n["oid"]] = [n.get("additions") or 0, n.get("deletions") or 0]
         user = author.get("user")
-        if user and user.get("avatarUrl") and email and email not in avatars:
-            avatars[email] = user["avatarUrl"]
+        if user and email:
+            if user.get("avatarUrl") and email not in avatars:
+                avatars[email] = user["avatarUrl"]
+            if user.get("login") and email not in logins:
+                logins[email] = user["login"]
 
     tags = fetch_remote_tags(owner, repo, token)
     return (
@@ -638,6 +759,7 @@ query($owner: String!, $repo: String!, $cursor: String) {
         commits_meta,
         line_stats,
         avatars,
+        logins,
         default_branch,
         repo_size_kb,
         tags,
@@ -689,6 +811,7 @@ def build_data(
     commits_meta,
     line_stats,
     avatars,
+    logins,
     default_branch,
     repo_size_kb,
     tags,
@@ -759,10 +882,12 @@ def build_data(
         for k, v in r["daily_counts"].items():
             if v > busiest_count:
                 busiest_day, busiest_count = k, v
+        login = logins.get(r["email"]) or login_from_email(r["email"])
         contributors.append(
             {
                 "name": r["name"],
                 "email": r["email"],
+                "login": login,
                 "commits": r["commits"],
                 "added": r["added"],
                 "deleted": r["deleted"],
@@ -829,6 +954,51 @@ def build_data(
     }
 
 
+def _sample_oids_per_email(commits_meta, target_emails, per_email=3):
+    """Up to `per_email` oldest oids per email. Unknown-date commits sort last."""
+    by_email = defaultdict(list)
+    for h, meta in commits_meta.items():
+        if meta["email"] in target_emails:
+            by_email[meta["email"]].append((meta.get("iso") or "", h))
+    sample = {}
+    for email, items in by_email.items():
+        items.sort(key=lambda x: (not x[0], x[0]))
+        sample[email] = [h for _, h in items[:per_email]]
+    return sample
+
+
+def enrich_contributor_profiles(contributors, commits_meta, github_base):
+    """In-place: attach `profile` dict to contributors using GitHub GraphQL."""
+    if not github_base:
+        return
+    token = get_github_token()
+    if not token:
+        return
+    origin = ORIGIN_RE.match(github_base)
+    if not origin:
+        return
+
+    missing = [c for c in contributors if not c.get("login")]
+    if missing:
+        sample = _sample_oids_per_email(
+            commits_meta, {c["email"] for c in missing}
+        )
+        resolved = fetch_logins_for_commits(
+            origin.group("owner"), origin.group("repo"), sample, token
+        )
+        for c in missing:
+            login = resolved.get(c["email"])
+            if login:
+                c["login"] = login
+
+    top_logins = [c["login"] for c in contributors if c.get("login")]
+    profiles = fetch_user_profiles(top_logins, token)
+    for c in contributors:
+        p = profiles.get(c.get("login") or "")
+        if p:
+            c["profile"] = p
+
+
 def main():
     top_n, remote, output, no_open, no_cache, commits_filter, since, until = parse_args(
         sys.argv[1:]
@@ -843,6 +1013,7 @@ def main():
             commits_meta,
             line_stats,
             avatars,
+            logins,
             default_branch,
             repo_size_kb,
             tags,
@@ -869,6 +1040,7 @@ def main():
             commits_meta,
             line_stats,
             avatars,
+            logins,
             default_branch,
             repo_size_kb,
             tags,
@@ -898,10 +1070,13 @@ def main():
         commits_meta,
         line_stats,
         avatars,
+        logins,
         default_branch,
         repo_size_kb,
         tags,
     )
+
+    enrich_contributor_profiles(data["contributors"], commits_meta, github_base)
 
     payload = f"window.__DATA__ = {json.dumps(data, ensure_ascii=False, separators=(',', ':'))};"
     template = TEMPLATE

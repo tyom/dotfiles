@@ -166,19 +166,27 @@
     position: fixed; z-index: 110; pointer-events: none;
     background: rgba(13,17,23,0.97); color: var(--text-primary);
     border: 1px solid var(--border-default); border-radius: 6px;
-    padding: 12px 14px; font-size: 0.78rem; line-height: 1.5;
-    min-width: 240px; max-width: 320px;
+    padding: 14px 16px; font-size: 0.78rem; line-height: 1.5;
+    min-width: 260px; max-width: 340px;
     box-shadow: 0 8px 28px rgba(0,0,0,0.5);
     opacity: 0; transition: opacity 0.12s;
   }
   .lane-popover.visible { opacity: 1; }
-  .lane-popover .lp-header { display: flex; gap: 12px; align-items: center; }
-  .lane-popover .lp-avatar { width: 44px; height: 44px; border-radius: 50%; flex-shrink: 0; background: var(--bg-badge); object-fit: cover; }
-  .lane-popover .lp-avatar-fallback { width: 44px; height: 44px; border-radius: 50%; flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-weight: 600; font-size: 1rem; color: #fff; }
-  .lane-popover .lp-name { font-weight: 600; font-size: 0.92rem; color: var(--text-primary); }
-  .lane-popover .lp-handle { color: var(--text-muted); font-weight: 400; font-size: 0.78rem; margin-left: 4px; }
-  .lane-popover .lp-email { color: var(--text-muted); font-size: 0.7rem; word-break: break-all; margin-top: 2px; }
-  .lane-popover .lp-divider { height: 1px; background: var(--border-default); margin: 10px 0; }
+  .lane-popover .lp-header { display: flex; gap: 12px; align-items: flex-start; }
+  .lane-popover .lp-avatar, .lane-popover .lp-avatar-fallback { width: 56px; height: 56px; border-radius: 50%; flex-shrink: 0; }
+  .lane-popover .lp-avatar { background: var(--bg-badge); object-fit: cover; }
+  .lane-popover .lp-avatar-fallback { display: flex; align-items: center; justify-content: center; font-weight: 600; font-size: 1.1rem; color: #fff; }
+  .lane-popover .lp-id { min-width: 0; padding-top: 4px; }
+  .lane-popover .lp-name { font-weight: 600; font-size: 0.98rem; color: var(--text-primary); line-height: 1.25; word-break: break-word; }
+  .lane-popover .lp-handle { display: block; color: var(--text-muted); font-weight: 400; font-size: 0.82rem; margin-top: 1px; word-break: break-all; }
+  .lane-popover .lp-bio { color: var(--text-secondary); font-size: 0.8rem; line-height: 1.45; margin-top: 10px; word-break: break-word; }
+  .lane-popover .lp-counts { color: var(--text-secondary); font-size: 0.78rem; margin-top: 10px; }
+  .lane-popover .lp-counts strong { color: var(--text-primary); font-weight: 600; font-variant-numeric: tabular-nums; }
+  .lane-popover .lp-meta { margin-top: 8px; display: flex; flex-direction: column; gap: 4px; }
+  .lane-popover .lp-meta-row { display: flex; align-items: center; gap: 8px; color: var(--text-secondary); font-size: 0.78rem; min-width: 0; }
+  .lane-popover .lp-meta-row svg { flex-shrink: 0; opacity: 0.7; }
+  .lane-popover .lp-meta-text { word-break: break-all; min-width: 0; }
+  .lane-popover .lp-divider { height: 1px; background: var(--border-default); margin: 12px 0 10px; }
   .lane-popover .lp-stats { color: var(--text-secondary); font-size: 0.78rem; font-variant-numeric: tabular-nums; }
   .lane-popover .lp-stats .add { color: var(--color-added); }
   .lane-popover .lp-stats .del { color: var(--color-deleted); }
@@ -399,12 +407,6 @@ const authorPopover = document.createElement('div');
 authorPopover.className = 'lane-popover';
 document.body.appendChild(authorPopover);
 
-function githubHandleFromAvatar(url) {
-  if (!url) return '';
-  const m = url.match(/\/\/[^/]+\/([^\/.?#]+)\.png/);
-  return m ? '@' + m[1] : '';
-}
-
 // Reads data-bg/data-initial from the failed <img> and swaps in a styled fallback.
 // Doing this from a real event listener avoids the inline-onerror double-decoding
 // trap where a name starting with a single quote would break the JS string literal.
@@ -420,33 +422,68 @@ function installAvatarFallback(img) {
   });
 }
 
+const ICON_LOC = '<svg viewBox="0 0 16 16" width="14" height="14" fill="currentColor"><path d="M11.536 3.464a5 5 0 0 1 0 7.072L8 14.07l-3.536-3.535a5 5 0 1 1 7.072-7.072Zm1.06 8.132a6.5 6.5 0 1 0-9.192 0l3.535 3.536a1.5 1.5 0 0 0 2.122 0l3.535-3.536ZM8 9a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3Z"/></svg>';
+const ICON_MAIL = '<svg viewBox="0 0 16 16" width="14" height="14" fill="currentColor"><path d="M1.75 2h12.5c.966 0 1.75.784 1.75 1.75v8.5A1.75 1.75 0 0 1 14.25 14H1.75A1.75 1.75 0 0 1 0 12.25v-8.5C0 2.784.784 2 1.75 2ZM1.5 12.251c0 .138.112.25.25.25h12.5a.25.25 0 0 0 .25-.25V5.809L8.38 9.397a.75.75 0 0 1-.76 0L1.5 5.809v6.442Zm13-8.181v-.32a.25.25 0 0 0-.25-.25H1.75a.25.25 0 0 0-.25.25v.32L8 7.88Z"/></svg>';
+const ICON_LINK = '<svg viewBox="0 0 16 16" width="14" height="14" fill="currentColor"><path d="M7.775 3.275a.75.75 0 0 0 1.06 1.06l1.25-1.25a2 2 0 1 1 2.83 2.83l-2.5 2.5a2 2 0 0 1-2.83 0 .75.75 0 0 0-1.06 1.06 3.5 3.5 0 0 0 4.95 0l2.5-2.5a3.5 3.5 0 0 0-4.95-4.95l-1.25 1.25Zm-4.69 9.64a2 2 0 0 1 0-2.83l2.5-2.5a2 2 0 0 1 2.83 0 .75.75 0 0 0 1.06-1.06 3.5 3.5 0 0 0-4.95 0l-2.5 2.5a3.5 3.5 0 0 0 4.95 4.95l1.25-1.25a.75.75 0 0 0-1.06-1.06l-1.25 1.25a2 2 0 0 1-2.83 0Z"/></svg>';
+
 function showAuthorPopover(idx, el) {
   const c = contributors[idx];
   if (!c) return;
   const av = c.avatarUrl;
-  const handle = githubHandleFromAvatar(av);
+  const p = c.profile || {};
+  const handle = c.login ? '@' + c.login : '';
   const initial = (c.name || '?').trim().charAt(0).toUpperCase();
   const avatarHtml = av
     ? `<img class="lp-avatar" src="${escapeHtml(av)}" alt="" data-fallback-class="lp-avatar-fallback" data-bg="${escapeHtml(clr(idx))}" data-initial="${escapeHtml(initial)}">`
     : `<div class="lp-avatar-fallback" style="background:${clr(idx)}">${escapeHtml(initial)}</div>`;
+
+  const bioHtml = p.bio ? `<div class="lp-bio">${escapeHtml(p.bio)}</div>` : '';
+
+  const counts = [];
+  if (typeof p.followers === 'number') counts.push(`<strong>${fmt(p.followers)}</strong> follower${p.followers === 1 ? '' : 's'}`);
+  if (typeof p.following === 'number') counts.push(`<strong>${fmt(p.following)}</strong> following`);
+  if (typeof p.publicRepos === 'number') counts.push(`<strong>${fmt(p.publicRepos)}</strong> repo${p.publicRepos === 1 ? '' : 's'}`);
+  const countsHtml = counts.length ? `<div class="lp-counts">${counts.join(' · ')}</div>` : '';
+
+  const metaRows = [];
+  if (p.location) metaRows.push(`<div class="lp-meta-row">${ICON_LOC}<span class="lp-meta-text">${escapeHtml(p.location)}</span></div>`);
+  const email = p.email || c.email;
+  if (email) metaRows.push(`<div class="lp-meta-row">${ICON_MAIL}<span class="lp-meta-text">${escapeHtml(email)}</span></div>`);
+  if (p.websiteUrl) metaRows.push(`<div class="lp-meta-row">${ICON_LINK}<span class="lp-meta-text">${escapeHtml(p.websiteUrl)}</span></div>`);
+  const metaHtml = metaRows.length ? `<div class="lp-meta">${metaRows.join('')}</div>` : '';
+
   const net = c.added - c.deleted;
   const netHtml = net > 0
     ? `<span class="add">+${fmt(net)}</span>`
     : net < 0
       ? `<span class="del">${fmt(net)}</span>`
       : fmt(net);
+
   authorPopover.innerHTML =
-    `<div class="lp-header">${avatarHtml}<div><div class="lp-name">${escapeHtml(c.name)}${handle ? `<span class="lp-handle">${escapeHtml(handle)}</span>` : ''}</div><div class="lp-email">${escapeHtml(c.email || '')}</div></div></div>` +
+    `<div class="lp-header">${avatarHtml}<div class="lp-id"><div class="lp-name">${escapeHtml(c.name)}</div>${handle ? `<span class="lp-handle">${escapeHtml(handle)}</span>` : ''}</div></div>` +
+    bioHtml + countsHtml + metaHtml +
     `<div class="lp-divider"></div>` +
     `<div class="lp-stats">${fmt(c.commits)} commits · ${c.activeDays} active day${c.activeDays === 1 ? '' : 's'}</div>` +
     `<div class="lp-stats"><span class="add">+${fmt(c.added)}</span> <span class="del">-${fmt(c.deleted)}</span> (net ${netHtml})</div>` +
     `<div class="lp-period">${c.first} — ${c.last}</div>`;
   installAvatarFallback(authorPopover.querySelector('.lp-avatar'));
 
+  authorPopover.style.transform = '';
+  authorPopover.style.left = '-9999px';
+  authorPopover.style.top = '0px';
+  const w = authorPopover.offsetWidth;
+  const h = authorPopover.offsetHeight;
   const rect = el.getBoundingClientRect();
-  authorPopover.style.left = (rect.right + 12) + 'px';
-  authorPopover.style.top = (rect.top + rect.height / 2) + 'px';
-  authorPopover.style.transform = 'translateY(-50%)';
+  const margin = 8;
+  const vw = document.documentElement.clientWidth;
+  const vh = document.documentElement.clientHeight;
+  let left = rect.right + 12;
+  if (left + w + margin > vw) left = Math.max(margin, rect.left - 12 - w);
+  let top = rect.top + rect.height / 2 - h / 2;
+  if (top + h + margin > vh) top = vh - h - margin;
+  if (top < margin) top = margin;
+  authorPopover.style.left = left + 'px';
+  authorPopover.style.top = top + 'px';
   authorPopover.classList.add('visible');
 }
 
