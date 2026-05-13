@@ -146,11 +146,16 @@ def parse_args(argv):
     commits_filter, since, until = None, None, None
     i = 0
 
-    def require_value(flag, idx):
-        if idx + 1 >= len(argv):
-            sys.stderr.write(f"repo-intel: {flag} requires a value\n")
-            sys.exit(2)
-        return argv[idx + 1]
+    def take_value(name):
+        tok = argv[i]
+        if tok == name:
+            if i + 1 >= len(argv):
+                sys.stderr.write(f"repo-intel: {name} requires a value\n")
+                sys.exit(2)
+            return argv[i + 1], 2
+        if tok.startswith(name + "="):
+            return tok[len(name) + 1:], 1
+        return None, 0
 
     while i < len(argv):
         tok = argv[i]
@@ -163,37 +168,32 @@ def parse_args(argv):
                 no_cache = True
                 i += 1
                 continue
-            if tok in ("-o", "--output"):
-                output = require_value(tok, i)
+            if tok == "-o":
+                if i + 1 >= len(argv):
+                    sys.stderr.write("repo-intel: -o requires a value\n")
+                    sys.exit(2)
+                output = argv[i + 1]
                 i += 2
                 continue
-            if tok.startswith("--output="):
-                output = tok[len("--output=") :]
-                i += 1
+            val, step = take_value("--output")
+            if step:
+                output = val
+                i += step
                 continue
-            if tok == "--commits":
-                commits_filter = parse_commits_spec(require_value(tok, i))
-                i += 2
+            val, step = take_value("--commits")
+            if step:
+                commits_filter = parse_commits_spec(val)
+                i += step
                 continue
-            if tok.startswith("--commits="):
-                commits_filter = parse_commits_spec(tok[len("--commits=") :])
-                i += 1
+            val, step = take_value("--since")
+            if step:
+                since = parse_date(val, "--since")
+                i += step
                 continue
-            if tok == "--since":
-                since = parse_date(require_value(tok, i), "--since")
-                i += 2
-                continue
-            if tok.startswith("--since="):
-                since = parse_date(tok[len("--since=") :], "--since")
-                i += 1
-                continue
-            if tok == "--until":
-                until = parse_date(require_value(tok, i), "--until")
-                i += 2
-                continue
-            if tok.startswith("--until="):
-                until = parse_date(tok[len("--until=") :], "--until")
-                i += 1
+            val, step = take_value("--until")
+            if step:
+                until = parse_date(val, "--until")
+                i += step
                 continue
         except ValueError as exc:
             sys.stderr.write(f"repo-intel: {exc}\n")
@@ -279,28 +279,29 @@ def collect_local(cwd=None, suppress_current_user=False):
         except subprocess.CalledProcessError:
             pass
 
-    log = git("log", "--no-merges", "--format=%H\x1f%s\x1f%aE\x1f%aN\x1f%aI", cwd=cwd)
-    commits_meta = {}
-    for line in log.splitlines():
-        parts = line.split("\x1f")
-        if len(parts) != 5:
-            continue
-        h, s, email, name, dt_iso = parts
-        commits_meta[h] = {
-            "subject": s,
-            "email": email.lower(),
-            "name": name,
-            "iso": dt_iso,
-        }
-
-    ns = git("log", "--no-merges", "--pretty=format:%H", "--numstat", cwd=cwd)
-    line_stats = {}
+    log = git(
+        "log", "--no-merges",
+        "--format=%H\x1f%s\x1f%aE\x1f%aN\x1f%aI",
+        "--numstat",
+        cwd=cwd,
+    )
+    commits_meta, line_stats = {}, {}
     cur = None
-    for line in ns.splitlines():
+    for line in log.splitlines():
         if not line:
             continue
-        if re.fullmatch(r"[0-9a-f]{40}", line):
-            cur = line
+        if "\x1f" in line:
+            parts = line.split("\x1f")
+            if len(parts) != 5:
+                continue
+            h, s, email, name, dt_iso = parts
+            commits_meta[h] = {
+                "subject": s,
+                "email": email.lower(),
+                "name": name,
+                "iso": dt_iso,
+            }
+            cur = h
             line_stats[cur] = [0, 0]
             continue
         if cur is None:
@@ -487,31 +488,18 @@ query($owner: String!, $repo: String!, $cursor: String) {
 
 def apply_filters(commits_meta, line_stats, commits_filter, since, until):
     if since or until:
-        kept = {}
-        for h, m in commits_meta.items():
+        def in_range(m):
             d = (m.get("iso") or "")[:10]
-            if not d:
-                continue
-            if since and d < since:
-                continue
-            if until and d > until:
-                continue
-            kept[h] = m
-        commits_meta = kept
-        line_stats = {h: line_stats[h] for h in commits_meta if h in line_stats}
+            return bool(d) and (not since or d >= since) and (not until or d <= until)
+        commits_meta = {h: m for h, m in commits_meta.items() if in_range(m)}
     if commits_filter:
-        ordered = sorted(
-            commits_meta.keys(), key=lambda h: commits_meta[h].get("iso") or ""
-        )
+        ordered = sorted(commits_meta, key=lambda h: commits_meta[h].get("iso") or "")
         if commits_filter[0] == "last":
-            n = commits_filter[1]
-            slice_shas = ordered[-n:]
+            keep = set(ordered[-commits_filter[1]:])
         else:
-            a, b = commits_filter[1], commits_filter[2]
-            slice_shas = ordered[a:b]
-        keep_set = set(slice_shas)
-        commits_meta = {h: commits_meta[h] for h in commits_meta if h in keep_set}
-        line_stats = {h: line_stats[h] for h in commits_meta if h in line_stats}
+            keep = set(ordered[commits_filter[1]:commits_filter[2]])
+        commits_meta = {h: m for h, m in commits_meta.items() if h in keep}
+    line_stats = {h: line_stats[h] for h in commits_meta if h in line_stats}
     return commits_meta, line_stats
 
 

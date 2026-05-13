@@ -358,14 +358,6 @@ heatmapContainer.addEventListener('mouseout', e => {
 // === COMMIT TIMELINE ===
 function escapeHtml(s) { return String(s).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
 
-function avatarUrlFor(contributor) {
-  if (contributor && contributor.avatarUrl) return contributor.avatarUrl;
-  const email = (contributor && contributor.email) || '';
-  const m = email.match(/^(?:\d+\+)?([^@]+)@users\.noreply\.github\.com$/i);
-  if (m) return `https://github.com/${m[1]}.png?size=64`;
-  return null;
-}
-
 function authorUrl(c) {
   if (!D.githubBaseUrl) return '#';
   const branch = D.defaultBranch || 'main';
@@ -385,7 +377,7 @@ function githubHandleFromAvatar(url) {
 function showAuthorPopover(idx, el) {
   const c = contributors[idx];
   if (!c) return;
-  const av = avatarUrlFor(c);
+  const av = c.avatarUrl;
   const handle = githubHandleFromAvatar(av);
   const initial = (c.name || '?').trim().charAt(0).toUpperCase();
   const avatarHtml = av
@@ -889,7 +881,7 @@ function buildTimeline() {
     const dt = new Date(c.d);
     const dateStr = dt.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
     const timeStr = dt.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
-    const av = avatarUrlFor(author);
+    const av = author.avatarUrl;
     const avatarHtml = av
       ? `<img class="tt-avatar" src="${escapeHtml(av)}" alt="" onerror="this.replaceWith(Object.assign(document.createElement('span'),{className:'tt-dot',style:'background:${hit.color}'}))">`
       : `<span class="tt-dot" style="background:${hit.color}"></span>`;
@@ -902,7 +894,7 @@ function buildTimeline() {
     tooltip.classList.add('visible');
   }
 
-  contributors.forEach(c => { const av = avatarUrlFor(c); if (av) { const img = new Image(); img.src = av; } });
+  contributors.forEach(c => { if (c.avatarUrl) { const img = new Image(); img.src = c.avatarUrl; } });
 
   let lastMouse = null;
   function applyHover(clientX, clientY) {
@@ -1057,19 +1049,32 @@ contributors.forEach((c, i) => { const card = document.createElement('div'); car
   new Chart(document.getElementById(`contrib-${i}`), { type: 'line', data: { labels: weeks.map(weekLabel), datasets: [{ data: weeklyData[c.email], backgroundColor: colors[i] + '40', borderColor: colors[i], borderWidth: 1.5, fill: true, tension: 0.3, pointRadius: 0 }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { display: true, ticks: { maxTicksLimit: 4, font: { size: 9 }, maxRotation: 0 } }, y: { display: false, beginAtZero: true } } } });
 });
 
-// Hourly
-const hourLabels = Array.from({length: 24}, (_, i) => `${i}:00`);
-const hourlyContainer = document.getElementById('hourlyCharts');
-contributors.forEach((c, i) => { const div = document.createElement('div'); div.className = 'card'; div.style.padding = '14px'; div.innerHTML = `<canvas id="hourly-${i}"></canvas>`; hourlyContainer.appendChild(div);
-  new Chart(document.getElementById(`hourly-${i}`), { type: 'bar', data: { labels: hourLabels, datasets: [{ data: hourlyData[c.email], backgroundColor: colors[i] + '90', borderRadius: 2 }] }, options: { responsive: true, maintainAspectRatio: true, plugins: { legend: { display: false }, title: { display: true, text: c.name, color: colors[i], font: { size: 11 } } }, scales: { x: { ticks: { maxTicksLimit: 6, font: { size: 9 } } }, y: { display: false, beginAtZero: true } } } });
-});
+function renderChartCards(container, idPrefix, chartConfig) {
+  contributors.forEach((c, i) => {
+    const div = document.createElement('div');
+    div.className = 'card';
+    div.style.padding = '14px';
+    div.innerHTML = `<canvas id="${idPrefix}-${i}"></canvas>`;
+    container.appendChild(div);
+    new Chart(document.getElementById(`${idPrefix}-${i}`), chartConfig(c, i));
+  });
+}
 
-// DOW
+const miniBarOpts = (c, i, xTicks) => ({ responsive: true, maintainAspectRatio: true, plugins: { legend: { display: false }, title: { display: true, text: c.name, color: colors[i], font: { size: 11 } } }, scales: { x: { ticks: { ...xTicks, font: { size: 9 } } }, y: { display: false, beginAtZero: true } } });
+
+const hourLabels = Array.from({length: 24}, (_, i) => `${i}:00`);
+renderChartCards(document.getElementById('hourlyCharts'), 'hourly', (c, i) => ({
+  type: 'bar',
+  data: { labels: hourLabels, datasets: [{ data: hourlyData[c.email], backgroundColor: colors[i] + '90', borderRadius: 2 }] },
+  options: miniBarOpts(c, i, { maxTicksLimit: 6 }),
+}));
+
 const dowLabels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-const dowContainer = document.getElementById('dowCharts');
-contributors.forEach((c, i) => { const div = document.createElement('div'); div.className = 'card'; div.style.padding = '14px'; div.innerHTML = `<canvas id="dow-${i}"></canvas>`; dowContainer.appendChild(div);
-  new Chart(document.getElementById(`dow-${i}`), { type: 'bar', data: { labels: dowLabels, datasets: [{ data: dowData[c.email], backgroundColor: dowData[c.email].map((v, di) => di >= 5 ? colors[i] + '30' : colors[i] + '90'), borderRadius: 3 }] }, options: { responsive: true, maintainAspectRatio: true, plugins: { legend: { display: false }, title: { display: true, text: c.name, color: colors[i], font: { size: 11 } } }, scales: { x: { ticks: { font: { size: 9 } } }, y: { display: false, beginAtZero: true } } } });
-});
+renderChartCards(document.getElementById('dowCharts'), 'dow', (c, i) => ({
+  type: 'bar',
+  data: { labels: dowLabels, datasets: [{ data: dowData[c.email], backgroundColor: dowData[c.email].map((v, di) => di >= 5 ? colors[i] + '30' : colors[i] + '90'), borderRadius: 3 }] },
+  options: miniBarOpts(c, i, {}),
+}));
 
 // === RESET BUTTONS ===
 function setupResetButton(chart) {
