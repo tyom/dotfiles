@@ -903,22 +903,26 @@ function buildTimeline() {
   }
 
   let dragging = false;
+  let tooltipHash = null;
 
   function showTooltipFor(hit, clientX, clientY) {
-    const c = hit.c;
-    const author = contributors[hit.idx];
-    const dt = new Date(c.d);
-    const dateStr = dt.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
-    const timeStr = dt.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
-    const av = author.avatarUrl;
-    const avatarHtml = av
-      ? `<img class="tt-avatar" src="${escapeHtml(av)}" alt="" data-fallback-tag="span" data-fallback-class="tt-dot" data-bg="${escapeHtml(hit.color)}">`
-      : `<span class="tt-dot" style="background:${hit.color}"></span>`;
-    tooltip.innerHTML =
-      `<div class="tt-author-row">${avatarHtml}<span class="tt-author">${escapeHtml(author.name)}</span></div>` +
-      `<div class="tt-subject">${escapeHtml(c.s || '')}</div>` +
-      `<div class="tt-meta">${dateStr} ${timeStr} · <span style="color:${colorAdded}">+${fmt(c.a || 0)}</span> <span style="color:${colorDeleted}">-${fmt(c.l || 0)}</span> · <span class="tt-hash">${c.h}</span></div>`;
-    installAvatarFallback(tooltip.querySelector('.tt-avatar'));
+    if (hit.c.h !== tooltipHash) {
+      const c = hit.c;
+      const author = contributors[hit.idx];
+      const dt = new Date(c.d);
+      const dateStr = dt.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
+      const timeStr = dt.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+      const av = author.avatarUrl;
+      const avatarHtml = av
+        ? `<img class="tt-avatar" src="${escapeHtml(av)}" alt="" data-fallback-tag="span" data-fallback-class="tt-dot" data-bg="${escapeHtml(hit.color)}">`
+        : `<span class="tt-dot" style="background:${hit.color}"></span>`;
+      tooltip.innerHTML =
+        `<div class="tt-author-row">${avatarHtml}<span class="tt-author">${escapeHtml(author.name)}</span></div>` +
+        `<div class="tt-subject">${escapeHtml(c.s || '')}</div>` +
+        `<div class="tt-meta">${dateStr} ${timeStr} · <span style="color:${colorAdded}">+${fmt(c.a || 0)}</span> <span style="color:${colorDeleted}">-${fmt(c.l || 0)}</span> · <span class="tt-hash">${c.h}</span></div>`;
+      installAvatarFallback(tooltip.querySelector('.tt-avatar'));
+      tooltipHash = c.h;
+    }
     tooltip.style.left = clientX + 'px';
     tooltip.style.top = clientY + 'px';
     tooltip.classList.add('visible');
