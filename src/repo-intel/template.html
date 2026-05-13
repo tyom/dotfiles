@@ -94,13 +94,14 @@
     background: rgba(0,0,0,0.8); color: #fff; font-size: 0.75rem;
     padding: 6px 10px; border-radius: 4px; white-space: nowrap;
     opacity: 0; transition: opacity 0.15s;
-    transform: translate(-50%, -100%); margin-top: -2px;
   }
   .heatmap-tooltip::after {
-    content: ''; position: absolute; top: 100%; left: 50%;
+    content: ''; position: absolute; left: var(--arrow-left, 50%);
     transform: translateX(-50%);
-    border: 5px solid transparent; border-top-color: rgba(0,0,0,0.8);
+    border: 5px solid transparent;
   }
+  .heatmap-tooltip[data-side="above"]::after { top: 100%; border-top-color: rgba(0,0,0,0.8); }
+  .heatmap-tooltip[data-side="below"]::after { bottom: 100%; border-bottom-color: rgba(0,0,0,0.8); }
   .heatmap-tooltip.visible { opacity: 1; }
   .heatmap-tooltip .tt-date { color: #e6edf3; font-weight: 600; }
   .heatmap-tooltip .tt-count { color: #8b949e; margin-left: 6px; }
@@ -148,7 +149,6 @@
     background: rgba(13,17,23,0.96); color: var(--text-primary); font-size: 0.75rem;
     padding: 8px 10px; border-radius: 4px; max-width: 360px; line-height: 1.4;
     opacity: 0; transition: opacity 0.1s;
-    transform: translate(12px, -50%);
     border: 1px solid var(--border-default);
   }
   .timeline-tooltip.visible { opacity: 1; }
@@ -412,7 +412,21 @@ heatmapContainer.addEventListener('mouseover', e => {
   const label = count === '0' ? 'No commits' : `${count} commit${count === '1' ? '' : 's'}`;
   tooltip.innerHTML = `<span class="tt-dot" style="background:${color}"></span><span class="tt-date">${label}</span><span class="tt-count">on ${formatted}</span>`;
   const rect = cell.getBoundingClientRect();
-  tooltip.style.left = (rect.left + rect.width / 2) + 'px'; tooltip.style.top = rect.top + 'px';
+  const w = tooltip.offsetWidth, h = tooltip.offsetHeight;
+  const vw = document.documentElement.clientWidth;
+  const vh = document.documentElement.clientHeight;
+  const m = 8, gap = 6, cx = rect.left + rect.width / 2;
+  let left = cx - w / 2;
+  left = Math.max(m, Math.min(left, vw - w - m));
+  let top = rect.top - h - gap;
+  let side = 'above';
+  if (top < m) { top = rect.bottom + gap; side = 'below'; }
+  if (top + h + m > vh) top = Math.max(m, vh - h - m);
+  tooltip.dataset.side = side;
+  const arrowLeft = Math.max(8, Math.min(w - 8, cx - left));
+  tooltip.style.setProperty('--arrow-left', arrowLeft + 'px');
+  tooltip.style.left = left + 'px';
+  tooltip.style.top = top + 'px';
   tooltip.classList.add('visible');
 });
 heatmapContainer.addEventListener('mouseout', e => {
@@ -1193,6 +1207,20 @@ function buildTimeline() {
   let dragging = false;
   let tooltipHash = null;
 
+  function positionTimelineTooltip(clientX, clientY) {
+    const w = tooltip.offsetWidth, h = tooltip.offsetHeight;
+    const vw = document.documentElement.clientWidth;
+    const vh = document.documentElement.clientHeight;
+    const m = 8, gap = 12;
+    let left = clientX + gap;
+    if (left + w + m > vw) left = clientX - gap - w;
+    left = Math.max(m, Math.min(left, vw - w - m));
+    let top = clientY - h / 2;
+    top = Math.max(m, Math.min(top, vh - h - m));
+    tooltip.style.left = left + 'px';
+    tooltip.style.top = top + 'px';
+  }
+
   function showTooltipFor(hit, clientX, clientY) {
     if (hit.c.h !== tooltipHash) {
       const c = hit.c;
@@ -1209,8 +1237,7 @@ function buildTimeline() {
       installAvatarFallback(tooltip.querySelector('.tt-avatar'));
       tooltipHash = c.h;
     }
-    tooltip.style.left = clientX + 'px';
-    tooltip.style.top = clientY + 'px';
+    positionTimelineTooltip(clientX, clientY);
     tooltip.classList.add('visible');
   }
 
@@ -1394,8 +1421,7 @@ function buildTimeline() {
       (showMsg ? `<div class="tt-subject">${escapeHtml(msg)}</div>` : '') +
       `<div class="tt-meta">${escapeHtml(dateStr || t.date || '')}${timeStr ? ' ' + escapeHtml(timeStr) : ''}${oidShort ? ' · <span class="tt-hash">' + escapeHtml(oidShort) + '</span>' : ''}</div>`;
     tooltipHash = null;
-    tooltip.style.left = clientX + 'px';
-    tooltip.style.top = clientY + 'px';
+    positionTimelineTooltip(clientX, clientY);
     tooltip.classList.add('visible');
   }
 
