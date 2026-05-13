@@ -10,6 +10,37 @@ a remote GitHub repo and writes a self-contained HTML dashboard
 showing top contributors, weekly/daily activity, time-of-day patterns,
 and per-author commit feeds.
 
+The [GitHub CLI (`gh`)](https://cli.github.com/) is optional but
+recommended: when authenticated (`gh auth login`), `repo-intel` uses
+its token to fetch remote repos via the GitHub GraphQL API and to
+enrich author cards with GitHub profile data (avatar, bio, follower
+counts, etc.). Without `gh`, the script falls back to `$GITHUB_TOKEN`
+or a bare-clone of the remote, and author cards show git data only.
+
+## Run without installing
+
+Pipe the shipped artifact straight into Python — no clone, no install:
+
+```bash
+curl -sSL https://raw.githubusercontent.com/tyom/dotfiles/master/stow/bin/repo-intel \
+  | python3 - <owner/repo>
+```
+
+Everything after `python3 -` is forwarded to the script. Replace
+`<owner/repo>` with the GitHub repo you want stats for (e.g. `tyom/dotfiles`),
+or drop it to run against the current directory's git repo. Append `--help`
+(or `-h`) for the full flag reference:
+
+```bash
+curl -sSL https://raw.githubusercontent.com/tyom/dotfiles/master/stow/bin/repo-intel \
+  | python3 - --help
+```
+
+The script is self-contained (Python 3 + `git`, optional `gh`). In this mode
+stdin is the script body, so the interactive subset prompt for large remote
+repos is auto-skipped and the script fetches all commits — pass
+`--commits N` (or `--since` / `--until`) to trim the fetch on big repos.
+
 ## Usage
 
 ```
@@ -43,6 +74,15 @@ Run `repo-intel --help` for the full flag reference.
 
 Filters compose: date bounds apply first, then the position slice. The
 run prints `filtered: X/total commits` so you can see what was kept.
+
+When a remote repo has more than 1000 commits and no filter flag was
+passed, `repo-intel` prompts interactively for a subset (Last 500, Last
+1000, Past year, or All). The prompt requires the GraphQL path
+(token-authenticated), because that's where picking a subset actually
+saves network — the bare-clone fallback downloads everything regardless,
+so it skips the prompt and you can pass `--commits` / `--since` to trim
+the display instead. Also skipped when stdin/stderr is not a TTY or when
+any of `--commits` / `--since` / `--until` is given.
 
 ### Output
 

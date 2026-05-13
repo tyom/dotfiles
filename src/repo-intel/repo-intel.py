@@ -41,7 +41,10 @@ Examples:
   repo-intel --since 2024-01-01 --until 2024-06-30  # H1 2024
 
 Remote auth:
-  Uses `gh auth token -h github.com`, then $GITHUB_TOKEN.
+  The GitHub CLI (`gh`, https://cli.github.com/) is optional but
+  recommended — when authenticated it unlocks GraphQL remote fetching
+  and author hovercard enrichment (avatar, bio, follower counts).
+  Lookup order: `gh auth token -h github.com`, then $GITHUB_TOKEN.
   Falls back to `git clone --bare` into /tmp if neither is available.
 
 Output:
@@ -64,22 +67,44 @@ import sys
 import urllib.request
 import webbrowser
 from collections import defaultdict
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 TEMPLATE = "__TEMPLATE_PLACEHOLDER__"
 PLACEHOLDER = "/*__DATA_INJECTION__*/"
 NOREPLY_RE = re.compile(r"(?:\d+\+)?(.+)@users\.noreply\.github\.com")
 ORIGIN_RE = re.compile(
-    r"^(?:https?://github\.com/|git@github\.com:)([^/]+)/(.+?)(?:\.git)?/?$"
+    r"^(?:https?://(?P<https_host>[^/]+)/|git@(?P<ssh_host>[^:]+):)"
+    r"(?P<owner>[^/]+)/(?P<repo>.+?)(?:\.git)?/?$"
 )
 CACHE_DIR = (
     Path(os.environ.get("XDG_CACHE_HOME") or (Path.home() / ".cache")) / "repo-intel"
 )
 
 
+def parse_iso_instant(s):
+    """Parse an ISO 8601 timestamp to a UTC-aware datetime; epoch on failure.
+
+    Tags mix `Z`-suffixed UTC (GraphQL) with offset-suffixed local time
+    (`git for-each-ref iso8601-strict`), so lex-sorting can misorder them.
+    """
+    if not s:
+        return datetime(1970, 1, 1, tzinfo=timezone.utc)
+    try:
+        dt = datetime.fromisoformat(s.replace("Z", "+00:00"))
+    except ValueError:
+        return datetime(1970, 1, 1, tzinfo=timezone.utc)
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(timezone.utc)
+
+
+def _slugify(s):
+    return re.sub(r"[^\w.-]+", "-", s).strip("-")
+
+
 def cache_path(slug):
-    safe = re.sub(r"[^\w.-]+", "-", slug.lower()).strip("-") or "repo"
+    safe = _slugify(slug.lower()) or "repo"
     return CACHE_DIR / f"{safe}.json"
 
 
@@ -99,22 +124,26 @@ def save_cache(slug, nodes, complete):
     cache_path(slug).write_text(json.dumps({"nodes": nodes, "complete": complete}))
 
 
-def cache_covers_request(loaded_nodes, loaded_complete, commits_filter, since, until):
-    """True if the cache contains enough to answer the current request."""
-    if loaded_complete:
-        return True
-    if not loaded_nodes:
+def needs_older_fetch(have_count, cached_oldest_date, prev_complete,
+                      commits_filter, since, until):
+    """Should we paginate below the oldest cached commit after top-fetch?
+
+    have_count: len(new_nodes) + len(cached_nodes) after the top-fetch.
+    cached_oldest_date: YYYY-MM-DD of the oldest cached commit, "" if empty.
+    """
+    if prev_complete:
+        return False
+    if not cached_oldest_date:
         return False
     if until:
-        return False
+        return True
     if commits_filter:
         if commits_filter[0] == "last":
-            return len(loaded_nodes) >= commits_filter[1]
-        return False
+            return have_count < commits_filter[1]
+        return True  # range — slice is anchored at oldest, must walk full history
     if since:
-        oldest = ((loaded_nodes[-1].get("author") or {}).get("date") or "")[:10]
-        return bool(oldest) and oldest <= since
-    return False
+        return cached_oldest_date > since
+    return True
 
 
 def parse_commits_spec(val):
@@ -226,12 +255,17 @@ def parse_args(argv):
     return top_n, remote, output, no_open, no_cache, commits_filter, since, until
 
 
+def login_from_email(email):
+    m = NOREPLY_RE.fullmatch(email or "")
+    return m.group(1) if m else ""
+
+
 def avatar_url(email, override=None):
     if override:
         return override
-    m = NOREPLY_RE.fullmatch(email)
-    if m:
-        return f"https://github.com/{m.group(1)}.png?size=64"
+    login = login_from_email(email)
+    if login:
+        return f"https://github.com/{login}.png?size=64"
     h = hashlib.md5(email.strip().lower().encode()).hexdigest()
     return f"https://www.gravatar.com/avatar/{h}?d=mp&s=64"
 
@@ -243,6 +277,83 @@ def iso_week_label(dt):
 
 def git(*args, cwd=None):
     return subprocess.check_output(["git", *args], text=True, cwd=cwd)
+
+
+_CLONE_REFRESHED = set()
+
+
+def ensure_bare_clone(owner, repo, no_cache):
+    """Clone or fetch-update a bare repo under /tmp; idempotent within a run."""
+    clone_dir = f"/tmp/repo-intel-{owner}-{repo}.git"
+    if clone_dir in _CLONE_REFRESHED:
+        return clone_dir
+    if not os.path.isdir(clone_dir):
+        subprocess.check_call(
+            ["git", "clone", "--bare", f"https://github.com/{owner}/{repo}.git", clone_dir]
+        )
+    elif not no_cache:
+        print("  updating cached bare clone…", file=sys.stderr)
+        subprocess.run(
+            ["git", "fetch", "--quiet", "origin"], cwd=clone_dir, check=False
+        )
+    _CLONE_REFRESHED.add(clone_dir)
+    return clone_dir
+
+
+def prompt_subset(total):
+    """Ask which subset to fetch when a repo has many commits.
+
+    Returns (commits_filter, since, until). All-None means "fetch all".
+    """
+    today = datetime.now(timezone.utc).date()
+    one_year_ago = (today - timedelta(days=365)).isoformat()
+    sys.stderr.write(
+        f"\nRepository has {total:,} commits. Choose a subset to fetch:\n"
+        f"  [1] Last 500\n"
+        f"  [2] Last 1000\n"
+        f"  [3] Past year (since {one_year_ago})\n"
+        f"  [4] All\n"
+    )
+    while True:
+        sys.stderr.write("Choice [4]: ")
+        sys.stderr.flush()
+        try:
+            line = sys.stdin.readline()
+        except KeyboardInterrupt:
+            sys.stderr.write("\nAborted.\n")
+            sys.exit(130)
+        if not line:
+            return None, None, None
+        choice = line.strip() or "4"
+        if choice == "1":
+            return ("last", 500), None, None
+        if choice == "2":
+            return ("last", 1000), None, None
+        if choice == "3":
+            return None, one_year_ago, None
+        if choice == "4":
+            return None, None, None
+        sys.stderr.write(f"  invalid choice {choice!r}\n")
+
+
+def repo_disk_kb(cwd=None):
+    """Total on-disk size of git objects (loose + packed) in KB."""
+    try:
+        out = git("count-objects", "-v", cwd=cwd)
+    except subprocess.CalledProcessError:
+        return 0
+    size = size_pack = 0
+    for line in out.splitlines():
+        key, _, val = line.partition(":")
+        try:
+            n = int(val.strip())
+        except ValueError:
+            continue
+        if key == "size":
+            size = n
+        elif key == "size-pack":
+            size_pack = n
+    return size + size_pack
 
 
 def detect_default_branch(cwd=None):
@@ -263,6 +374,36 @@ def detect_default_branch(cwd=None):
     return "main"
 
 
+def collect_local_tags(cwd=None):
+    """Return list of {name, oid, date, message} for git tags, by commit date."""
+    fmt = (
+        "%(refname:short)\x1f"
+        "%(*objectname)\x1f%(objectname)\x1f"
+        "%(*committerdate:iso8601-strict)\x1f%(committerdate:iso8601-strict)\x1f"
+        "%(contents:subject)"
+    )
+    try:
+        out = git("tag", "-l", f"--format={fmt}", cwd=cwd)
+    except subprocess.CalledProcessError:
+        return []
+    tags = []
+    for line in out.splitlines():
+        if not line:
+            continue
+        parts = line.split("\x1f")
+        if len(parts) < 6:
+            continue
+        name, peel_oid, obj_oid, peel_date, obj_date = parts[:5]
+        subject = "\x1f".join(parts[5:])
+        oid = peel_oid or obj_oid
+        date = peel_date or obj_date
+        if not oid or not date:
+            continue
+        tags.append({"name": name, "oid": oid, "date": date, "message": subject})
+    tags.sort(key=lambda t: parse_iso_instant(t.get("date")))
+    return tags
+
+
 def collect_local(cwd=None, suppress_current_user=False):
     repo_root = git("rev-parse", "--show-toplevel", cwd=cwd).strip()
     repo_name = os.path.basename(repo_root)
@@ -271,8 +412,11 @@ def collect_local(cwd=None, suppress_current_user=False):
         url = git("remote", "get-url", "origin", cwd=cwd).strip()
         m = ORIGIN_RE.match(url)
         if m:
-            github_base = f"https://github.com/{m.group(1)}/{m.group(2)}"
-            repo_name = m.group(2)
+            host = m.group("https_host") or m.group("ssh_host")
+            host_lc = (host or "").lower()
+            if host_lc == "github.com" or host_lc.endswith(".github.com"):
+                github_base = f"https://{host}/{m.group('owner')}/{m.group('repo')}"
+                repo_name = m.group("repo")
     except subprocess.CalledProcessError:
         pass
 
@@ -327,13 +471,60 @@ def collect_local(cwd=None, suppress_current_user=False):
         commits_meta,
         line_stats,
         {},
+        {},
         default_branch,
+        repo_disk_kb(cwd=cwd),
+        collect_local_tags(cwd=cwd),
     )
 
 
-def collect_remote(slug, no_cache=False, commits_filter=None, since=None, until=None):
-    owner, repo = slug.split("/", 1)
-    token = None
+def gh_graphql(query, variables, token):
+    """POST a GraphQL query to api.github.com. Returns the parsed JSON body."""
+    payload = json.dumps({"query": query, "variables": variables}).encode()
+    req = urllib.request.Request(
+        "https://api.github.com/graphql",
+        data=payload,
+        headers={
+            "Authorization": f"bearer {token}",
+            "Content-Type": "application/json",
+            "User-Agent": "repo-intel",
+        },
+    )
+    with urllib.request.urlopen(req) as resp:
+        return json.loads(resp.read())
+
+
+def gh_repository(body):
+    """Extract data.repository defensively — GraphQL returns null on errors."""
+    return (body.get("data") or {}).get("repository") or {}
+
+
+def probe_remote_total(owner, repo, token):
+    """Total commits on the default branch via GraphQL; None on error."""
+    query = """
+query($owner: String!, $repo: String!) {
+  repository(owner: $owner, name: $repo) {
+    defaultBranchRef {
+      target { ... on Commit { history(first: 1) { totalCount } } }
+    }
+  }
+}
+""".strip()
+    try:
+        body = gh_graphql(query, {"owner": owner, "repo": repo}, token)
+    except urllib.error.URLError:
+        return None
+    if "errors" in body:
+        return None
+    repo_node = gh_repository(body)
+    branch = repo_node.get("defaultBranchRef") or {}
+    target = branch.get("target") or {}
+    history = target.get("history") or {}
+    total = history.get("totalCount")
+    return total if isinstance(total, int) else None
+
+
+def get_github_token():
     try:
         token = subprocess.check_output(
             ["gh", "auth", "token", "-h", "github.com"],
@@ -341,141 +532,375 @@ def collect_remote(slug, no_cache=False, commits_filter=None, since=None, until=
             stderr=subprocess.DEVNULL,
         ).strip()
     except (subprocess.CalledProcessError, FileNotFoundError):
-        token = os.environ.get("GITHUB_TOKEN")
+        token = ""
+    return token or os.environ.get("GITHUB_TOKEN") or None
 
-    if not token:
-        print("No GitHub token — falling back to bare clone.", file=sys.stderr)
-        clone_dir = f"/tmp/repo-intel-{owner}-{repo}.git"
-        if not os.path.isdir(clone_dir):
-            subprocess.check_call(
-                [
-                    "git",
-                    "clone",
-                    "--bare",
-                    f"https://github.com/{owner}/{repo}.git",
-                    clone_dir,
-                ]
-            )
-        elif not no_cache:
-            print("  updating cached bare clone…", file=sys.stderr)
-            subprocess.run(
-                ["git", "fetch", "--quiet", "origin"], cwd=clone_dir, check=False
-            )
-        repo_name, github_base, _, commits_meta, line_stats, _, default_branch = (
-            collect_local(cwd=clone_dir, suppress_current_user=True)
-        )
-        if not github_base:
-            github_base = f"https://github.com/{owner}/{repo}"
-        return repo_name, github_base, "", commits_meta, line_stats, {}, default_branch
 
+def fetch_logins_for_commits(owner, repo, oids_by_email, token):
+    """Look up GitHub author login for each email using a few sample oids.
+
+    Used in the local-repo path where the commit walk doesn't know logins.
+    Local commits not yet pushed return null, so multiple oids per email are
+    queried in one batched GraphQL call; the first that resolves wins.
+    Returns {email: login}.
+    """
+    if not oids_by_email or not token:
+        return {}
+    aliases = []
+    oid_values = []
+    for email, oids in oids_by_email.items():
+        for oid in oids:
+            aliases.append((len(oid_values), email))
+            oid_values.append(oid)
+    if not aliases:
+        return {}
+    var_decls = ", ".join(f"$oid{i}: GitObjectID!" for i in range(len(oid_values)))
+    fragments = " ".join(
+        f"c{i}: object(oid: $oid{i}) {{ ... on Commit {{ author {{ user {{ login }} }} }} }}"
+        for i in range(len(oid_values))
+    )
+    query = (
+        f"query($owner: String!, $repo: String!, {var_decls}) "
+        f"{{ repository(owner: $owner, name: $repo) {{ {fragments} }} }}"
+    )
+    variables = {"owner": owner, "repo": repo}
+    for i, oid in enumerate(oid_values):
+        variables[f"oid{i}"] = oid
+
+    try:
+        body = gh_graphql(query, variables, token)
+    except urllib.error.URLError as exc:
+        print(f"  warning: login lookup failed: {exc}", file=sys.stderr)
+        return {}
+    if "errors" in body:
+        print(f"  warning: login lookup errors: {body['errors']}", file=sys.stderr)
+    repo_node = gh_repository(body)
+    out = {}
+    for i, email in aliases:
+        if email in out:
+            continue
+        node = repo_node.get(f"c{i}") or {}
+        user = ((node.get("author") or {}).get("user")) or {}
+        login = user.get("login")
+        if login:
+            out[email] = login
+    return out
+
+
+def fetch_user_profiles(logins, token):
+    """Fetch GitHub profile fields for `logins` in one aliased GraphQL query.
+
+    Returns {login: {login,name,bio,location,websiteUrl,followers,following,publicRepos}}.
+    Missing/renamed users are silently skipped.
+    """
+    if not logins or not token:
+        return {}
+    unique = []
+    seen = set()
+    for login in logins:
+        if login and login not in seen:
+            seen.add(login)
+            unique.append(login)
+    if not unique:
+        return {}
+
+    fields = (
+        "login name bio location websiteUrl "
+        "followers { totalCount } following { totalCount } "
+        "repositories(privacy: PUBLIC, ownerAffiliations: OWNER) { totalCount }"
+    )
+    var_decls = ", ".join(f"$l{i}: String!" for i in range(len(unique)))
+    fragments = " ".join(
+        f"u{i}: user(login: $l{i}) {{ {fields} }}" for i in range(len(unique))
+    )
+    query = f"query({var_decls}) {{ {fragments} }}"
+    variables = {f"l{i}": login for i, login in enumerate(unique)}
+
+    try:
+        body = gh_graphql(query, variables, token)
+    except urllib.error.URLError as exc:
+        print(f"  warning: profile fetch failed: {exc}", file=sys.stderr)
+        return {}
+    if "errors" in body:
+        print(f"  warning: profile fetch errors: {body['errors']}", file=sys.stderr)
+    data = body.get("data") or {}
+    out = {}
+    for i, login in enumerate(unique):
+        node = data.get(f"u{i}")
+        if not node:
+            continue
+        out[login] = {
+            "login": node.get("login") or login,
+            "name": node.get("name") or "",
+            "bio": node.get("bio") or "",
+            "location": node.get("location") or "",
+            "websiteUrl": node.get("websiteUrl") or "",
+            "followers": (node.get("followers") or {}).get("totalCount") or 0,
+            "following": (node.get("following") or {}).get("totalCount") or 0,
+            "publicRepos": (node.get("repositories") or {}).get("totalCount") or 0,
+        }
+    return out
+
+
+def fetch_remote_tags(owner, repo, token):
+    """Fetch all tag refs via GraphQL. Returns list of {name, oid, date, message}."""
     query = """
 query($owner: String!, $repo: String!, $cursor: String) {
   repository(owner: $owner, name: $repo) {
-    name url
-    defaultBranchRef {
-      name
-      target {
-        ... on Commit {
-          history(first: 100, after: $cursor) {
-            pageInfo { hasNextPage endCursor }
-            nodes {
-              oid messageHeadline
-              author { name email date user { avatarUrl(size: 64) login } }
-              additions deletions
-            }
+    refs(refPrefix: "refs/tags/", first: 100, after: $cursor, orderBy: {field: TAG_COMMIT_DATE, direction: ASC}) {
+      pageInfo { hasNextPage endCursor }
+      nodes {
+        name
+        target {
+          __typename
+          ... on Tag {
+            message
+            target { ... on Commit { oid committedDate } }
           }
+          ... on Commit { oid committedDate }
         }
       }
     }
   }
 }
 """.strip()
-
-    loaded_nodes, loaded_complete = ([], False) if no_cache else load_cache(slug)
-    if loaded_nodes and not cache_covers_request(
-        loaded_nodes, loaded_complete, commits_filter, since, until
-    ):
-        print(
-            f"  cache: {len(loaded_nodes)} commits (partial — request needs more, re-fetching)",
-            file=sys.stderr,
-        )
-        cached_nodes = []
-    else:
-        cached_nodes = loaded_nodes
-        if cached_nodes:
-            label = "complete" if loaded_complete else "partial"
-            print(f"  cache: {len(cached_nodes)} commits ({label})", file=sys.stderr)
-    cached_oids = {n["oid"] for n in cached_nodes}
-
-    last_n = commits_filter[1] if commits_filter and commits_filter[0] == "last" else None
-
     cursor = None
-    new_nodes = []
-    repo_name = repo
-    repo_url = f"https://github.com/{owner}/{repo}"
-    default_branch = "main"
-    hit_cache = False
-    hit_end = False
-    short_circuited = False
+    tags = []
     while True:
-        payload = json.dumps(
-            {
-                "query": query,
-                "variables": {"owner": owner, "repo": repo, "cursor": cursor},
-            }
-        ).encode()
-        req = urllib.request.Request(
-            "https://api.github.com/graphql",
-            data=payload,
-            headers={
-                "Authorization": f"bearer {token}",
-                "Content-Type": "application/json",
-                "User-Agent": "repo-intel",
-            },
-        )
-        with urllib.request.urlopen(req) as resp:
-            body = json.loads(resp.read())
+        try:
+            body = gh_graphql(query, {"owner": owner, "repo": repo, "cursor": cursor}, token)
+        except urllib.error.URLError as exc:
+            print(f"  warning: tag fetch failed: {exc}", file=sys.stderr)
+            return tags
         if "errors" in body:
-            sys.exit(f"GraphQL error: {body['errors']}")
-        repo_node = body["data"]["repository"]
-        if not repo_node:
-            sys.exit(f"Repository not found or inaccessible: {slug}")
-        repo_name = repo_node["name"]
-        repo_url = repo_node["url"]
-        branch_ref = repo_node.get("defaultBranchRef")
-        if not branch_ref or not branch_ref.get("target"):
-            sys.exit(f"error: {slug} has no commits on its default branch")
-        default_branch = branch_ref.get("name") or default_branch
-        history = branch_ref["target"]["history"]
-        for n in history["nodes"]:
+            print(f"  warning: tag fetch GraphQL error: {body['errors']}", file=sys.stderr)
+            return tags
+        refs = gh_repository(body).get("refs") or {}
+        for node in refs.get("nodes") or []:
+            tgt = node.get("target") or {}
+            kind = tgt.get("__typename")
+            if kind == "Tag":
+                inner = tgt.get("target") or {}
+                oid = inner.get("oid") or ""
+                date = inner.get("committedDate") or ""
+                message = tgt.get("message") or ""
+            elif kind == "Commit":
+                oid = tgt.get("oid") or ""
+                date = tgt.get("committedDate") or ""
+                message = ""
+            else:
+                continue
+            if not oid or not date:
+                continue
+            tags.append({
+                "name": node.get("name") or "",
+                "oid": oid,
+                "date": date,
+                "message": (message.splitlines() or [""])[0],
+            })
+        page = refs.get("pageInfo") or {}
+        if not page.get("hasNextPage"):
+            break
+        cursor = page.get("endCursor")
+    tags.sort(key=lambda t: parse_iso_instant(t.get("date")))
+    return tags
+
+
+def _paginate_history(fetch_page, cached_oids, last_n, since,
+                      have_count_baseline, label, skip_first=False):
+    """Walk a Commit.history connection page by page.
+
+    fetch_page(cursor) -> history dict, or None when the anchor object is gone.
+    Returns (nodes, reason) where reason ∈
+        "hit_cache" | "short_circuit" | "page_end" | "anchor_null"
+    """
+    nodes = []
+    cursor = None
+    dropped_anchor = not skip_first
+    while True:
+        history = fetch_page(cursor)
+        if history is None:
+            return nodes, "anchor_null"
+        for n in history.get("nodes") or []:
+            if not dropped_anchor:
+                dropped_anchor = True
+                continue
             if n["oid"] in cached_oids:
-                hit_cache = True
-                break
-            new_nodes.append(n)
-            if last_n is not None and len(new_nodes) + len(cached_nodes) >= last_n:
-                short_circuited = True
-                break
+                return nodes, "hit_cache"
+            nodes.append(n)
+            if last_n is not None and len(nodes) + have_count_baseline >= last_n:
+                return nodes, "short_circuit"
             if since:
                 d = ((n.get("author") or {}).get("date") or "")[:10]
                 if d and d < since:
-                    short_circuited = True
-                    break
-        if hit_cache or short_circuited:
-            break
-        if not history["pageInfo"]["hasNextPage"]:
-            hit_end = True
-            break
-        cursor = history["pageInfo"]["endCursor"]
-        print(f"  fetched {len(new_nodes)} new commits…", file=sys.stderr)
+                    return nodes, "short_circuit"
+        page = history.get("pageInfo") or {}
+        if not page.get("hasNextPage"):
+            return nodes, "page_end"
+        cursor = page.get("endCursor")
+        print(f"  fetched {len(nodes)} {label} commits…", file=sys.stderr)
 
+
+def collect_remote(slug, token, no_cache=False, commits_filter=None, since=None, until=None):
+    owner, repo = slug.split("/", 1)
+
+    if not token:
+        clone_dir = ensure_bare_clone(owner, repo, no_cache)
+        (
+            repo_name,
+            github_base,
+            _,
+            commits_meta,
+            line_stats,
+            _,
+            _,
+            default_branch,
+            repo_size_kb,
+            tags,
+        ) = collect_local(cwd=clone_dir, suppress_current_user=True)
+        if not github_base:
+            github_base = f"https://github.com/{owner}/{repo}"
+        return (
+            repo_name,
+            github_base,
+            "",
+            commits_meta,
+            line_stats,
+            {},
+            {},
+            default_branch,
+            repo_size_kb,
+            tags,
+        )
+
+    history_block = """
+history(first: 100, after: $cursor) {
+  pageInfo { hasNextPage endCursor }
+  nodes {
+    oid messageHeadline
+    author { name email date user { avatarUrl(size: 64) login } }
+    additions deletions
+  }
+}""".strip()
+
+    top_query = f"""
+query($owner: String!, $repo: String!, $cursor: String) {{
+  repository(owner: $owner, name: $repo) {{
+    name url diskUsage
+    defaultBranchRef {{
+      name
+      target {{ ... on Commit {{ {history_block} }} }}
+    }}
+  }}
+}}""".strip()
+
+    bottom_query = f"""
+query($owner: String!, $repo: String!, $oid: GitObjectID!, $cursor: String) {{
+  repository(owner: $owner, name: $repo) {{
+    object(oid: $oid) {{ ... on Commit {{ {history_block} }} }}
+  }}
+}}""".strip()
+
+    loaded_nodes, loaded_complete = ([], False) if no_cache else load_cache(slug)
+    cached_nodes = loaded_nodes
+    cached_oids = {n["oid"] for n in cached_nodes}
+    if cached_nodes:
+        label = "complete" if loaded_complete else "partial"
+        print(f"  cache: {len(cached_nodes)} commits ({label})", file=sys.stderr)
+
+    last_n = commits_filter[1] if commits_filter and commits_filter[0] == "last" else None
+
+    repo_meta = {
+        "name": repo,
+        "url": f"https://github.com/{owner}/{repo}",
+        "branch": "main",
+        "disk_kb": 0,
+    }
+
+    def top_fetch_page(cursor):
+        body = gh_graphql(top_query, {"owner": owner, "repo": repo, "cursor": cursor}, token)
+        if "errors" in body:
+            sys.exit(f"GraphQL error: {body['errors']}")
+        repo_node = gh_repository(body)
+        if not repo_node:
+            sys.exit(f"Repository not found or inaccessible: {slug}")
+        repo_meta["name"] = repo_node["name"]
+        repo_meta["url"] = repo_node["url"]
+        repo_meta["disk_kb"] = repo_node.get("diskUsage") or 0
+        branch_ref = repo_node.get("defaultBranchRef")
+        if not branch_ref or not branch_ref.get("target"):
+            sys.exit(f"error: {slug} has no commits on its default branch")
+        repo_meta["branch"] = branch_ref.get("name") or repo_meta["branch"]
+        return branch_ref["target"]["history"]
+
+    new_nodes, top_reason = _paginate_history(
+        top_fetch_page, cached_oids, last_n, since,
+        have_count_baseline=len(cached_nodes), label="new",
+    )
+
+    if top_reason == "page_end" and cached_oids:
+        print(
+            f"  cache: orphaned by force-push/rewrite, discarded ({len(cached_nodes)} commits)",
+            file=sys.stderr,
+        )
+        cached_nodes = []
+        cached_oids = set()
+        loaded_complete = False
     if new_nodes:
         print(f"  fetched {len(new_nodes)} new commits", file=sys.stderr)
-    nodes = new_nodes + cached_nodes
-    new_complete = hit_end or (hit_cache and loaded_complete)
+
+    older_nodes = []
+    bottom_reason = None
+    have_count = len(new_nodes) + len(cached_nodes)
+    cached_oldest_date = (
+        ((cached_nodes[-1].get("author") or {}).get("date") or "")[:10]
+        if cached_nodes else ""
+    )
+    if needs_older_fetch(
+        have_count, cached_oldest_date, loaded_complete,
+        commits_filter, since, until,
+    ):
+        anchor_oid = cached_nodes[-1]["oid"]
+
+        def bottom_fetch_page(cursor):
+            body = gh_graphql(
+                bottom_query,
+                {"owner": owner, "repo": repo, "oid": anchor_oid, "cursor": cursor},
+                token,
+            )
+            if "errors" in body:
+                sys.exit(f"GraphQL error: {body['errors']}")
+            obj = gh_repository(body).get("object")
+            if not obj:
+                return None
+            return obj.get("history") or {"nodes": [], "pageInfo": {}}
+
+        older_nodes, bottom_reason = _paginate_history(
+            bottom_fetch_page, cached_oids, last_n, since,
+            have_count_baseline=have_count, label="older", skip_first=True,
+        )
+        if bottom_reason == "anchor_null":
+            print(
+                "  warning: cache anchor commit no longer exists; keeping what we have",
+                file=sys.stderr,
+            )
+        elif older_nodes:
+            print(f"  fetched {len(older_nodes)} older commits", file=sys.stderr)
+
+    repo_name = repo_meta["name"]
+    repo_url = repo_meta["url"]
+    default_branch = repo_meta["branch"]
+    repo_size_kb = repo_meta["disk_kb"]
+
+    nodes = new_nodes + cached_nodes + older_nodes
+    if bottom_reason is None:
+        new_complete = top_reason == "page_end" or loaded_complete
+    else:
+        new_complete = bottom_reason == "page_end"
     if not no_cache and nodes:
         save_cache(slug, nodes, new_complete)
 
-    commits_meta, line_stats, avatars = {}, {}, {}
+    commits_meta, line_stats, avatars, logins = {}, {}, {}, {}
     for n in nodes:
         author = n.get("author") or {}
         email = (author.get("email") or "").lower()
@@ -487,10 +912,25 @@ query($owner: String!, $repo: String!, $cursor: String) {
         }
         line_stats[n["oid"]] = [n.get("additions") or 0, n.get("deletions") or 0]
         user = author.get("user")
-        if user and user.get("avatarUrl") and email and email not in avatars:
-            avatars[email] = user["avatarUrl"]
+        if user and email:
+            if user.get("avatarUrl") and email not in avatars:
+                avatars[email] = user["avatarUrl"]
+            if user.get("login") and email not in logins:
+                logins[email] = user["login"]
 
-    return repo_name, repo_url, "", commits_meta, line_stats, avatars, default_branch
+    tags = fetch_remote_tags(owner, repo, token)
+    return (
+        repo_name,
+        repo_url,
+        "",
+        commits_meta,
+        line_stats,
+        avatars,
+        logins,
+        default_branch,
+        repo_size_kb,
+        tags,
+    )
 
 
 def apply_filters(commits_meta, line_stats, commits_filter, since, until):
@@ -519,6 +959,17 @@ def apply_filters(commits_meta, line_stats, commits_filter, since, until):
     return commits_meta, line_stats
 
 
+def filter_tags_to_range(tags, commits_meta):
+    if not tags or not commits_meta:
+        return []
+    dates = [(m.get("iso") or "")[:10] for m in commits_meta.values()]
+    dates = [d for d in dates if d]
+    if not dates:
+        return list(tags)
+    lo, hi = min(dates), max(dates)
+    return [t for t in tags if lo <= (t.get("date") or "")[:10] <= hi]
+
+
 def build_data(
     top_n,
     repo_name,
@@ -527,7 +978,10 @@ def build_data(
     commits_meta,
     line_stats,
     avatars,
+    logins,
     default_branch,
+    repo_size_kb,
+    tags,
 ):
     authors = {}
     daily_by_author = defaultdict(lambda: defaultdict(int))
@@ -595,10 +1049,12 @@ def build_data(
         for k, v in r["daily_counts"].items():
             if v > busiest_count:
                 busiest_day, busiest_count = k, v
+        login = logins.get(r["email"]) or login_from_email(r["email"])
         contributors.append(
             {
                 "name": r["name"],
                 "email": r["email"],
+                "login": login,
                 "commits": r["commits"],
                 "added": r["added"],
                 "deleted": r["deleted"],
@@ -646,6 +1102,7 @@ def build_data(
         "repoName": repo_name,
         "githubBaseUrl": github_base,
         "defaultBranch": default_branch,
+        "repoSizeKb": repo_size_kb,
         "dateRange": date_range,
         "totals": {
             "commits": total_commits,
@@ -660,7 +1117,58 @@ def build_data(
         "hourlyData": hourly_data,
         "dowData": dow_data,
         "commits": commits_list,
+        "tags": tags or [],
     }
+
+
+def _sample_oids_per_email(commits_meta, target_emails, per_email=3):
+    """Up to `per_email` oldest oids per email. Unknown-date commits sort last."""
+    by_email = defaultdict(list)
+    for h, meta in commits_meta.items():
+        if meta["email"] in target_emails:
+            by_email[meta["email"]].append((meta.get("iso") or "", h))
+    sample = {}
+    for email, items in by_email.items():
+        items.sort(key=lambda x: (not x[0], x[0]))
+        sample[email] = [h for _, h in items[:per_email]]
+    return sample
+
+
+def enrich_contributor_profiles(contributors, commits_meta, github_base, token=None):
+    """In-place: attach `profile` dict to contributors using GitHub GraphQL."""
+    if not github_base:
+        return
+    if token is None:
+        token = get_github_token()
+    if not token:
+        return
+    origin = ORIGIN_RE.match(github_base)
+    if not origin:
+        return
+    # gh_graphql is hardcoded to api.github.com; skip Enterprise hosts so we
+    # don't issue lookups against the wrong API.
+    if (origin.group("https_host") or "").lower() != "github.com":
+        return
+
+    missing = [c for c in contributors if not c.get("login")]
+    if missing:
+        sample = _sample_oids_per_email(
+            commits_meta, {c["email"] for c in missing}
+        )
+        resolved = fetch_logins_for_commits(
+            origin.group("owner"), origin.group("repo"), sample, token
+        )
+        for c in missing:
+            login = resolved.get(c["email"])
+            if login:
+                c["login"] = login
+
+    top_logins = [c["login"] for c in contributors if c.get("login")]
+    profiles = fetch_user_profiles(top_logins, token)
+    for c in contributors:
+        p = profiles.get(c.get("login") or "")
+        if p:
+            c["profile"] = p
 
 
 def main():
@@ -668,8 +1176,31 @@ def main():
         sys.argv[1:]
     )
 
+    token = None
     if remote:
-        print(f"Fetching {remote} via GitHub GraphQL…", file=sys.stderr)
+        owner, repo = remote.split("/", 1)
+        token = get_github_token()
+
+        if not token:
+            print("No GitHub token — falling back to bare clone.", file=sys.stderr)
+
+        # Subset prompt only in the GraphQL path: probing total via the API is
+        # cheap, and skipping `--commits N` actually saves network. In the
+        # bare-clone path the full clone runs regardless, so the prompt would
+        # only trim local display — pass `--commits` / `--since` for that.
+        if (
+            token
+            and not (commits_filter or since or until)
+            and sys.stdin.isatty()
+            and sys.stderr.isatty()
+        ):
+            has_any_cache = not no_cache and cache_path(remote).exists()
+            total = None if has_any_cache else probe_remote_total(owner, repo, token)
+            if total and total > 1000:
+                commits_filter, since, until = prompt_subset(total)
+
+        if token:
+            print(f"Fetching {remote} via GitHub GraphQL…", file=sys.stderr)
         (
             repo_name,
             github_base,
@@ -677,9 +1208,13 @@ def main():
             commits_meta,
             line_stats,
             avatars,
+            logins,
             default_branch,
+            repo_size_kb,
+            tags,
         ) = collect_remote(
             remote,
+            token,
             no_cache=no_cache,
             commits_filter=commits_filter,
             since=since,
@@ -701,7 +1236,10 @@ def main():
             commits_meta,
             line_stats,
             avatars,
+            logins,
             default_branch,
+            repo_size_kb,
+            tags,
         ) = collect_local()
 
     if not commits_meta:
@@ -718,6 +1256,8 @@ def main():
         if not commits_meta:
             sys.exit("error: no commits match the given filters")
 
+    tags = filter_tags_to_range(tags, commits_meta)
+
     data = build_data(
         top_n,
         repo_name,
@@ -726,8 +1266,13 @@ def main():
         commits_meta,
         line_stats,
         avatars,
+        logins,
         default_branch,
+        repo_size_kb,
+        tags,
     )
+
+    enrich_contributor_profiles(data["contributors"], commits_meta, github_base, token=token)
 
     payload = f"window.__DATA__ = {json.dumps(data, ensure_ascii=False, separators=(',', ':'))};"
     template = TEMPLATE
@@ -743,12 +1288,12 @@ def main():
     if output:
         out_path = Path(output).expanduser()
     else:
-        safe_name = re.sub(r"[^\w.-]+", "-", data["repoName"]).strip("-") or "repo"
+        safe_name = _slugify(data["repoName"]) or "repo"
         owner = ""
         if data["githubBaseUrl"]:
             m = ORIGIN_RE.match(data["githubBaseUrl"])
             if m:
-                owner = re.sub(r"[^\w.-]+", "-", m.group(1)).strip("-")
+                owner = _slugify(m.group("owner"))
         stem = f"{owner}--{safe_name}" if owner else safe_name
         out_path = Path("/tmp") / f"{stem}.html"
     out_path.parent.mkdir(parents=True, exist_ok=True)
