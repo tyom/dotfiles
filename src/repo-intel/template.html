@@ -212,7 +212,7 @@
   <main class="main">
   <div class="section" id="contributions"><div class="card"><div class="contributions-header"><h2>Contributions</h2><div class="year-toggles" id="yearToggles"></div></div><div id="heatmapContainer"></div></div></div>
   <div class="section" id="commit-timeline"><div class="card"><h2 class="timeline-h">Commit timeline</h2>
-    <div class="timeline-hint">Drag canvas to pan · Drag the histogram below to jump · Scroll or pinch to zoom · Hover for details · Click to open on GitHub</div>
+    <div class="timeline-hint">Drag canvas to pan · Drag the histogram below to jump · Shift-scroll or pinch to zoom · Hover for details · Click to open on GitHub</div>
     <div class="timeline-wrap">
       <div class="timeline-labels" id="timelineLabels"></div>
       <div class="timeline-scroll" id="timelineScroll"><div class="timeline-inner" id="timelineInner"></div></div>
@@ -1162,12 +1162,12 @@ function buildTimeline() {
 
   let zoomFrameQueued = false, accumDelta = 0, accumCtrl = false, lastWheel = null;
   scrollDiv.addEventListener('wheel', e => {
-    const zoomIntent = e.ctrlKey || e.metaKey || Math.abs(e.deltaY) > Math.abs(e.deltaX) * 1.3;
+    const zoomIntent = e.shiftKey || e.ctrlKey || e.metaKey;
     if (!zoomIntent) return;
     e.preventDefault();
     stopInertia();
     stopResetAnim();
-    accumDelta += e.deltaY;
+    accumDelta += e.deltaY || e.deltaX;
     accumCtrl = accumCtrl || e.ctrlKey;
     lastWheel = { clientX: e.clientX };
     tooltip.classList.remove('visible');
