@@ -496,8 +496,7 @@ function showAuthorPopover(idx, el) {
 
   const metaRows = [];
   if (p.location) metaRows.push(`<div class="lp-meta-row">${ICON_LOC}<span class="lp-meta-text">${escapeHtml(p.location)}</span></div>`);
-  const email = p.email || c.email;
-  if (email) metaRows.push(`<div class="lp-meta-row">${ICON_MAIL}<span class="lp-meta-text">${escapeHtml(email)}</span></div>`);
+  if (c.email) metaRows.push(`<div class="lp-meta-row">${ICON_MAIL}<span class="lp-meta-text">${escapeHtml(c.email)}</span></div>`);
   if (p.websiteUrl) metaRows.push(`<div class="lp-meta-row">${ICON_LINK}<span class="lp-meta-text">${escapeHtml(p.websiteUrl)}</span></div>`);
   const metaHtml = metaRows.length ? `<div class="lp-meta">${metaRows.join('')}</div>` : '';
 
@@ -562,7 +561,6 @@ function buildTimeline() {
   const laneHeight = 32;
   const axisHeight = 22;
   const histBarsHeight = 56;
-  const histGap = 10;
   const tags = D.tags || [];
   const tagMsList = tags.map(t => {
     const dt = new Date(t.date);
@@ -1090,8 +1088,11 @@ function buildTimeline() {
 
   let histogramByPx = null;
   let histogramMax = 0;
+  let histogramViewW = -1;
 
   function rebuildHistogram() {
+    // Bin key is canvasViewW (resize-only), so wheel-zoom never invalidates.
+    if (histogramViewW === canvasViewW) return;
     histogramByPx = new Map();
     for (let i = 0; i < drawables.length; i++) {
       const d = drawables[i];
@@ -1105,6 +1106,7 @@ function buildTimeline() {
     for (const b of histogramByPx.values()) {
       if (b.total > histogramMax) histogramMax = b.total;
     }
+    histogramViewW = canvasViewW;
   }
   function drawHistogram() {
     hctx.setTransform(1, 0, 0, 1, 0, 0);
@@ -1255,7 +1257,7 @@ function buildTimeline() {
       const avatarHtml = av
         ? `<img class="tt-avatar" src="${escapeHtml(av)}" alt="" data-fallback-tag="span" data-fallback-class="tt-dot" data-bg="${escapeHtml(hit.color)}">`
         : `<span class="tt-dot" style="background:${hit.color}"></span>`;
-      const bundle = c.commits || [c];
+      const bundle = c.commits;
       const headerExtra = bundle.length > 1 ? `<span class="tt-bundle-count">· ${bundle.length} commits</span>` : '';
       let body;
       if (bundle.length > 1) {

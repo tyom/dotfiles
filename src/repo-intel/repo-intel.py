@@ -99,8 +99,12 @@ def parse_iso_instant(s):
     return dt.astimezone(timezone.utc)
 
 
+def _slugify(s):
+    return re.sub(r"[^\w.-]+", "-", s).strip("-")
+
+
 def cache_path(slug):
-    safe = re.sub(r"[^\w.-]+", "-", slug.lower()).strip("-") or "repo"
+    safe = _slugify(slug.lower()) or "repo"
     return CACHE_DIR / f"{safe}.json"
 
 
@@ -490,6 +494,11 @@ def gh_graphql(query, variables, token):
         return json.loads(resp.read())
 
 
+def gh_repository(body):
+    """Extract data.repository defensively — GraphQL returns null on errors."""
+    return (body.get("data") or {}).get("repository") or {}
+
+
 def probe_remote_total(owner, repo, token):
     """Total commits on the default branch via GraphQL; None on error."""
     query = """
@@ -507,7 +516,7 @@ query($owner: String!, $repo: String!) {
         return None
     if "errors" in body:
         return None
-    repo_node = (body.get("data") or {}).get("repository") or {}
+    repo_node = gh_repository(body)
     branch = repo_node.get("defaultBranchRef") or {}
     target = branch.get("target") or {}
     history = target.get("history") or {}
@@ -565,7 +574,7 @@ def fetch_logins_for_commits(owner, repo, oids_by_email, token):
         return {}
     if "errors" in body:
         print(f"  warning: login lookup errors: {body['errors']}", file=sys.stderr)
-    repo_node = (body.get("data") or {}).get("repository") or {}
+    repo_node = gh_repository(body)
     out = {}
     for i, email in aliases:
         if email in out:
@@ -666,7 +675,7 @@ query($owner: String!, $repo: String!, $cursor: String) {
         if "errors" in body:
             print(f"  warning: tag fetch GraphQL error: {body['errors']}", file=sys.stderr)
             return tags
-        refs = (body.get("data") or {}).get("repository", {}).get("refs") or {}
+        refs = gh_repository(body).get("refs") or {}
         for node in refs.get("nodes") or []:
             tgt = node.get("target") or {}
             kind = tgt.get("__typename")
@@ -764,47 +773,33 @@ def collect_remote(slug, token, no_cache=False, commits_filter=None, since=None,
             tags,
         )
 
-    top_query = """
-query($owner: String!, $repo: String!, $cursor: String) {
-  repository(owner: $owner, name: $repo) {
-    name url diskUsage
-    defaultBranchRef {
-      name
-      target {
-        ... on Commit {
-          history(first: 100, after: $cursor) {
-            pageInfo { hasNextPage endCursor }
-            nodes {
-              oid messageHeadline
-              author { name email date user { avatarUrl(size: 64) login } }
-              additions deletions
-            }
-          }
-        }
-      }
-    }
+    history_block = """
+history(first: 100, after: $cursor) {
+  pageInfo { hasNextPage endCursor }
+  nodes {
+    oid messageHeadline
+    author { name email date user { avatarUrl(size: 64) login } }
+    additions deletions
   }
-}
-""".strip()
+}""".strip()
 
-    bottom_query = """
-query($owner: String!, $repo: String!, $oid: GitObjectID!, $cursor: String) {
-  repository(owner: $owner, name: $repo) {
-    object(oid: $oid) {
-      ... on Commit {
-        history(first: 100, after: $cursor) {
-          pageInfo { hasNextPage endCursor }
-          nodes {
-            oid messageHeadline
-            author { name email date user { avatarUrl(size: 64) login } }
-            additions deletions
-          }
-        }
-      }
-    }
-  }
-}
-""".strip()
+    top_query = f"""
+query($owner: String!, $repo: String!, $cursor: String) {{
+  repository(owner: $owner, name: $repo) {{
+    name url diskUsage
+    defaultBranchRef {{
+      name
+      target {{ ... on Commit {{ {history_block} }} }}
+    }}
+  }}
+}}""".strip()
+
+    bottom_query = f"""
+query($owner: String!, $repo: String!, $oid: GitObjectID!, $cursor: String) {{
+  repository(owner: $owner, name: $repo) {{
+    object(oid: $oid) {{ ... on Commit {{ {history_block} }} }}
+  }}
+}}""".strip()
 
     loaded_nodes, loaded_complete = ([], False) if no_cache else load_cache(slug)
     cached_nodes = loaded_nodes
@@ -826,7 +821,7 @@ query($owner: String!, $repo: String!, $oid: GitObjectID!, $cursor: String) {
         body = gh_graphql(top_query, {"owner": owner, "repo": repo, "cursor": cursor}, token)
         if "errors" in body:
             sys.exit(f"GraphQL error: {body['errors']}")
-        repo_node = body["data"]["repository"]
+        repo_node = gh_repository(body)
         if not repo_node:
             sys.exit(f"Repository not found or inaccessible: {slug}")
         repo_meta["name"] = repo_node["name"]
@@ -875,8 +870,7 @@ query($owner: String!, $repo: String!, $oid: GitObjectID!, $cursor: String) {
             )
             if "errors" in body:
                 sys.exit(f"GraphQL error: {body['errors']}")
-            repo_node = (body.get("data") or {}).get("repository") or {}
-            obj = repo_node.get("object")
+            obj = gh_repository(body).get("object")
             if not obj:
                 return None
             return obj.get("history") or {"nodes": [], "pageInfo": {}}
@@ -1140,11 +1134,12 @@ def _sample_oids_per_email(commits_meta, target_emails, per_email=3):
     return sample
 
 
-def enrich_contributor_profiles(contributors, commits_meta, github_base):
+def enrich_contributor_profiles(contributors, commits_meta, github_base, token=None):
     """In-place: attach `profile` dict to contributors using GitHub GraphQL."""
     if not github_base:
         return
-    token = get_github_token()
+    if token is None:
+        token = get_github_token()
     if not token:
         return
     origin = ORIGIN_RE.match(github_base)
@@ -1181,6 +1176,7 @@ def main():
         sys.argv[1:]
     )
 
+    token = None
     if remote:
         owner, repo = remote.split("/", 1)
         token = get_github_token()
@@ -1198,7 +1194,7 @@ def main():
             and sys.stdin.isatty()
             and sys.stderr.isatty()
         ):
-            has_any_cache = not no_cache and bool(load_cache(remote)[0])
+            has_any_cache = not no_cache and cache_path(remote).exists()
             total = None if has_any_cache else probe_remote_total(owner, repo, token)
             if total and total > 1000:
                 commits_filter, since, until = prompt_subset(total)
@@ -1276,7 +1272,7 @@ def main():
         tags,
     )
 
-    enrich_contributor_profiles(data["contributors"], commits_meta, github_base)
+    enrich_contributor_profiles(data["contributors"], commits_meta, github_base, token=token)
 
     payload = f"window.__DATA__ = {json.dumps(data, ensure_ascii=False, separators=(',', ':'))};"
     template = TEMPLATE
@@ -1292,12 +1288,12 @@ def main():
     if output:
         out_path = Path(output).expanduser()
     else:
-        safe_name = re.sub(r"[^\w.-]+", "-", data["repoName"]).strip("-") or "repo"
+        safe_name = _slugify(data["repoName"]) or "repo"
         owner = ""
         if data["githubBaseUrl"]:
             m = ORIGIN_RE.match(data["githubBaseUrl"])
             if m:
-                owner = re.sub(r"[^\w.-]+", "-", m.group("owner")).strip("-")
+                owner = _slugify(m.group("owner"))
         stem = f"{owner}--{safe_name}" if owner else safe_name
         out_path = Path("/tmp") / f"{stem}.html"
     out_path.parent.mkdir(parents=True, exist_ok=True)
