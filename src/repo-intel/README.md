@@ -17,6 +17,30 @@ enrich author cards with GitHub profile data (avatar, bio, follower
 counts, etc.). Without `gh`, the script falls back to `$GITHUB_TOKEN`
 or a bare-clone of the remote, and author cards show git data only.
 
+## Run without installing
+
+Pipe the shipped artifact straight into Python — no clone, no install:
+
+```bash
+curl -sSL https://raw.githubusercontent.com/tyom/dotfiles/master/stow/bin/repo-intel \
+  | python3 - <owner/repo>
+```
+
+Everything after `python3 -` is forwarded to the script. Replace
+`<owner/repo>` with the GitHub repo you want stats for (e.g. `tyom/dotfiles`),
+or drop it to run against the current directory's git repo. Append `--help`
+(or `-h`) for the full flag reference:
+
+```bash
+curl -sSL https://raw.githubusercontent.com/tyom/dotfiles/master/stow/bin/repo-intel \
+  | python3 - --help
+```
+
+The script is self-contained (Python 3 + `git`, optional `gh`). In this mode
+stdin is the script body, so the interactive subset prompt for large remote
+repos is auto-skipped and the script fetches all commits — pass
+`--commits N` (or `--since` / `--until`) to trim the fetch on big repos.
+
 ## Usage
 
 ```
