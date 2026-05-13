@@ -117,10 +117,8 @@
   .scroll-row.dragging { cursor: grabbing; scroll-behavior: auto; }
   .scroll-row .card { min-width: 220px; flex-shrink: 0; }
   .timeline-hint { color: var(--text-muted); font-size: 0.72rem; margin: -4px 0 12px; }
-  .timeline-header { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; }
-  .timeline-header h2 { margin: 0 0 4px; }
-  .timeline-meta { display: flex; align-items: center; gap: 10px; }
-  .timeline-range { color: var(--text-muted); font-size: 0.78rem; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .timeline-h { margin: 0 0 4px; }
+  .timeline-range { display: block; position: sticky; left: 0; margin-top: 8px; text-align: center; color: var(--text-muted); font-size: 0.78rem; font-variant-numeric: tabular-nums; white-space: nowrap; pointer-events: none; }
   .timeline-reset-btn { background: var(--bg-badge); border: 1px solid var(--border-default); border-radius: 4px; color: var(--text-muted); font-size: 0.7rem; padding: 2px 8px; cursor: pointer; opacity: 0; transition: opacity 0.15s; pointer-events: none; }
   .timeline-reset-btn:hover { color: var(--text-primary); border-color: var(--text-muted); }
   .timeline-reset-btn.visible { opacity: 1; pointer-events: auto; }
@@ -128,15 +126,16 @@
   .timeline-labels { flex-shrink: 0; display: flex; flex-direction: column; border-right: 1px solid var(--border-default); padding-right: 10px; margin-right: 10px; }
   .timeline-labels .lane-label { display: flex; align-items: center; gap: 6px; font-size: 0.72rem; color: var(--text-secondary); white-space: nowrap; text-decoration: none; cursor: pointer; }
   .timeline-labels .lane-label .dot { width: 8px; height: 8px; margin: 0; }
-  .timeline-scroll { flex: 1; overflow-x: auto; cursor: grab; -webkit-user-select: none; user-select: none; min-width: 0; padding-bottom: 10px; }
+  .timeline-scroll { flex: 1; overflow-x: auto; cursor: grab; -webkit-user-select: none; user-select: none; min-width: 0; padding-bottom: 0; scrollbar-width: none; }
+  .timeline-scroll::-webkit-scrollbar { display: none; width: 0; height: 0; }
   .timeline-scroll.dragging { cursor: grabbing; scroll-behavior: auto; }
   .timeline-inner { position: relative; overflow-x: clip; }
   .timeline-axis { position: relative; font-size: 0.65rem; color: var(--text-muted); }
   .timeline-axis span { position: absolute; transform: translateX(-50%); top: 0; white-space: nowrap; }
   .timeline-axis .timeline-tick { transform: none; top: 0; bottom: 0; width: 1px; background: rgba(255,255,255,0.06); pointer-events: none; }
   .timeline-canvas { display: block; position: sticky; left: 0; max-height: none; }
-  .timeline-histogram { margin-top: 10px; opacity: 0.6; }
-  .timeline-labels .histogram-label { display: flex; align-items: flex-end; font-size: 0.7rem; color: var(--text-muted); margin-top: 10px; }
+  .timeline-histogram { margin-top: 10px; opacity: 1; cursor: pointer; }
+  .timeline-labels .histogram-label { display: flex; align-items: center; justify-content: center; font-size: 0.7rem; color: var(--text-muted); margin-top: 10px; }
   .timeline-tooltip {
     position: fixed; z-index: 100; pointer-events: none;
     background: rgba(13,17,23,0.96); color: var(--text-primary); font-size: 0.75rem;
@@ -207,8 +206,8 @@
   </nav></aside>
   <main class="main">
   <div class="section" id="contributions"><div class="card"><div class="contributions-header"><h2>Contributions</h2><div class="year-toggles" id="yearToggles"></div></div><div id="heatmapContainer"></div></div></div>
-  <div class="section" id="commit-timeline"><div class="card"><div class="timeline-header"><h2>Commit timeline</h2><div class="timeline-meta"><button class="timeline-reset-btn" id="timelineReset" type="button">Reset zoom</button><span class="timeline-range" id="timelineRange"></span></div></div>
-    <div class="timeline-hint">Drag to pan · Scroll or pinch to zoom · Hover a commit for details · Click to open it on GitHub</div>
+  <div class="section" id="commit-timeline"><div class="card"><h2 class="timeline-h">Commit timeline</h2>
+    <div class="timeline-hint">Drag canvas to pan · Drag the histogram below to jump · Scroll or pinch to zoom · Hover for details · Click to open on GitHub</div>
     <div class="timeline-wrap">
       <div class="timeline-labels" id="timelineLabels"></div>
       <div class="timeline-scroll" id="timelineScroll"><div class="timeline-inner" id="timelineInner"></div></div>
@@ -470,7 +469,7 @@ function buildTimeline() {
   contributors.forEach((c, i) => {
     labelsHtml += `<a class="lane-label" data-idx="${i}" href="${authorUrl(c)}" target="_blank" rel="noopener" style="height:${laneHeight}px;"><span class="dot" style="background:${clr(i)}"></span><span>${escapeHtml(c.name)}</span></a>`;
   });
-  labelsHtml += `<div class="histogram-label" style="height:${histHeight}px;"></div>`;
+  labelsHtml += `<div class="histogram-label" style="height:${histHeight}px;"><button class="timeline-reset-btn" id="timelineReset" type="button">Reset zoom</button></div>`;
   labelsDiv.innerHTML = labelsHtml;
 
   labelsDiv.addEventListener('mouseover', e => {
@@ -513,12 +512,16 @@ function buildTimeline() {
   const hctx = histCanvas.getContext('2d');
   innerDiv.appendChild(histCanvas);
 
+  const rangeEl = document.createElement('div');
+  rangeEl.className = 'timeline-range';
+  rangeEl.id = 'timelineRange';
+  innerDiv.appendChild(rangeEl);
+
   let currentPxPerDay = initialPxPerDay;
   let currentWidth = 0;
   let canvasViewW = 0;
   let positions = [];
   let hoveredHash = null;
-  const rangeEl = document.getElementById('timelineRange');
   const resetBtn = document.getElementById('timelineReset');
   let lastRangeText = '';
 
@@ -526,12 +529,46 @@ function buildTimeline() {
     if (!resetBtn) return;
     resetBtn.classList.toggle('visible', Math.abs(currentPxPerDay - initialPxPerDay) > 0.001);
   }
+  function resizeInner() {
+    currentWidth = Math.max(canvasViewW, Math.floor(totalDays * currentPxPerDay));
+    innerDiv.style.width = currentWidth + 'px';
+    rebuildAxis(true);
+  }
+  let resetAnimId = null;
+  function stopResetAnim() {
+    if (resetAnimId) { cancelAnimationFrame(resetAnimId); resetAnimId = null; }
+  }
+  function animateReset() {
+    stopResetAnim();
+    if (Math.abs(currentPxPerDay - initialPxPerDay) < 1e-4) return;
+    const startPxPerDay = currentPxPerDay;
+    const endPxPerDay = initialPxPerDay;
+    const anchorFrac = currentWidth > 0
+      ? (scrollDiv.scrollLeft + canvasViewW / 2) / currentWidth
+      : 0.5;
+    const duration = 320;
+    const startTime = performance.now();
+    const ease = t => 1 - Math.pow(1 - t, 3);
+    function step(now) {
+      const t = Math.min(1, (now - startTime) / duration);
+      const e = ease(t);
+      if (t >= 1) {
+        currentPxPerDay = endPxPerDay;
+        applyLayout();
+      } else {
+        currentPxPerDay = startPxPerDay + (endPxPerDay - startPxPerDay) * e;
+        resizeInner();
+      }
+      scrollDiv.scrollLeft = clampSL(anchorFrac * currentWidth - canvasViewW / 2);
+      drawCanvas();
+      resetAnimId = t < 1 ? requestAnimationFrame(step) : null;
+    }
+    resetAnimId = requestAnimationFrame(step);
+  }
   if (resetBtn) {
     resetBtn.addEventListener('click', () => {
-      currentPxPerDay = initialPxPerDay;
-      applyLayout();
-      scrollDiv.scrollLeft = scrollDiv.scrollWidth;
-      drawCanvas();
+      stopInertia();
+      animateReset();
     });
   }
 
@@ -646,11 +683,8 @@ function buildTimeline() {
     if (Math.abs(currentPxPerDay - initialPxPerDay) < 1e-4) currentPxPerDay = fit;
     initialPxPerDay = fit;
     minPxPerDay = fit;
-    currentWidth = Math.max(vw, Math.floor(totalDays * currentPxPerDay));
     canvasViewW = vw;
-    innerDiv.style.width = currentWidth + 'px';
-
-    rebuildAxis(true);
+    resizeInner();
 
     canvas.width = Math.round(canvasViewW * dpr);
     canvas.height = Math.round(height * dpr);
@@ -661,6 +695,10 @@ function buildTimeline() {
     histCanvas.height = Math.round(histHeight * dpr);
     histCanvas.style.width = canvasViewW + 'px';
     histCanvas.style.height = histHeight + 'px';
+
+    rangeEl.style.width = canvasViewW + 'px';
+
+    rebuildHistogram();
   }
 
   let lastAxisSL = -Infinity;
@@ -818,17 +856,14 @@ function buildTimeline() {
     updateResetBtn();
   }
 
-  let histogramKey = null;
   let histogramByPx = null;
   let histogramMax = 0;
 
   function rebuildHistogram() {
-    if (histogramKey === currentPxPerDay) return;
-    histogramKey = currentPxPerDay;
     histogramByPx = new Map();
     for (let i = 0; i < drawables.length; i++) {
       const d = drawables[i];
-      const px = Math.floor((d.tMs / totalMs) * currentWidth);
+      const px = Math.floor((d.tMs / totalMs) * canvasViewW);
       let b = histogramByPx.get(px);
       if (!b) { b = { total: 0, per: new Array(contributors.length).fill(0) }; histogramByPx.set(px, b); }
       b.total++;
@@ -840,30 +875,26 @@ function buildTimeline() {
     }
   }
   function drawHistogram() {
-    rebuildHistogram();
     hctx.setTransform(1, 0, 0, 1, 0, 0);
     hctx.scale(dpr, dpr);
     hctx.clearRect(0, 0, canvasViewW, histHeight);
-    if (!histogramByPx || !histogramMax) return;
+    if (!histogramByPx || !histogramMax) {
+      drawMinimapWindow();
+      return;
+    }
 
-    const sl = scrollDiv.scrollLeft;
-    const startPx = Math.floor(sl) - 1;
-    const endPx = Math.ceil(sl + canvasViewW) + 1;
     const innerH = histHeight - 2;
-
     const groups = new Array(contributors.length);
     for (let i = 0; i < contributors.length; i++) groups[i] = [];
 
     for (const [px, bucket] of histogramByPx) {
-      if (px < startPx || px > endPx) continue;
-      const xCanvas = px - sl;
       let yBase = histHeight;
       const scale = innerH / histogramMax;
       for (let ci = 0; ci < contributors.length; ci++) {
         const count = bucket.per[ci];
         if (!count) continue;
         const h = count * scale;
-        groups[ci].push(xCanvas, yBase - h, 1, h);
+        groups[ci].push(px, yBase - h, 1, h);
         yBase -= h;
       }
     }
@@ -877,6 +908,33 @@ function buildTimeline() {
         hctx.rect(pts[j], pts[j + 1], pts[j + 2], pts[j + 3]);
       }
       hctx.fill();
+    }
+
+    drawMinimapWindow();
+  }
+
+  function getMinimapWindow() {
+    if (!currentWidth || !canvasViewW) return { left: 0, right: canvasViewW };
+    const sl = scrollDiv.scrollLeft;
+    const left = (sl / currentWidth) * canvasViewW;
+    const right = ((sl + canvasViewW) / currentWidth) * canvasViewW;
+    return {
+      left: Math.max(0, Math.min(canvasViewW, left)),
+      right: Math.max(0, Math.min(canvasViewW, right)),
+    };
+  }
+
+  function drawMinimapWindow() {
+    const { left, right } = getMinimapWindow();
+    hctx.fillStyle = 'rgba(13,17,23,0.55)';
+    if (left > 0) hctx.fillRect(0, 0, left, histHeight);
+    if (right < canvasViewW) hctx.fillRect(right, 0, canvasViewW - right, histHeight);
+    if (right - left < canvasViewW - 0.5) {
+      hctx.strokeStyle = 'rgba(255,255,255,0.4)';
+      hctx.lineWidth = 1;
+      const bx = Math.max(0.5, left + 0.5);
+      const bw = Math.max(1, right - left - 1);
+      hctx.strokeRect(bx, 0.5, bw, histHeight - 1);
     }
   }
 
@@ -965,6 +1023,7 @@ function buildTimeline() {
   function inertia() { if (Math.abs(velocity) < 0.5) return; scrollDiv.scrollLeft -= velocity; velocity *= 0.95; animId = requestAnimationFrame(inertia); }
   scrollDiv.addEventListener('mousedown', e => {
     stopInertia();
+    stopResetAnim();
     isDown = true; dragging = true;
     scrollDiv.classList.add('dragging');
     startX = e.pageX - scrollDiv.offsetLeft;
@@ -991,6 +1050,59 @@ function buildTimeline() {
   scrollDiv.addEventListener('mouseup', release);
   scrollDiv.addEventListener('mouseleave', release);
 
+  let mmDragging = false, mmStartX = 0, mmStartSL = 0, mmPointerId = -1;
+  function clampSL(sl) {
+    return Math.max(0, Math.min(currentWidth - canvasViewW, sl));
+  }
+  function mmWindowAtX(x) {
+    const { left, right } = getMinimapWindow();
+    return x >= left && x <= right;
+  }
+  function endMmDrag() {
+    if (!mmDragging) return;
+    mmDragging = false;
+    document.body.style.cursor = '';
+    histCanvas.style.cursor = '';
+    if (mmPointerId !== -1 && histCanvas.hasPointerCapture(mmPointerId)) {
+      histCanvas.releasePointerCapture(mmPointerId);
+    }
+    mmPointerId = -1;
+  }
+  histCanvas.addEventListener('mousedown', e => e.stopPropagation());
+  histCanvas.addEventListener('pointerdown', e => {
+    if (e.button !== 0) return;
+    e.preventDefault();
+    stopInertia();
+    stopResetAnim();
+    tooltip.classList.remove('visible');
+    const rect = histCanvas.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    if (!mmWindowAtX(x)) {
+      const frac = x / Math.max(1, canvasViewW);
+      scrollDiv.scrollLeft = clampSL(frac * currentWidth - canvasViewW / 2);
+    }
+    mmDragging = true;
+    mmStartX = e.clientX;
+    mmStartSL = scrollDiv.scrollLeft;
+    mmPointerId = e.pointerId;
+    histCanvas.setPointerCapture(e.pointerId);
+    document.body.style.cursor = 'grabbing';
+    histCanvas.style.cursor = 'grabbing';
+  });
+  histCanvas.addEventListener('pointermove', e => {
+    if (mmDragging) {
+      e.preventDefault();
+      const dx = e.clientX - mmStartX;
+      const slDelta = (dx / Math.max(1, canvasViewW)) * currentWidth;
+      scrollDiv.scrollLeft = clampSL(mmStartSL + slDelta);
+      return;
+    }
+    const rect = histCanvas.getBoundingClientRect();
+    histCanvas.style.cursor = mmWindowAtX(e.clientX - rect.left) ? 'grab' : 'pointer';
+  });
+  histCanvas.addEventListener('pointerup', endMmDrag);
+  histCanvas.addEventListener('pointercancel', endMmDrag);
+
   let scrollFrameQueued = false;
   scrollDiv.addEventListener('scroll', () => {
     if (scrollFrameQueued) return;
@@ -1009,6 +1121,7 @@ function buildTimeline() {
     if (!zoomIntent) return;
     e.preventDefault();
     stopInertia();
+    stopResetAnim();
     accumDelta += e.deltaY;
     accumCtrl = accumCtrl || e.ctrlKey;
     lastWheel = { clientX: e.clientX };
