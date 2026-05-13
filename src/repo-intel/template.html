@@ -311,17 +311,23 @@ const sizeStr = fmtSize(D.repoSizeKb);
 document.getElementById('subtitle').innerHTML = `${D.dateRange.start} \u2014 ${D.dateRange.end} \u00b7 ${fmt(totals.commits)} commits \u00b7 <span style="color:${colorAdded}">+${fmt(totals.added)}</span> <span style="color:${colorDeleted}">-${fmt(totals.deleted)}</span> (net ${subtitleNetHtml}) \u00b7 ${fmt(totalContribCount)} contributor${totalContribCount === 1 ? '' : 's'}${sizeStr ? ` \u00b7 ${sizeStr}` : ''}`;
 
 function fmtTimelineDuration(start, end) {
-  const s = new Date(start); const e = new Date(end);
-  if (isNaN(s) || isNaN(e)) return '';
+  // start/end are UTC-derived "YYYY-MM-DD" strings; parse directly so this
+  // doesn't shift by a day in non-UTC timezones (which would flip year/month
+  // boundaries and report e.g. "11 months" for an exact-year range).
+  const re = /^(\d{4})-(\d{2})-(\d{2})$/;
+  const ms = re.exec(start), me = re.exec(end);
+  if (!ms || !me) return '';
+  const sY = +ms[1], sM = +ms[2], sD = +ms[3];
+  const eY = +me[1], eM = +me[2], eD = +me[3];
   const pl = (n, w) => `${n} ${w}${n === 1 ? '' : 's'}`;
-  let years = e.getFullYear() - s.getFullYear();
-  let months = e.getMonth() - s.getMonth();
-  if (e.getDate() < s.getDate()) months -= 1;
+  let years = eY - sY;
+  let months = eM - sM;
+  if (eD < sD) months -= 1;
   if (months < 0) { years -= 1; months += 12; }
   const totalMonths = years * 12 + months;
   if (totalMonths < 1) {
-    const days = Math.max(1, Math.round((e - s) / 86400000) + 1);
-    return pl(days, 'day');
+    const days = Math.round((Date.UTC(eY, eM - 1, eD) - Date.UTC(sY, sM - 1, sD)) / 86400000) + 1;
+    return pl(Math.max(1, days), 'day');
   }
   if (totalMonths < 12) return pl(totalMonths, 'month');
   if (years < 10) return months === 0 ? pl(years, 'year') : `${pl(years, 'year')} and ${pl(months, 'month')}`;
