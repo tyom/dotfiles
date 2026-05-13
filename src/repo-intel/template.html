@@ -1373,7 +1373,7 @@ function buildTimeline() {
     endMmDrag();
   }
   histCanvas.addEventListener('pointerup', commitMmPointer);
-  histCanvas.addEventListener('pointercancel', () => { mmSelMoved = false; endMmDrag(); });
+  histCanvas.addEventListener('pointercancel', () => endMmDrag());
   histCanvas.addEventListener('dblclick', e => {
     const rect = histCanvas.getBoundingClientRect();
     if (!mmWindowAtX(e.clientX - rect.left)) return;
