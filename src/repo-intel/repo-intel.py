@@ -71,7 +71,8 @@ TEMPLATE = "__TEMPLATE_PLACEHOLDER__"
 PLACEHOLDER = "/*__DATA_INJECTION__*/"
 NOREPLY_RE = re.compile(r"(?:\d+\+)?(.+)@users\.noreply\.github\.com")
 ORIGIN_RE = re.compile(
-    r"^(?:https?://github\.com/|git@github\.com:)([^/]+)/(.+?)(?:\.git)?/?$"
+    r"^(?:https?://(?P<https_host>[^/]+)/|git@(?P<ssh_host>[^:]+):)"
+    r"(?P<owner>[^/]+)/(?P<repo>.+?)(?:\.git)?/?$"
 )
 CACHE_DIR = (
     Path(os.environ.get("XDG_CACHE_HOME") or (Path.home() / ".cache")) / "repo-intel"
@@ -271,8 +272,11 @@ def collect_local(cwd=None, suppress_current_user=False):
         url = git("remote", "get-url", "origin", cwd=cwd).strip()
         m = ORIGIN_RE.match(url)
         if m:
-            github_base = f"https://github.com/{m.group(1)}/{m.group(2)}"
-            repo_name = m.group(2)
+            host = m.group("https_host") or m.group("ssh_host")
+            host_lc = (host or "").lower()
+            if host_lc == "github.com" or host_lc.endswith(".github.com"):
+                github_base = f"https://{host}/{m.group('owner')}/{m.group('repo')}"
+                repo_name = m.group("repo")
     except subprocess.CalledProcessError:
         pass
 
@@ -748,7 +752,7 @@ def main():
         if data["githubBaseUrl"]:
             m = ORIGIN_RE.match(data["githubBaseUrl"])
             if m:
-                owner = re.sub(r"[^\w.-]+", "-", m.group(1)).strip("-")
+                owner = re.sub(r"[^\w.-]+", "-", m.group("owner")).strip("-")
         stem = f"{owner}--{safe_name}" if owner else safe_name
         out_path = Path("/tmp") / f"{stem}.html"
     out_path.parent.mkdir(parents=True, exist_ok=True)

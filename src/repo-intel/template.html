@@ -264,7 +264,7 @@ const fmt = n => n.toLocaleString();
 const pct = (n, t) => ((n / t) * 100).toFixed(1) + '%';
 const weekLabel = w => { const [y, wn] = w.split('-W').map(Number); const jan4 = new Date(y, 0, 4); const d = new Date(jan4.getTime() + ((wn - 1) * 7 - (jan4.getDay() + 6) % 7) * 86400000); return d.toLocaleDateString('en-GB', { month: 'short', day: 'numeric' }); };
 
-const baseMatch = (D.githubBaseUrl || '').match(/github\.com\/([^/]+\/[^/]+?)\/?$/);
+const baseMatch = (D.githubBaseUrl || '').match(/\/\/[^/]+\/([^/]+\/[^/]+?)\/?$/);
 document.getElementById('title').textContent = baseMatch ? baseMatch[1] : D.repoName;
 const totalContribCount = (totals && typeof totals.contributors === 'number') ? totals.contributors : contributors.length;
 const subtitleNetHtml = totals.net > 0
@@ -373,7 +373,7 @@ document.body.appendChild(authorPopover);
 
 function githubHandleFromAvatar(url) {
   if (!url) return '';
-  const m = url.match(/github\.com\/([^\/.?#]+)\.png/);
+  const m = url.match(/\/\/[^/]+\/([^\/.?#]+)\.png/);
   return m ? '@' + m[1] : '';
 }
 
