@@ -980,6 +980,10 @@ def enrich_contributor_profiles(contributors, commits_meta, github_base):
     origin = ORIGIN_RE.match(github_base)
     if not origin:
         return
+    # gh_graphql is hardcoded to api.github.com; skip Enterprise hosts so we
+    # don't issue lookups against the wrong API.
+    if (origin.group("https_host") or "").lower() != "github.com":
+        return
 
     missing = [c for c in contributors if not c.get("login")]
     if missing:
