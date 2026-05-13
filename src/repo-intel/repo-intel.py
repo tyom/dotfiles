@@ -67,7 +67,7 @@ import sys
 import urllib.request
 import webbrowser
 from collections import defaultdict
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 TEMPLATE = "__TEMPLATE_PLACEHOLDER__"
@@ -254,6 +254,72 @@ def git(*args, cwd=None):
     return subprocess.check_output(["git", *args], text=True, cwd=cwd)
 
 
+def count_local_commits(cwd=None):
+    """Count non-merge commits reachable from HEAD; 0 on failure."""
+    try:
+        out = git("rev-list", "--no-merges", "--count", "HEAD", cwd=cwd)
+        return int(out.strip())
+    except (subprocess.CalledProcessError, ValueError):
+        return 0
+
+
+_CLONE_REFRESHED = set()
+
+
+def ensure_bare_clone(owner, repo, no_cache):
+    """Clone or fetch-update a bare repo under /tmp; idempotent within a run."""
+    clone_dir = f"/tmp/repo-intel-{owner}-{repo}.git"
+    if clone_dir in _CLONE_REFRESHED:
+        return clone_dir
+    if not os.path.isdir(clone_dir):
+        subprocess.check_call(
+            ["git", "clone", "--bare", f"https://github.com/{owner}/{repo}.git", clone_dir]
+        )
+    elif not no_cache:
+        print("  updating cached bare clone…", file=sys.stderr)
+        subprocess.run(
+            ["git", "fetch", "--quiet", "origin"], cwd=clone_dir, check=False
+        )
+    _CLONE_REFRESHED.add(clone_dir)
+    return clone_dir
+
+
+def prompt_subset(total):
+    """Ask which subset to fetch when a repo has many commits.
+
+    Returns (commits_filter, since, until). All-None means "fetch all".
+    """
+    today = datetime.now(timezone.utc).date()
+    one_year_ago = (today - timedelta(days=365)).isoformat()
+    sys.stderr.write(
+        f"\nRepository has {total:,} commits. Choose a subset to fetch:\n"
+        f"  [1] Last 500\n"
+        f"  [2] Last 1000\n"
+        f"  [3] Past year (since {one_year_ago})\n"
+        f"  [4] All\n"
+    )
+    while True:
+        sys.stderr.write("Choice [4]: ")
+        sys.stderr.flush()
+        try:
+            line = sys.stdin.readline()
+        except KeyboardInterrupt:
+            sys.stderr.write("\nAborted.\n")
+            sys.exit(130)
+        if not line:
+            return None, None, None
+        choice = line.strip() or "4"
+        if choice == "1":
+            return ("last", 500), None, None
+        if choice == "2":
+            return ("last", 1000), None, None
+        if choice == "3":
+            return None, one_year_ago, None
+        if choice == "4":
+            return None, None, None
+        sys.stderr.write(f"  invalid choice {choice!r}\n")
+
+
 def repo_disk_kb(cwd=None):
     """Total on-disk size of git objects (loose + packed) in KB."""
     try:
@@ -410,6 +476,31 @@ def gh_graphql(query, variables, token):
     )
     with urllib.request.urlopen(req) as resp:
         return json.loads(resp.read())
+
+
+def probe_remote_total(owner, repo, token):
+    """Total commits on the default branch via GraphQL; None on error."""
+    query = """
+query($owner: String!, $repo: String!) {
+  repository(owner: $owner, name: $repo) {
+    defaultBranchRef {
+      target { ... on Commit { history(first: 1) { totalCount } } }
+    }
+  }
+}
+""".strip()
+    try:
+        body = gh_graphql(query, {"owner": owner, "repo": repo}, token)
+    except urllib.error.URLError:
+        return None
+    if "errors" in body:
+        return None
+    repo_node = (body.get("data") or {}).get("repository") or {}
+    branch = repo_node.get("defaultBranchRef") or {}
+    target = branch.get("target") or {}
+    history = target.get("history") or {}
+    total = history.get("totalCount")
+    return total if isinstance(total, int) else None
 
 
 def get_github_token():
@@ -594,28 +685,11 @@ query($owner: String!, $repo: String!, $cursor: String) {
     return tags
 
 
-def collect_remote(slug, no_cache=False, commits_filter=None, since=None, until=None):
+def collect_remote(slug, token, no_cache=False, commits_filter=None, since=None, until=None):
     owner, repo = slug.split("/", 1)
-    token = get_github_token()
 
     if not token:
-        print("No GitHub token — falling back to bare clone.", file=sys.stderr)
-        clone_dir = f"/tmp/repo-intel-{owner}-{repo}.git"
-        if not os.path.isdir(clone_dir):
-            subprocess.check_call(
-                [
-                    "git",
-                    "clone",
-                    "--bare",
-                    f"https://github.com/{owner}/{repo}.git",
-                    clone_dir,
-                ]
-            )
-        elif not no_cache:
-            print("  updating cached bare clone…", file=sys.stderr)
-            subprocess.run(
-                ["git", "fetch", "--quiet", "origin"], cwd=clone_dir, check=False
-            )
+        clone_dir = ensure_bare_clone(owner, repo, no_cache)
         (
             repo_name,
             github_base,
@@ -1012,7 +1086,32 @@ def main():
     )
 
     if remote:
-        print(f"Fetching {remote} via GitHub GraphQL…", file=sys.stderr)
+        owner, repo = remote.split("/", 1)
+        token = get_github_token()
+        can_prompt = (
+            not (commits_filter or since or until)
+            and sys.stdin.isatty()
+            and sys.stderr.isatty()
+        )
+
+        if not token:
+            print("No GitHub token — falling back to bare clone.", file=sys.stderr)
+
+        if can_prompt:
+            cache_complete = not no_cache and token and load_cache(remote)[1]
+            if cache_complete:
+                total = None  # full cache already covers everything; nothing to subset
+            elif token:
+                total = probe_remote_total(owner, repo, token)
+            else:
+                print(f"Cloning {remote} to count commits…", file=sys.stderr)
+                clone_dir = ensure_bare_clone(owner, repo, no_cache)
+                total = count_local_commits(cwd=clone_dir)
+            if total and total > 1000:
+                commits_filter, since, until = prompt_subset(total)
+
+        if token:
+            print(f"Fetching {remote} via GitHub GraphQL…", file=sys.stderr)
         (
             repo_name,
             github_base,
@@ -1026,6 +1125,7 @@ def main():
             tags,
         ) = collect_remote(
             remote,
+            token,
             no_cache=no_cache,
             commits_filter=commits_filter,
             since=since,

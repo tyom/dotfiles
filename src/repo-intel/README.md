@@ -51,6 +51,11 @@ Run `repo-intel --help` for the full flag reference.
 Filters compose: date bounds apply first, then the position slice. The
 run prints `filtered: X/total commits` so you can see what was kept.
 
+When a remote repo has more than 1000 commits and no filter flag was
+passed, `repo-intel` prompts interactively for a subset (Last 500, Last
+1000, Past year, or All). The prompt is skipped when stdin/stderr is
+not a TTY or when any of `--commits` / `--since` / `--until` is given.
+
 ### Output
 
 | Flag                  | Default                                                                                  |
