@@ -199,7 +199,11 @@ def parse_args(argv):
             sys.stderr.write(f"repo-intel: {exc}\n")
             sys.exit(2)
         if tok.isdigit():
-            top_n = int(tok)
+            n = int(tok)
+            if n <= 0:
+                sys.stderr.write(f"repo-intel: N must be a positive integer (got {tok!r})\n")
+                sys.exit(2)
+            top_n = n
             i += 1
             continue
         t = tok.removeprefix("remote:")
@@ -519,7 +523,7 @@ def build_data(
     dow_by_author = defaultdict(lambda: [0] * 7)
     weekly_by_author = defaultdict(lambda: defaultdict(int))
     all_dates, all_weeks = set(), set()
-    total_added = total_deleted = 0
+    total_added = total_deleted = total_commits = 0
 
     for h, meta in commits_meta.items():
         iso = meta.get("iso")
@@ -529,6 +533,7 @@ def build_data(
             dt = datetime.fromisoformat(iso.replace("Z", "+00:00"))
         except ValueError:
             continue
+        total_commits += 1
         d_key = dt.strftime("%Y-%m-%d")
         wk, hr, dow = iso_week_label(dt), dt.hour, dt.weekday()
         email, name = meta["email"], meta["name"]
@@ -614,7 +619,7 @@ def build_data(
                 "h": h[:7],
                 "s": (meta["subject"] or "")[:120],
                 "e": meta["email"],
-                "d": (meta.get("iso") or "")[:19],
+                "d": meta.get("iso") or "",
                 "a": a,
                 "l": d,
             }
@@ -631,7 +636,7 @@ def build_data(
         "defaultBranch": default_branch,
         "dateRange": date_range,
         "totals": {
-            "commits": len(commits_meta),
+            "commits": total_commits,
             "added": total_added,
             "deleted": total_deleted,
             "contributors": total_contributors,
