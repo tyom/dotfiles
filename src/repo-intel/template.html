@@ -158,6 +158,12 @@
   .timeline-tooltip .tt-subject { color: var(--text-primary); margin: 4px 0; word-break: break-word; white-space: normal; }
   .timeline-tooltip .tt-meta { color: var(--text-muted); font-size: 0.7rem; }
   .timeline-tooltip .tt-hash { font-family: ui-monospace, SFMono-Regular, monospace; }
+  .timeline-tooltip .tt-bundle-count { color: var(--text-muted); font-size: 0.7rem; }
+  .timeline-tooltip .tt-bundle-list { margin-top: 6px; display: flex; flex-direction: column; gap: 6px; }
+  .timeline-tooltip .tt-bundle-item { padding-top: 6px; border-top: 1px solid var(--border-default); }
+  .timeline-tooltip .tt-bundle-item:first-child { padding-top: 0; border-top: none; }
+  .timeline-tooltip .tt-bundle-subject { color: var(--text-primary); word-break: break-word; }
+  .timeline-tooltip .tt-bundle-meta { color: var(--text-muted); font-size: 0.7rem; margin-top: 2px; }
   .timeline-tooltip .tt-tag-name { font-family: ui-monospace, SFMono-Regular, monospace; font-weight: 600; color: var(--text-primary); }
   .timeline-tooltip .tt-tag-icon { display: inline-block; width: 8px; height: 8px; border-radius: 50%; border: 1px solid rgba(255,255,255,0.9); margin-right: 6px; vertical-align: middle; }
   .timeline-labels .lane-label:hover { color: var(--text-primary); }
@@ -602,17 +608,36 @@ function buildTimeline() {
   // Sort by parsed UTC instant — lex-sort on ISO mis-orders across timezone offsets.
   const sorted = commits.slice().sort((a, b) => new Date(a.d) - new Date(b.d));
   const dayStackTmp = new Map();
+  // Rebased commits often share an author timestamp — bundle same-author ties
+  // so they draw as one point and stack inside the tooltip.
+  const bundleByKey = new Map();
   const drawables = [];
   sorted.forEach(c => {
     const idx = emailIdx[c.e];
     if (idx === undefined) return;
     const dt = new Date(c.d);
     if (isNaN(dt)) return;
+    const bkey = c.e + '|' + c.d;
+    const existing = bundleByKey.get(bkey);
+    if (existing) {
+      existing.c.commits.push(c);
+      existing.c.a += (c.a || 0);
+      existing.c.l += (c.l || 0);
+      existing.lineLog = Math.log10(existing.c.a + existing.c.l + 1);
+      return;
+    }
     const key = idx + '|' + c.d.slice(0, 10);
     const stack = dayStackTmp.get(key) || 0;
     dayStackTmp.set(key, stack + 1);
-    const lineLog = Math.log10((c.a || 0) + (c.l || 0) + 1);
-    drawables.push({ idx, tMs: dt - start, stack, lineLog, c });
+    const bundle = {
+      idx,
+      tMs: dt - start,
+      stack,
+      lineLog: Math.log10((c.a || 0) + (c.l || 0) + 1),
+      c: { h: c.h, e: c.e, d: c.d, s: c.s, a: (c.a || 0), l: (c.l || 0), commits: [c] },
+    };
+    bundleByKey.set(bkey, bundle);
+    drawables.push(bundle);
   });
 
   const dpr = window.devicePixelRatio || 1;
@@ -1230,10 +1255,27 @@ function buildTimeline() {
       const avatarHtml = av
         ? `<img class="tt-avatar" src="${escapeHtml(av)}" alt="" data-fallback-tag="span" data-fallback-class="tt-dot" data-bg="${escapeHtml(hit.color)}">`
         : `<span class="tt-dot" style="background:${hit.color}"></span>`;
+      const bundle = c.commits || [c];
+      const headerExtra = bundle.length > 1 ? `<span class="tt-bundle-count">· ${bundle.length} commits</span>` : '';
+      let body;
+      if (bundle.length > 1) {
+        const items = bundle.map(cc =>
+          `<div class="tt-bundle-item">` +
+            `<div class="tt-bundle-subject">${escapeHtml(cc.s || '')}</div>` +
+            `<div class="tt-bundle-meta"><span style="color:${colorAdded}">+${fmt(cc.a || 0)}</span> <span style="color:${colorDeleted}">-${fmt(cc.l || 0)}</span> · <span class="tt-hash">${cc.h}</span></div>` +
+          `</div>`
+        ).join('');
+        body =
+          `<div class="tt-meta">${dateStr} ${timeStr} · <span style="color:${colorAdded}">+${fmt(c.a || 0)}</span> <span style="color:${colorDeleted}">-${fmt(c.l || 0)}</span></div>` +
+          `<div class="tt-bundle-list">${items}</div>`;
+      } else {
+        body =
+          `<div class="tt-subject">${escapeHtml(c.s || '')}</div>` +
+          `<div class="tt-meta">${dateStr} ${timeStr} · <span style="color:${colorAdded}">+${fmt(c.a || 0)}</span> <span style="color:${colorDeleted}">-${fmt(c.l || 0)}</span> · <span class="tt-hash">${c.h}</span></div>`;
+      }
       tooltip.innerHTML =
-        `<div class="tt-author-row">${avatarHtml}<span class="tt-author">${escapeHtml(author.name)}</span></div>` +
-        `<div class="tt-subject">${escapeHtml(c.s || '')}</div>` +
-        `<div class="tt-meta">${dateStr} ${timeStr} · <span style="color:${colorAdded}">+${fmt(c.a || 0)}</span> <span style="color:${colorDeleted}">-${fmt(c.l || 0)}</span> · <span class="tt-hash">${c.h}</span></div>`;
+        `<div class="tt-author-row">${avatarHtml}<span class="tt-author">${escapeHtml(author.name)}</span>${headerExtra}</div>` +
+        body;
       installAvatarFallback(tooltip.querySelector('.tt-avatar'));
       tooltipHash = c.h;
     }
