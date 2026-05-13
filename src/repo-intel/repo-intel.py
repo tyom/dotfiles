@@ -284,6 +284,36 @@ def detect_default_branch(cwd=None):
     return "main"
 
 
+def collect_local_tags(cwd=None):
+    """Return list of {name, oid, date, message} for git tags, by commit date."""
+    fmt = (
+        "%(refname:short)\x1f"
+        "%(*objectname)\x1f%(objectname)\x1f"
+        "%(*committerdate:iso8601-strict)\x1f%(committerdate:iso8601-strict)\x1f"
+        "%(contents:subject)"
+    )
+    try:
+        out = git("tag", "-l", f"--format={fmt}", cwd=cwd)
+    except subprocess.CalledProcessError:
+        return []
+    tags = []
+    for line in out.splitlines():
+        if not line:
+            continue
+        parts = line.split("\x1f")
+        if len(parts) < 6:
+            continue
+        name, peel_oid, obj_oid, peel_date, obj_date = parts[:5]
+        subject = "\x1f".join(parts[5:])
+        oid = peel_oid or obj_oid
+        date = peel_date or obj_date
+        if not oid or not date:
+            continue
+        tags.append({"name": name, "oid": oid, "date": date, "message": subject})
+    tags.sort(key=lambda t: t["date"])
+    return tags
+
+
 def collect_local(cwd=None, suppress_current_user=False):
     repo_root = git("rev-parse", "--show-toplevel", cwd=cwd).strip()
     repo_name = os.path.basename(repo_root)
@@ -353,7 +383,88 @@ def collect_local(cwd=None, suppress_current_user=False):
         {},
         default_branch,
         repo_disk_kb(cwd=cwd),
+        collect_local_tags(cwd=cwd),
     )
+
+
+def gh_graphql(query, variables, token):
+    """POST a GraphQL query to api.github.com. Returns the parsed JSON body."""
+    payload = json.dumps({"query": query, "variables": variables}).encode()
+    req = urllib.request.Request(
+        "https://api.github.com/graphql",
+        data=payload,
+        headers={
+            "Authorization": f"bearer {token}",
+            "Content-Type": "application/json",
+            "User-Agent": "repo-intel",
+        },
+    )
+    with urllib.request.urlopen(req) as resp:
+        return json.loads(resp.read())
+
+
+def fetch_remote_tags(owner, repo, token):
+    """Fetch all tag refs via GraphQL. Returns list of {name, oid, date, message}."""
+    query = """
+query($owner: String!, $repo: String!, $cursor: String) {
+  repository(owner: $owner, name: $repo) {
+    refs(refPrefix: "refs/tags/", first: 100, after: $cursor, orderBy: {field: TAG_COMMIT_DATE, direction: ASC}) {
+      pageInfo { hasNextPage endCursor }
+      nodes {
+        name
+        target {
+          __typename
+          ... on Tag {
+            message
+            target { ... on Commit { oid committedDate } }
+          }
+          ... on Commit { oid committedDate }
+        }
+      }
+    }
+  }
+}
+""".strip()
+    cursor = None
+    tags = []
+    while True:
+        try:
+            body = gh_graphql(query, {"owner": owner, "repo": repo, "cursor": cursor}, token)
+        except urllib.error.URLError as exc:
+            print(f"  warning: tag fetch failed: {exc}", file=sys.stderr)
+            return tags
+        if "errors" in body:
+            print(f"  warning: tag fetch GraphQL error: {body['errors']}", file=sys.stderr)
+            return tags
+        refs = (body.get("data") or {}).get("repository", {}).get("refs") or {}
+        for node in refs.get("nodes") or []:
+            tgt = node.get("target") or {}
+            kind = tgt.get("__typename")
+            if kind == "Tag":
+                inner = tgt.get("target") or {}
+                oid = inner.get("oid") or ""
+                date = inner.get("committedDate") or ""
+                message = tgt.get("message") or ""
+            elif kind == "Commit":
+                oid = tgt.get("oid") or ""
+                date = tgt.get("committedDate") or ""
+                message = ""
+            else:
+                continue
+            if not oid or not date:
+                continue
+            tags.append({
+                "name": node.get("name") or "",
+                "oid": oid,
+                "date": date,
+                "message": (message.splitlines() or [""])[0],
+            })
+        page = refs.get("pageInfo") or {}
+        if not page.get("hasNextPage"):
+            break
+        cursor = page.get("endCursor")
+    tags.sort(key=lambda t: t["date"])
+    return tags
 
 
 def collect_remote(slug, no_cache=False, commits_filter=None, since=None, until=None):
@@ -395,6 +506,7 @@ def collect_remote(slug, no_cache=False, commits_filter=None, since=None, until=
             _,
             default_branch,
             repo_size_kb,
+            tags,
         ) = collect_local(cwd=clone_dir, suppress_current_user=True)
         if not github_base:
             github_base = f"https://github.com/{owner}/{repo}"
@@ -407,6 +519,7 @@ def collect_remote(slug, no_cache=False, commits_filter=None, since=None, until=
             {},
             default_branch,
             repo_size_kb,
+            tags,
         )
 
     query = """
@@ -460,23 +573,7 @@ query($owner: String!, $repo: String!, $cursor: String) {
     hit_end = False
     short_circuited = False
     while True:
-        payload = json.dumps(
-            {
-                "query": query,
-                "variables": {"owner": owner, "repo": repo, "cursor": cursor},
-            }
-        ).encode()
-        req = urllib.request.Request(
-            "https://api.github.com/graphql",
-            data=payload,
-            headers={
-                "Authorization": f"bearer {token}",
-                "Content-Type": "application/json",
-                "User-Agent": "repo-intel",
-            },
-        )
-        with urllib.request.urlopen(req) as resp:
-            body = json.loads(resp.read())
+        body = gh_graphql(query, {"owner": owner, "repo": repo, "cursor": cursor}, token)
         if "errors" in body:
             sys.exit(f"GraphQL error: {body['errors']}")
         repo_node = body["data"]["repository"]
@@ -533,6 +630,7 @@ query($owner: String!, $repo: String!, $cursor: String) {
         if user and user.get("avatarUrl") and email and email not in avatars:
             avatars[email] = user["avatarUrl"]
 
+    tags = fetch_remote_tags(owner, repo, token)
     return (
         repo_name,
         repo_url,
@@ -542,6 +640,7 @@ query($owner: String!, $repo: String!, $cursor: String) {
         avatars,
         default_branch,
         repo_size_kb,
+        tags,
     )
 
 
@@ -571,6 +670,17 @@ def apply_filters(commits_meta, line_stats, commits_filter, since, until):
     return commits_meta, line_stats
 
 
+def filter_tags_to_range(tags, commits_meta):
+    if not tags or not commits_meta:
+        return []
+    dates = [(m.get("iso") or "")[:10] for m in commits_meta.values()]
+    dates = [d for d in dates if d]
+    if not dates:
+        return list(tags)
+    lo, hi = min(dates), max(dates)
+    return [t for t in tags if lo <= (t.get("date") or "")[:10] <= hi]
+
+
 def build_data(
     top_n,
     repo_name,
@@ -581,6 +691,7 @@ def build_data(
     avatars,
     default_branch,
     repo_size_kb,
+    tags,
 ):
     authors = {}
     daily_by_author = defaultdict(lambda: defaultdict(int))
@@ -714,6 +825,7 @@ def build_data(
         "hourlyData": hourly_data,
         "dowData": dow_data,
         "commits": commits_list,
+        "tags": tags or [],
     }
 
 
@@ -733,6 +845,7 @@ def main():
             avatars,
             default_branch,
             repo_size_kb,
+            tags,
         ) = collect_remote(
             remote,
             no_cache=no_cache,
@@ -758,6 +871,7 @@ def main():
             avatars,
             default_branch,
             repo_size_kb,
+            tags,
         ) = collect_local()
 
     if not commits_meta:
@@ -774,6 +888,8 @@ def main():
         if not commits_meta:
             sys.exit("error: no commits match the given filters")
 
+    tags = filter_tags_to_range(tags, commits_meta)
+
     data = build_data(
         top_n,
         repo_name,
@@ -784,6 +900,7 @@ def main():
         avatars,
         default_branch,
         repo_size_kb,
+        tags,
     )
 
     payload = f"window.__DATA__ = {json.dumps(data, ensure_ascii=False, separators=(',', ':'))};"

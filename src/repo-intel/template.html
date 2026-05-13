@@ -140,7 +140,9 @@
   .timeline-axis .timeline-tick { transform: none; top: 0; bottom: 0; width: 1px; background: rgba(255,255,255,0.06); pointer-events: none; }
   .timeline-canvas { display: block; position: sticky; left: 0; max-height: none; }
   .timeline-histogram { margin-top: 10px; opacity: 1; cursor: pointer; }
+  .timeline-tags { margin-top: 6px; }
   .timeline-labels .histogram-label { display: flex; align-items: center; justify-content: center; font-size: 0.7rem; color: var(--text-muted); margin-top: 10px; }
+  .timeline-labels .tags-label { display: flex; align-items: center; justify-content: flex-end; font-size: 0.65rem; color: var(--text-muted); margin-top: 6px; padding-right: 2px; letter-spacing: 0.04em; text-transform: uppercase; }
   .timeline-tooltip {
     position: fixed; z-index: 100; pointer-events: none;
     background: rgba(13,17,23,0.96); color: var(--text-primary); font-size: 0.75rem;
@@ -156,6 +158,8 @@
   .timeline-tooltip .tt-subject { color: var(--text-primary); margin: 4px 0; word-break: break-word; white-space: normal; }
   .timeline-tooltip .tt-meta { color: var(--text-muted); font-size: 0.7rem; }
   .timeline-tooltip .tt-hash { font-family: ui-monospace, SFMono-Regular, monospace; }
+  .timeline-tooltip .tt-tag-name { font-family: ui-monospace, SFMono-Regular, monospace; font-weight: 600; color: var(--text-primary); }
+  .timeline-tooltip .tt-tag-icon { display: inline-block; width: 8px; height: 8px; border-radius: 50%; border: 1px solid rgba(255,255,255,0.9); margin-right: 6px; vertical-align: middle; }
   .timeline-labels .lane-label:hover { color: var(--text-primary); }
   .timeline-labels .lane-label:hover span:not(.dot) { text-decoration: underline; }
   .lane-popover {
@@ -212,7 +216,7 @@
   <main class="main">
   <div class="section" id="contributions"><div class="card"><div class="contributions-header"><h2>Contributions</h2><div class="year-toggles" id="yearToggles"></div></div><div id="heatmapContainer"></div></div></div>
   <div class="section" id="commit-timeline"><div class="card"><h2 class="timeline-h">Commit timeline</h2>
-    <div class="timeline-hint">Drag canvas to pan · Drag the histogram below to jump · Shift-scroll or pinch to zoom · Hover for details · Click to open on GitHub</div>
+    <div class="timeline-hint">Drag canvas to pan · Drag the histogram below to jump · Shift-scroll or pinch to zoom · Hover for details · Hover tag dots to mark a moment · Click to open on GitHub</div>
     <div class="timeline-wrap">
       <div class="timeline-labels" id="timelineLabels"></div>
       <div class="timeline-scroll" id="timelineScroll"><div class="timeline-inner" id="timelineInner"></div></div>
@@ -473,6 +477,15 @@ function buildTimeline() {
   const axisHeight = 22;
   const histHeight = 56;
   const histGap = 10;
+  const tags = D.tags || [];
+  const tagMsList = tags.map(t => {
+    const dt = new Date(t.date);
+    return isNaN(dt) ? 0 : dt - start;
+  });
+  const hasTags = tags.length > 0;
+  const tagHeight = hasTags ? 16 : 0;
+  const tagDotRadius = 3.5;
+  const tagHitPad = 4;
   const height = contributors.length * laneHeight;
 
   const viewportWidth0 = Math.max(600, scrollDiv.clientWidth || 800);
@@ -485,6 +498,9 @@ function buildTimeline() {
   contributors.forEach((c, i) => {
     labelsHtml += `<a class="lane-label" data-idx="${i}" href="${authorUrl(c)}" target="_blank" rel="noopener" style="height:${laneHeight}px;"><span class="dot" style="background:${clr(i)}"></span><span>${escapeHtml(c.name)}</span></a>`;
   });
+  if (hasTags) {
+    labelsHtml += `<div class="tags-label" style="height:${tagHeight}px;">Tags</div>`;
+  }
   labelsHtml += `<div class="histogram-label" style="height:${histHeight}px;"><button class="timeline-reset-btn" id="timelineReset" type="button">Reset zoom</button></div>`;
   labelsDiv.innerHTML = labelsHtml;
 
@@ -523,6 +539,14 @@ function buildTimeline() {
   const ctx = canvas.getContext('2d');
   innerDiv.appendChild(canvas);
 
+  let tagCanvas = null, tagctx = null;
+  if (hasTags) {
+    tagCanvas = document.createElement('canvas');
+    tagCanvas.className = 'timeline-canvas timeline-tags';
+    tagctx = tagCanvas.getContext('2d');
+    innerDiv.appendChild(tagCanvas);
+  }
+
   const histCanvas = document.createElement('canvas');
   histCanvas.className = 'timeline-canvas timeline-histogram';
   const hctx = histCanvas.getContext('2d');
@@ -538,6 +562,7 @@ function buildTimeline() {
   let canvasViewW = 0;
   let positions = [];
   let hoveredHash = null;
+  let hoveredTagIdx = null;
   const resetBtn = document.getElementById('timelineReset');
   let lastRangeText = '';
 
@@ -736,6 +761,13 @@ function buildTimeline() {
     canvas.style.width = canvasViewW + 'px';
     canvas.style.height = height + 'px';
 
+    if (tagCanvas) {
+      tagCanvas.width = Math.round(canvasViewW * dpr);
+      tagCanvas.height = Math.round(tagHeight * dpr);
+      tagCanvas.style.width = canvasViewW + 'px';
+      tagCanvas.style.height = tagHeight + 'px';
+    }
+
     histCanvas.width = Math.round(canvasViewW * dpr);
     histCanvas.height = Math.round(histHeight * dpr);
     histCanvas.style.width = canvasViewW + 'px';
@@ -837,6 +869,19 @@ function buildTimeline() {
       drawGridLines(d => d.setHours(12, 0, 0, 0), d => d.setDate(d.getDate() + 1), 'rgba(255,255,255,0.05)', [3, 4]);
     }
 
+    if (hoveredTagIdx != null && tags[hoveredTagIdx]) {
+      const tMs = tagMsList[hoveredTagIdx];
+      const xCanvas = (tMs / totalMs) * currentWidth - sl;
+      if (xCanvas >= -1 && xCanvas <= canvasViewW + 1) {
+        ctx.strokeStyle = 'rgba(255,255,255,0.55)';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(Math.round(xCanvas) + 0.5, 0);
+        ctx.lineTo(Math.round(xCanvas) + 0.5, height);
+        ctx.stroke();
+      }
+    }
+
     const slotMsLo = (sl / currentWidth) * totalMs - 86400000;
     const slotMsHi = ((sl + canvasViewW) / currentWidth) * totalMs + 86400000;
 
@@ -896,9 +941,44 @@ function buildTimeline() {
       }
     }
 
+    drawTags();
     drawHistogram();
     updateRangeText();
     updateResetBtn();
+  }
+
+  function drawTags() {
+    if (!tagCanvas || !tagctx) return;
+    tagctx.setTransform(1, 0, 0, 1, 0, 0);
+    tagctx.scale(dpr, dpr);
+    tagctx.clearRect(0, 0, canvasViewW, tagHeight);
+    const sl = scrollDiv.scrollLeft;
+    const cy = tagHeight / 2;
+    tagctx.lineWidth = 1;
+    let hoveredX = null;
+    for (let i = 0; i < tags.length; i++) {
+      const tMs = tagMsList[i];
+      const xCanvas = (tMs / totalMs) * currentWidth - sl;
+      if (xCanvas < -tagDotRadius - 2 || xCanvas > canvasViewW + tagDotRadius + 2) continue;
+      if (i === hoveredTagIdx) { hoveredX = xCanvas; continue; }
+      tagctx.beginPath();
+      tagctx.arc(xCanvas, cy, tagDotRadius, 0, Math.PI * 2);
+      tagctx.fillStyle = 'rgba(13,17,23,0.85)';
+      tagctx.fill();
+      tagctx.strokeStyle = 'rgba(255,255,255,0.55)';
+      tagctx.stroke();
+    }
+    if (hoveredX !== null) {
+      tagctx.beginPath();
+      tagctx.moveTo(Math.round(hoveredX) + 0.5, 0);
+      tagctx.lineTo(Math.round(hoveredX) + 0.5, tagHeight);
+      tagctx.strokeStyle = 'rgba(255,255,255,0.55)';
+      tagctx.stroke();
+      tagctx.beginPath();
+      tagctx.arc(hoveredX, cy, tagDotRadius + 0.5, 0, Math.PI * 2);
+      tagctx.fillStyle = 'rgba(255,255,255,0.98)';
+      tagctx.fill();
+    }
   }
 
   let histogramByPx = null;
@@ -1006,6 +1086,14 @@ function buildTimeline() {
   tooltip.className = 'timeline-tooltip';
   document.body.appendChild(tooltip);
 
+  function tooltipDateTime(dt) {
+    if (isNaN(dt)) return ['', ''];
+    return [
+      dt.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' }),
+      dt.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }),
+    ];
+  }
+
   function findHit(mx, my) {
     let best = null, bestDist = Infinity;
     const pad = 3;
@@ -1028,9 +1116,7 @@ function buildTimeline() {
     if (hit.c.h !== tooltipHash) {
       const c = hit.c;
       const author = contributors[hit.idx];
-      const dt = new Date(c.d);
-      const dateStr = dt.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
-      const timeStr = dt.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+      const [dateStr, timeStr] = tooltipDateTime(new Date(c.d));
       const av = author.avatarUrl;
       const avatarHtml = av
         ? `<img class="tt-avatar" src="${escapeHtml(av)}" alt="" data-fallback-tag="span" data-fallback-class="tt-dot" data-bg="${escapeHtml(hit.color)}">`
@@ -1207,6 +1293,73 @@ function buildTimeline() {
   }
   histCanvas.addEventListener('pointerup', commitMmPointer);
   histCanvas.addEventListener('pointercancel', () => { mmSelMoved = false; endMmDrag(); });
+
+  function showTagTooltip(idx, clientX, clientY) {
+    const t = tags[idx];
+    const [dateStr, timeStr] = tooltipDateTime(new Date(t.date));
+    const oidShort = (t.oid || '').slice(0, 7);
+    const msg = (t.message || '').trim();
+    const showMsg = msg && msg !== (t.name || '').trim();
+    tooltip.innerHTML =
+      `<div class="tt-author-row"><span class="tt-tag-icon"></span><span class="tt-tag-name">${escapeHtml(t.name || '')}</span></div>` +
+      (showMsg ? `<div class="tt-subject">${escapeHtml(msg)}</div>` : '') +
+      `<div class="tt-meta">${escapeHtml(dateStr || t.date || '')}${timeStr ? ' ' + escapeHtml(timeStr) : ''}${oidShort ? ' · <span class="tt-hash">' + escapeHtml(oidShort) + '</span>' : ''}</div>`;
+    tooltipHash = null;
+    tooltip.style.left = clientX + 'px';
+    tooltip.style.top = clientY + 'px';
+    tooltip.classList.add('visible');
+  }
+
+  function findTagHit(mx) {
+    if (!tags.length) return null;
+    const sl = scrollDiv.scrollLeft;
+    let best = -1, bestDist = Infinity;
+    for (let i = 0; i < tags.length; i++) {
+      const tMs = tagMsList[i];
+      const xCanvas = (tMs / totalMs) * currentWidth - sl;
+      const dx = Math.abs(xCanvas - mx);
+      if (dx > tagDotRadius + tagHitPad) continue;
+      if (dx < bestDist) { bestDist = dx; best = i; }
+    }
+    return best === -1 ? null : best;
+  }
+
+  function tagUrl(name) {
+    if (!D.githubBaseUrl || !name) return null;
+    return `${D.githubBaseUrl}/releases/tag/${encodeURIComponent(name)}`;
+  }
+
+  if (tagCanvas) {
+    tagCanvas.addEventListener('mousedown', e => e.stopPropagation());
+    tagCanvas.addEventListener('mousemove', e => {
+      const rect = tagCanvas.getBoundingClientRect();
+      const mx = e.clientX - rect.left;
+      const hit = findTagHit(mx);
+      if (hit !== hoveredTagIdx) {
+        hoveredTagIdx = hit;
+        drawCanvas();
+      }
+      if (hit != null) {
+        tagCanvas.style.cursor = 'pointer';
+        showTagTooltip(hit, e.clientX, e.clientY);
+      } else {
+        tagCanvas.style.cursor = '';
+        tooltip.classList.remove('visible');
+      }
+    });
+    tagCanvas.addEventListener('mouseleave', () => {
+      if (hoveredTagIdx !== null) { hoveredTagIdx = null; drawCanvas(); }
+      tooltip.classList.remove('visible');
+    });
+    tagCanvas.addEventListener('click', e => {
+      const rect = tagCanvas.getBoundingClientRect();
+      const mx = e.clientX - rect.left;
+      const hit = findTagHit(mx);
+      if (hit == null) return;
+      const url = tagUrl(tags[hit].name);
+      if (url) window.open(url, '_blank');
+    });
+  }
 
   let scrollFrameQueued = false;
   scrollDiv.addEventListener('scroll', () => {
