@@ -475,7 +475,7 @@ function buildTimeline() {
   const totalDays = Math.max(1, Math.ceil(totalMs / 86400000));
   const laneHeight = 32;
   const axisHeight = 22;
-  const histHeight = 56;
+  const histBarsHeight = 56;
   const histGap = 10;
   const tags = D.tags || [];
   const tagMsList = tags.map(t => {
@@ -486,6 +486,8 @@ function buildTimeline() {
   const tagHeight = hasTags ? 16 : 0;
   const tagDotRadius = 3.5;
   const tagHitPad = 4;
+  const histTagStripH = hasTags ? 6 : 0;
+  const histHeight = histBarsHeight + histTagStripH;
   const height = contributors.length * laneHeight;
 
   const viewportWidth0 = Math.max(600, scrollDiv.clientWidth || 800);
@@ -1008,12 +1010,12 @@ function buildTimeline() {
       return;
     }
 
-    const innerH = histHeight - 2;
+    const innerH = histBarsHeight - 2;
     const groups = new Array(contributors.length);
     for (let i = 0; i < contributors.length; i++) groups[i] = [];
 
     for (const [px, bucket] of histogramByPx) {
-      let yBase = histHeight;
+      let yBase = histBarsHeight;
       const scale = innerH / histogramMax;
       for (let ci = 0; ci < contributors.length; ci++) {
         const count = bucket.per[ci];
@@ -1059,9 +1061,22 @@ function buildTimeline() {
       hctx.lineWidth = 1;
       const bx = Math.max(0.5, left + 0.5);
       const bw = Math.max(1, right - left - 1);
-      hctx.strokeRect(bx, 0.5, bw, histHeight - 1);
+      hctx.strokeRect(bx, 0.5, bw, histBarsHeight - 1);
     }
+    drawHistogramTags();
     drawSelectionPreview();
+  }
+
+  function drawHistogramTags() {
+    if (!hasTags || totalMs <= 0 || canvasViewW <= 0) return;
+    const cy = histBarsHeight + Math.floor(histTagStripH / 2);
+    hctx.fillStyle = 'rgba(255,255,255,0.95)';
+    for (let i = 0; i < tags.length; i++) {
+      const tMs = tagMsList[i];
+      const x = (tMs / totalMs) * canvasViewW;
+      if (x < -1 || x > canvasViewW + 1) continue;
+      hctx.fillRect(Math.round(x) - 1, cy - 1, 2, 2);
+    }
   }
 
   let mmMode = null;
