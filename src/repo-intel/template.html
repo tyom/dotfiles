@@ -262,6 +262,14 @@ const colorHeatmap = cs.getPropertyValue('--color-heatmap').trim();
 const bgEmptyCell = cs.getPropertyValue('--bg-empty-cell').trim();
 const fmt = n => n.toLocaleString();
 const pct = (n, t) => ((n / t) * 100).toFixed(1) + '%';
+const fmtSize = kb => {
+  if (!kb || kb <= 0) return '';
+  const units = ['KB', 'MB', 'GB', 'TB'];
+  let v = kb, i = 0;
+  while (v >= 1024 && i < units.length - 1) { v /= 1024; i++; }
+  const s = v >= 100 ? Math.round(v).toString() : v.toFixed(1).replace(/\.0$/, '');
+  return `${s} ${units[i]}`;
+};
 const weekLabel = w => { const [y, wn] = w.split('-W').map(Number); const jan4 = new Date(y, 0, 4); const d = new Date(jan4.getTime() + ((wn - 1) * 7 - (jan4.getDay() + 6) % 7) * 86400000); return d.toLocaleDateString('en-GB', { month: 'short', day: 'numeric' }); };
 
 const baseMatch = (D.githubBaseUrl || '').match(/\/\/[^/]+\/([^/]+\/[^/]+?)\/?$/);
@@ -272,7 +280,8 @@ const subtitleNetHtml = totals.net > 0
   : totals.net < 0
     ? `<span style="color:${colorDeleted}">${fmt(totals.net)}</span>`
     : fmt(totals.net);
-document.getElementById('subtitle').innerHTML = `${D.dateRange.start} \u2014 ${D.dateRange.end} \u00b7 ${fmt(totals.commits)} commits \u00b7 <span style="color:${colorAdded}">+${fmt(totals.added)}</span> <span style="color:${colorDeleted}">-${fmt(totals.deleted)}</span> (net ${subtitleNetHtml}) \u00b7 ${fmt(totalContribCount)} contributor${totalContribCount === 1 ? '' : 's'}`;
+const sizeStr = fmtSize(D.repoSizeKb);
+document.getElementById('subtitle').innerHTML = `${D.dateRange.start} \u2014 ${D.dateRange.end} \u00b7 ${fmt(totals.commits)} commits \u00b7 <span style="color:${colorAdded}">+${fmt(totals.added)}</span> <span style="color:${colorDeleted}">-${fmt(totals.deleted)}</span> (net ${subtitleNetHtml}) \u00b7 ${fmt(totalContribCount)} contributor${totalContribCount === 1 ? '' : 's'}${sizeStr ? ` \u00b7 ${sizeStr}` : ''}`;
 
 const cd = Chart.defaults;
 cd.color = cs.getPropertyValue('--text-muted').trim(); cd.borderColor = cs.getPropertyValue('--border-subtle').trim(); cd.font.family = 'system-ui'; cd.font.size = 11;

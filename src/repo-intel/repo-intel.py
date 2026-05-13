@@ -246,6 +246,26 @@ def git(*args, cwd=None):
     return subprocess.check_output(["git", *args], text=True, cwd=cwd)
 
 
+def repo_disk_kb(cwd=None):
+    """Total on-disk size of git objects (loose + packed) in KB."""
+    try:
+        out = git("count-objects", "-v", cwd=cwd)
+    except subprocess.CalledProcessError:
+        return 0
+    size = size_pack = 0
+    for line in out.splitlines():
+        key, _, val = line.partition(":")
+        try:
+            n = int(val.strip())
+        except ValueError:
+            continue
+        if key == "size":
+            size = n
+        elif key == "size-pack":
+            size_pack = n
+    return size + size_pack
+
+
 def detect_default_branch(cwd=None):
     try:
         ref = git(
@@ -332,6 +352,7 @@ def collect_local(cwd=None, suppress_current_user=False):
         line_stats,
         {},
         default_branch,
+        repo_disk_kb(cwd=cwd),
     )
 
 
@@ -365,17 +386,33 @@ def collect_remote(slug, no_cache=False, commits_filter=None, since=None, until=
             subprocess.run(
                 ["git", "fetch", "--quiet", "origin"], cwd=clone_dir, check=False
             )
-        repo_name, github_base, _, commits_meta, line_stats, _, default_branch = (
-            collect_local(cwd=clone_dir, suppress_current_user=True)
-        )
+        (
+            repo_name,
+            github_base,
+            _,
+            commits_meta,
+            line_stats,
+            _,
+            default_branch,
+            repo_size_kb,
+        ) = collect_local(cwd=clone_dir, suppress_current_user=True)
         if not github_base:
             github_base = f"https://github.com/{owner}/{repo}"
-        return repo_name, github_base, "", commits_meta, line_stats, {}, default_branch
+        return (
+            repo_name,
+            github_base,
+            "",
+            commits_meta,
+            line_stats,
+            {},
+            default_branch,
+            repo_size_kb,
+        )
 
     query = """
 query($owner: String!, $repo: String!, $cursor: String) {
   repository(owner: $owner, name: $repo) {
-    name url
+    name url diskUsage
     defaultBranchRef {
       name
       target {
@@ -418,6 +455,7 @@ query($owner: String!, $repo: String!, $cursor: String) {
     repo_name = repo
     repo_url = f"https://github.com/{owner}/{repo}"
     default_branch = "main"
+    repo_size_kb = 0
     hit_cache = False
     hit_end = False
     short_circuited = False
@@ -446,6 +484,7 @@ query($owner: String!, $repo: String!, $cursor: String) {
             sys.exit(f"Repository not found or inaccessible: {slug}")
         repo_name = repo_node["name"]
         repo_url = repo_node["url"]
+        repo_size_kb = repo_node.get("diskUsage") or 0
         branch_ref = repo_node.get("defaultBranchRef")
         if not branch_ref or not branch_ref.get("target"):
             sys.exit(f"error: {slug} has no commits on its default branch")
@@ -494,7 +533,16 @@ query($owner: String!, $repo: String!, $cursor: String) {
         if user and user.get("avatarUrl") and email and email not in avatars:
             avatars[email] = user["avatarUrl"]
 
-    return repo_name, repo_url, "", commits_meta, line_stats, avatars, default_branch
+    return (
+        repo_name,
+        repo_url,
+        "",
+        commits_meta,
+        line_stats,
+        avatars,
+        default_branch,
+        repo_size_kb,
+    )
 
 
 def apply_filters(commits_meta, line_stats, commits_filter, since, until):
@@ -532,6 +580,7 @@ def build_data(
     line_stats,
     avatars,
     default_branch,
+    repo_size_kb,
 ):
     authors = {}
     daily_by_author = defaultdict(lambda: defaultdict(int))
@@ -650,6 +699,7 @@ def build_data(
         "repoName": repo_name,
         "githubBaseUrl": github_base,
         "defaultBranch": default_branch,
+        "repoSizeKb": repo_size_kb,
         "dateRange": date_range,
         "totals": {
             "commits": total_commits,
@@ -682,6 +732,7 @@ def main():
             line_stats,
             avatars,
             default_branch,
+            repo_size_kb,
         ) = collect_remote(
             remote,
             no_cache=no_cache,
@@ -706,6 +757,7 @@ def main():
             line_stats,
             avatars,
             default_branch,
+            repo_size_kb,
         ) = collect_local()
 
     if not commits_meta:
@@ -731,6 +783,7 @@ def main():
         line_stats,
         avatars,
         default_branch,
+        repo_size_kb,
     )
 
     payload = f"window.__DATA__ = {json.dumps(data, ensure_ascii=False, separators=(',', ':'))};"
