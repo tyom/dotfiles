@@ -17,7 +17,7 @@ Arguments:
           When omitted, the current working directory is used as a local git repo.
 
 Options:
-  -o, --output PATH   Write the dashboard to PATH instead of /tmp/<repo-name>.html.
+  -o, --output PATH   Write the dashboard to PATH instead of /tmp/<owner>--<repo>.html.
   --no-open           Don't open the result in a browser.
   --no-cache          Ignore the local cache and re-fetch all commits.
   --commits SPEC      Filter commits by position. SPEC is either N (last N
@@ -64,7 +64,7 @@ import sys
 import urllib.request
 import webbrowser
 from collections import defaultdict
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 TEMPLATE = "__TEMPLATE_PLACEHOLDER__"
@@ -442,8 +442,11 @@ query($owner: String!, $repo: String!, $cursor: String) {
             sys.exit(f"Repository not found or inaccessible: {slug}")
         repo_name = repo_node["name"]
         repo_url = repo_node["url"]
-        default_branch = repo_node["defaultBranchRef"].get("name") or default_branch
-        history = repo_node["defaultBranchRef"]["target"]["history"]
+        branch_ref = repo_node.get("defaultBranchRef")
+        if not branch_ref or not branch_ref.get("target"):
+            sys.exit(f"error: {slug} has no commits on its default branch")
+        default_branch = branch_ref.get("name") or default_branch
+        history = branch_ref["target"]["history"]
         for n in history["nodes"]:
             if n["oid"] in cached_oids:
                 hit_cache = True
@@ -497,7 +500,16 @@ def apply_filters(commits_meta, line_stats, commits_filter, since, until):
             return bool(d) and (not since or d >= since) and (not until or d <= until)
         commits_meta = {h: m for h, m in commits_meta.items() if in_range(m)}
     if commits_filter:
-        ordered = sorted(commits_meta, key=lambda h: commits_meta[h].get("iso") or "")
+        epoch = datetime(1970, 1, 1, tzinfo=timezone.utc)
+        def _ts(h):
+            iso = commits_meta[h].get("iso") or ""
+            if not iso:
+                return epoch
+            try:
+                return datetime.fromisoformat(iso.replace("Z", "+00:00"))
+            except ValueError:
+                return epoch
+        ordered = sorted(commits_meta, key=_ts)
         if commits_filter[0] == "last":
             keep = set(ordered[-commits_filter[1]:])
         else:

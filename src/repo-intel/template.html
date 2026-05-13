@@ -304,9 +304,9 @@ function buildHeatmap(containerId, daily, mode) {
   let monthHtml = '<div class="heatmap-months">'; monthSpans.forEach(ms => { monthHtml += `<span style="flex:${ms.count} ${ms.count} 0;text-align:left;">${ms.label}</span>`; }); monthHtml += '</div>';
   let dayLabelsHtml = '<div class="heatmap-day-labels">'; ['Mon','','Wed','','Fri','',''].forEach(l => { dayLabelsHtml += `<span>${l}</span>`; }); dayLabelsHtml += '</div>';
   const baseUrl = D.githubBaseUrl;
-  const branch = D.defaultBranch || 'main';
+  const branchPath = (D.defaultBranch || 'main').split('/').map(encodeURIComponent).join('/');
   let gridHtml = '<div class="heatmap">';
-  weeksArr.forEach((week, wi) => { gridHtml += '<div class="heatmap-week">'; if (wi === 0 && week[0].dow > 0) for (let i = 0; i < week[0].dow; i++) gridHtml += '<div class="heatmap-cell" style="visibility:hidden;"></div>'; week.forEach(day => { const bg = cellColor(day.count); const href = baseUrl ? `${baseUrl}/commits/${branch}?after=&since=${day.key}&until=${day.key}` : '#'; gridHtml += `<a href="${href}" target="_blank" class="heatmap-cell" style="background:${bg};" data-date="${day.key}" data-count="${day.count}" data-color="${bg}"></a>`; }); if (wi === weeksArr.length - 1 && week[week.length - 1].dow < 6) for (let i = week[week.length - 1].dow + 1; i <= 6; i++) gridHtml += '<div class="heatmap-cell" style="visibility:hidden;"></div>'; gridHtml += '</div>'; });
+  weeksArr.forEach((week, wi) => { gridHtml += '<div class="heatmap-week">'; if (wi === 0 && week[0].dow > 0) for (let i = 0; i < week[0].dow; i++) gridHtml += '<div class="heatmap-cell" style="visibility:hidden;"></div>'; week.forEach(day => { const bg = cellColor(day.count); const href = baseUrl ? `${baseUrl}/commits/${branchPath}?after=&since=${day.key}&until=${day.key}` : '#'; gridHtml += `<a href="${href}" target="_blank" class="heatmap-cell" style="background:${bg};" data-date="${day.key}" data-count="${day.count}" data-color="${bg}"></a>`; }); if (wi === weeksArr.length - 1 && week[week.length - 1].dow < 6) for (let i = week[week.length - 1].dow + 1; i <= 6; i++) gridHtml += '<div class="heatmap-cell" style="visibility:hidden;"></div>'; gridHtml += '</div>'; });
   gridHtml += '</div>';
   const legendHtml = `<div class="heatmap-legend"><span>Less</span><div class="heatmap-cell" style="background:var(--bg-empty-cell);"></div><div class="heatmap-cell" style="background:${shade(0.25)};"></div><div class="heatmap-cell" style="background:${shade(0.5)};"></div><div class="heatmap-cell" style="background:${shade(0.75)};"></div><div class="heatmap-cell" style="background:${color};"></div><span>More</span></div>`;
   container.innerHTML = `<div class="heatmap-wrap">${monthHtml}<div class="heatmap-grid">${dayLabelsHtml}${gridHtml}</div>${legendHtml}</div>`;
@@ -359,10 +359,12 @@ heatmapContainer.addEventListener('mouseout', e => {
 // === COMMIT TIMELINE ===
 function escapeHtml(s) { return String(s).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
 
+// GitHub branch paths preserve slashes (`feature/foo`), so encode segment-wise.
+function encodeBranch(b) { return (b || 'main').split('/').map(encodeURIComponent).join('/'); }
+
 function authorUrl(c) {
   if (!D.githubBaseUrl) return '#';
-  const branch = D.defaultBranch || 'main';
-  return `${D.githubBaseUrl}/commits/${branch}?author=${encodeURIComponent(c.email)}`;
+  return `${D.githubBaseUrl}/commits/${encodeBranch(D.defaultBranch)}?author=${encodeURIComponent(c.email)}`;
 }
 
 const authorPopover = document.createElement('div');
@@ -375,6 +377,21 @@ function githubHandleFromAvatar(url) {
   return m ? '@' + m[1] : '';
 }
 
+// Reads data-bg/data-initial from the failed <img> and swaps in a styled fallback.
+// Doing this from a real event listener avoids the inline-onerror double-decoding
+// trap where a name starting with a single quote would break the JS string literal.
+function installAvatarFallback(img) {
+  if (!img) return;
+  img.addEventListener('error', () => {
+    const tag = img.dataset.fallbackTag || 'div';
+    const fb = document.createElement(tag);
+    fb.className = img.dataset.fallbackClass || '';
+    if (img.dataset.bg) fb.style.background = img.dataset.bg;
+    if (img.dataset.initial) fb.textContent = img.dataset.initial;
+    img.replaceWith(fb);
+  });
+}
+
 function showAuthorPopover(idx, el) {
   const c = contributors[idx];
   if (!c) return;
@@ -382,7 +399,7 @@ function showAuthorPopover(idx, el) {
   const handle = githubHandleFromAvatar(av);
   const initial = (c.name || '?').trim().charAt(0).toUpperCase();
   const avatarHtml = av
-    ? `<img class="lp-avatar" src="${escapeHtml(av)}" alt="" onerror="this.replaceWith(Object.assign(document.createElement('div'),{className:'lp-avatar-fallback',style:'background:${clr(idx)}',textContent:'${escapeHtml(initial)}'}))">`
+    ? `<img class="lp-avatar" src="${escapeHtml(av)}" alt="" data-fallback-class="lp-avatar-fallback" data-bg="${escapeHtml(clr(idx))}" data-initial="${escapeHtml(initial)}">`
     : `<div class="lp-avatar-fallback" style="background:${clr(idx)}">${escapeHtml(initial)}</div>`;
   const net = c.added - c.deleted;
   const netHtml = net > 0
@@ -396,6 +413,7 @@ function showAuthorPopover(idx, el) {
     `<div class="lp-stats">${fmt(c.commits)} commits · ${c.activeDays} active day${c.activeDays === 1 ? '' : 's'}</div>` +
     `<div class="lp-stats"><span class="add">+${fmt(c.added)}</span> <span class="del">-${fmt(c.deleted)}</span> (net ${netHtml})</div>` +
     `<div class="lp-period">${c.first} — ${c.last}</div>`;
+  installAvatarFallback(authorPopover.querySelector('.lp-avatar'));
 
   const rect = el.getBoundingClientRect();
   authorPopover.style.left = (rect.right + 12) + 'px';
@@ -459,7 +477,8 @@ function buildTimeline() {
   });
 
   // One-time precomputation. r/y depend on zoom so they're computed in drawCanvas.
-  const sorted = commits.slice().sort((a, b) => a.d.localeCompare(b.d));
+  // Sort by parsed UTC instant — lex-sort on ISO mis-orders across timezone offsets.
+  const sorted = commits.slice().sort((a, b) => new Date(a.d) - new Date(b.d));
   const dayStackTmp = new Map();
   const drawables = [];
   sorted.forEach(c => {
@@ -884,12 +903,13 @@ function buildTimeline() {
     const timeStr = dt.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
     const av = author.avatarUrl;
     const avatarHtml = av
-      ? `<img class="tt-avatar" src="${escapeHtml(av)}" alt="" onerror="this.replaceWith(Object.assign(document.createElement('span'),{className:'tt-dot',style:'background:${hit.color}'}))">`
+      ? `<img class="tt-avatar" src="${escapeHtml(av)}" alt="" data-fallback-tag="span" data-fallback-class="tt-dot" data-bg="${escapeHtml(hit.color)}">`
       : `<span class="tt-dot" style="background:${hit.color}"></span>`;
     tooltip.innerHTML =
       `<div class="tt-author-row">${avatarHtml}<span class="tt-author">${escapeHtml(author.name)}</span></div>` +
       `<div class="tt-subject">${escapeHtml(c.s || '')}</div>` +
       `<div class="tt-meta">${dateStr} ${timeStr} · <span style="color:${colorAdded}">+${fmt(c.a || 0)}</span> <span style="color:${colorDeleted}">-${fmt(c.l || 0)}</span> · <span class="tt-hash">${c.h}</span></div>`;
+    installAvatarFallback(tooltip.querySelector('.tt-avatar'));
     tooltip.style.left = clientX + 'px';
     tooltip.style.top = clientY + 'px';
     tooltip.classList.add('visible');
