@@ -10,6 +10,13 @@ a remote GitHub repo and writes a self-contained HTML dashboard
 showing top contributors, weekly/daily activity, time-of-day patterns,
 and per-author commit feeds.
 
+The [GitHub CLI (`gh`)](https://cli.github.com/) is optional but
+recommended: when authenticated (`gh auth login`), `repo-intel` uses
+its token to fetch remote repos via the GitHub GraphQL API and to
+enrich author cards with GitHub profile data (avatar, bio, follower
+counts, etc.). Without `gh`, the script falls back to `$GITHUB_TOKEN`
+or a bare-clone of the remote, and author cards show git data only.
+
 ## Usage
 
 ```

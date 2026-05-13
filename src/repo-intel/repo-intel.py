@@ -41,7 +41,10 @@ Examples:
   repo-intel --since 2024-01-01 --until 2024-06-30  # H1 2024
 
 Remote auth:
-  Uses `gh auth token -h github.com`, then $GITHUB_TOKEN.
+  The GitHub CLI (`gh`, https://cli.github.com/) is optional but
+  recommended — when authenticated it unlocks GraphQL remote fetching
+  and author hovercard enrichment (avatar, bio, follower counts).
+  Lookup order: `gh auth token -h github.com`, then $GITHUB_TOKEN.
   Falls back to `git clone --bare` into /tmp if neither is available.
 
 Output:
