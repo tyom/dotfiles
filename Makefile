@@ -47,4 +47,10 @@ docker-test-remote-local: ## Test remote install using local HTTP server
 	docker build -f Dockerfile.remote-test -t $(IMAGE_NAME)-remote .
 	docker run --rm $(IMAGE_NAME)-remote remote-test-local
 
-.PHONY: help install uninstall brew docker-build docker-test docker-shell docker-setup docker-clean docker-test-remote docker-test-remote-local
+repo-intel-build: ## Rebuild stow/bin/repo-intel from src/repo-intel
+	python3 src/repo-intel/build.py stow/bin/repo-intel
+
+repo-intel-dev: ## Run repo-intel from source (reads template.html live; pass args via ARGS=)
+	python3 src/repo-intel/repo-intel.py $(ARGS)
+
+.PHONY: help install uninstall brew docker-build docker-test docker-shell docker-setup docker-clean docker-test-remote docker-test-remote-local repo-intel-build repo-intel-dev

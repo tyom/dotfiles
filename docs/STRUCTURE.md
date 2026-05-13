@@ -22,6 +22,7 @@ stow/
 | `shell/`         | Shell modules sourced by `zsh/config.zsh`                      |
 | `claude-plugin/` | Claude Code plugin (registered directly, not symlinked)        |
 | `scripts/`       | Installation and setup scripts                                 |
+| `src/`           | Source for `stow/bin/` tools that need a build step (see each subdir's README) |
 
 ## Adding New Dotfiles
 
