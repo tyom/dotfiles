@@ -1185,7 +1185,7 @@ function buildTimeline() {
   }
 
   let mmMode = null;
-  let mmDragging = false, mmStartX = 0, mmStartSL = 0, mmPointerId = -1;
+  let mmStartX = 0, mmStartSL = 0, mmPointerId = -1;
   let mmSelStartX = 0, mmSelCurX = 0, mmSelMoved = false;
   function drawSelectionPreview() {
     if (mmMode !== 'select' || !mmSelMoved) return;
@@ -1358,7 +1358,6 @@ function buildTimeline() {
     if (mmMode === null) return;
     const wasSelecting = mmMode === 'select' && mmSelMoved;
     mmMode = null;
-    mmDragging = false;
     mmSelMoved = false;
     document.body.style.cursor = '';
     histCanvas.style.cursor = '';
@@ -1382,7 +1381,6 @@ function buildTimeline() {
     histCanvas.setPointerCapture(e.pointerId);
     if (mmWindowAtX(x)) {
       mmMode = 'pan';
-      mmDragging = true;
       mmStartX = e.clientX;
       mmStartSL = scrollDiv.scrollLeft;
       document.body.style.cursor = 'grabbing';

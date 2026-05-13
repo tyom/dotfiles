@@ -82,6 +82,23 @@ CACHE_DIR = (
 )
 
 
+def parse_iso_instant(s):
+    """Parse an ISO 8601 timestamp to a UTC-aware datetime; epoch on failure.
+
+    Tags mix `Z`-suffixed UTC (GraphQL) with offset-suffixed local time
+    (`git for-each-ref iso8601-strict`), so lex-sorting can misorder them.
+    """
+    if not s:
+        return datetime(1970, 1, 1, tzinfo=timezone.utc)
+    try:
+        dt = datetime.fromisoformat(s.replace("Z", "+00:00"))
+    except ValueError:
+        return datetime(1970, 1, 1, tzinfo=timezone.utc)
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(timezone.utc)
+
+
 def cache_path(slug):
     safe = re.sub(r"[^\w.-]+", "-", slug.lower()).strip("-") or "repo"
     return CACHE_DIR / f"{safe}.json"
@@ -258,15 +275,6 @@ def git(*args, cwd=None):
     return subprocess.check_output(["git", *args], text=True, cwd=cwd)
 
 
-def count_local_commits(cwd=None):
-    """Count non-merge commits reachable from HEAD; 0 on failure."""
-    try:
-        out = git("rev-list", "--no-merges", "--count", "HEAD", cwd=cwd)
-        return int(out.strip())
-    except (subprocess.CalledProcessError, ValueError):
-        return 0
-
-
 _CLONE_REFRESHED = set()
 
 
@@ -388,7 +396,7 @@ def collect_local_tags(cwd=None):
         if not oid or not date:
             continue
         tags.append({"name": name, "oid": oid, "date": date, "message": subject})
-    tags.sort(key=lambda t: t["date"])
+    tags.sort(key=lambda t: parse_iso_instant(t.get("date")))
     return tags
 
 
@@ -685,7 +693,7 @@ query($owner: String!, $repo: String!, $cursor: String) {
         if not page.get("hasNextPage"):
             break
         cursor = page.get("endCursor")
-    tags.sort(key=lambda t: t["date"])
+    tags.sort(key=lambda t: parse_iso_instant(t.get("date")))
     return tags
 
 
@@ -1176,25 +1184,22 @@ def main():
     if remote:
         owner, repo = remote.split("/", 1)
         token = get_github_token()
-        can_prompt = (
-            not (commits_filter or since or until)
-            and sys.stdin.isatty()
-            and sys.stderr.isatty()
-        )
 
         if not token:
             print("No GitHub token — falling back to bare clone.", file=sys.stderr)
 
-        if can_prompt:
-            has_any_cache = not no_cache and token and bool(load_cache(remote)[0])
-            if has_any_cache:
-                total = None  # any cache becomes a delta anchor; no prompt needed
-            elif token:
-                total = probe_remote_total(owner, repo, token)
-            else:
-                print(f"Cloning {remote} to count commits…", file=sys.stderr)
-                clone_dir = ensure_bare_clone(owner, repo, no_cache)
-                total = count_local_commits(cwd=clone_dir)
+        # Subset prompt only in the GraphQL path: probing total via the API is
+        # cheap, and skipping `--commits N` actually saves network. In the
+        # bare-clone path the full clone runs regardless, so the prompt would
+        # only trim local display — pass `--commits` / `--since` for that.
+        if (
+            token
+            and not (commits_filter or since or until)
+            and sys.stdin.isatty()
+            and sys.stderr.isatty()
+        ):
+            has_any_cache = not no_cache and bool(load_cache(remote)[0])
+            total = None if has_any_cache else probe_remote_total(owner, repo, token)
             if total and total > 1000:
                 commits_filter, since, until = prompt_subset(total)
 

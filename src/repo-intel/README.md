@@ -53,8 +53,12 @@ run prints `filtered: X/total commits` so you can see what was kept.
 
 When a remote repo has more than 1000 commits and no filter flag was
 passed, `repo-intel` prompts interactively for a subset (Last 500, Last
-1000, Past year, or All). The prompt is skipped when stdin/stderr is
-not a TTY or when any of `--commits` / `--since` / `--until` is given.
+1000, Past year, or All). The prompt requires the GraphQL path
+(token-authenticated), because that's where picking a subset actually
+saves network — the bare-clone fallback downloads everything regardless,
+so it skips the prompt and you can pass `--commits` / `--since` to trim
+the display instead. Also skipped when stdin/stderr is not a TTY or when
+any of `--commits` / `--since` / `--until` is given.
 
 ### Output
 
