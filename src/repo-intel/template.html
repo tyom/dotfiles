@@ -1293,6 +1293,14 @@ function buildTimeline() {
   }
   histCanvas.addEventListener('pointerup', commitMmPointer);
   histCanvas.addEventListener('pointercancel', () => { mmSelMoved = false; endMmDrag(); });
+  histCanvas.addEventListener('dblclick', e => {
+    const rect = histCanvas.getBoundingClientRect();
+    if (!mmWindowAtX(e.clientX - rect.left)) return;
+    e.preventDefault();
+    endMmDrag();
+    stopInertia();
+    animateReset();
+  });
 
   function showTagTooltip(idx, clientX, clientY) {
     const t = tags[idx];
