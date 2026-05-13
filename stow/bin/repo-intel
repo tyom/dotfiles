@@ -103,22 +103,26 @@ def save_cache(slug, nodes, complete):
     cache_path(slug).write_text(json.dumps({"nodes": nodes, "complete": complete}))
 
 
-def cache_covers_request(loaded_nodes, loaded_complete, commits_filter, since, until):
-    """True if the cache contains enough to answer the current request."""
-    if loaded_complete:
-        return True
-    if not loaded_nodes:
+def needs_older_fetch(have_count, cached_oldest_date, prev_complete,
+                      commits_filter, since, until):
+    """Should we paginate below the oldest cached commit after top-fetch?
+
+    have_count: len(new_nodes) + len(cached_nodes) after the top-fetch.
+    cached_oldest_date: YYYY-MM-DD of the oldest cached commit, "" if empty.
+    """
+    if prev_complete:
+        return False
+    if not cached_oldest_date:
         return False
     if until:
-        return False
+        return True
     if commits_filter:
         if commits_filter[0] == "last":
-            return len(loaded_nodes) >= commits_filter[1]
-        return False
+            return have_count < commits_filter[1]
+        return True  # range — slice is anchored at oldest, must walk full history
     if since:
-        oldest = ((loaded_nodes[-1].get("author") or {}).get("date") or "")[:10]
-        return bool(oldest) and oldest <= since
-    return False
+        return cached_oldest_date > since
+    return True
 
 
 def parse_commits_spec(val):
@@ -685,6 +689,41 @@ query($owner: String!, $repo: String!, $cursor: String) {
     return tags
 
 
+def _paginate_history(fetch_page, cached_oids, last_n, since,
+                      have_count_baseline, label, skip_first=False):
+    """Walk a Commit.history connection page by page.
+
+    fetch_page(cursor) -> history dict, or None when the anchor object is gone.
+    Returns (nodes, reason) where reason ∈
+        "hit_cache" | "short_circuit" | "page_end" | "anchor_null"
+    """
+    nodes = []
+    cursor = None
+    dropped_anchor = not skip_first
+    while True:
+        history = fetch_page(cursor)
+        if history is None:
+            return nodes, "anchor_null"
+        for n in history.get("nodes") or []:
+            if not dropped_anchor:
+                dropped_anchor = True
+                continue
+            if n["oid"] in cached_oids:
+                return nodes, "hit_cache"
+            nodes.append(n)
+            if last_n is not None and len(nodes) + have_count_baseline >= last_n:
+                return nodes, "short_circuit"
+            if since:
+                d = ((n.get("author") or {}).get("date") or "")[:10]
+                if d and d < since:
+                    return nodes, "short_circuit"
+        page = history.get("pageInfo") or {}
+        if not page.get("hasNextPage"):
+            return nodes, "page_end"
+        cursor = page.get("endCursor")
+        print(f"  fetched {len(nodes)} {label} commits…", file=sys.stderr)
+
+
 def collect_remote(slug, token, no_cache=False, commits_filter=None, since=None, until=None):
     owner, repo = slug.split("/", 1)
 
@@ -717,7 +756,7 @@ def collect_remote(slug, token, no_cache=False, commits_filter=None, since=None,
             tags,
         )
 
-    query = """
+    top_query = """
 query($owner: String!, $repo: String!, $cursor: String) {
   repository(owner: $owner, name: $repo) {
     name url diskUsage
@@ -740,73 +779,122 @@ query($owner: String!, $repo: String!, $cursor: String) {
 }
 """.strip()
 
+    bottom_query = """
+query($owner: String!, $repo: String!, $oid: GitObjectID!, $cursor: String) {
+  repository(owner: $owner, name: $repo) {
+    object(oid: $oid) {
+      ... on Commit {
+        history(first: 100, after: $cursor) {
+          pageInfo { hasNextPage endCursor }
+          nodes {
+            oid messageHeadline
+            author { name email date user { avatarUrl(size: 64) login } }
+            additions deletions
+          }
+        }
+      }
+    }
+  }
+}
+""".strip()
+
     loaded_nodes, loaded_complete = ([], False) if no_cache else load_cache(slug)
-    if loaded_nodes and not cache_covers_request(
-        loaded_nodes, loaded_complete, commits_filter, since, until
-    ):
-        print(
-            f"  cache: {len(loaded_nodes)} commits (partial — request needs more, re-fetching)",
-            file=sys.stderr,
-        )
-        cached_nodes = []
-    else:
-        cached_nodes = loaded_nodes
-        if cached_nodes:
-            label = "complete" if loaded_complete else "partial"
-            print(f"  cache: {len(cached_nodes)} commits ({label})", file=sys.stderr)
+    cached_nodes = loaded_nodes
     cached_oids = {n["oid"] for n in cached_nodes}
+    if cached_nodes:
+        label = "complete" if loaded_complete else "partial"
+        print(f"  cache: {len(cached_nodes)} commits ({label})", file=sys.stderr)
 
     last_n = commits_filter[1] if commits_filter and commits_filter[0] == "last" else None
 
-    cursor = None
-    new_nodes = []
-    repo_name = repo
-    repo_url = f"https://github.com/{owner}/{repo}"
-    default_branch = "main"
-    repo_size_kb = 0
-    hit_cache = False
-    hit_end = False
-    short_circuited = False
-    while True:
-        body = gh_graphql(query, {"owner": owner, "repo": repo, "cursor": cursor}, token)
+    repo_meta = {
+        "name": repo,
+        "url": f"https://github.com/{owner}/{repo}",
+        "branch": "main",
+        "disk_kb": 0,
+    }
+
+    def top_fetch_page(cursor):
+        body = gh_graphql(top_query, {"owner": owner, "repo": repo, "cursor": cursor}, token)
         if "errors" in body:
             sys.exit(f"GraphQL error: {body['errors']}")
         repo_node = body["data"]["repository"]
         if not repo_node:
             sys.exit(f"Repository not found or inaccessible: {slug}")
-        repo_name = repo_node["name"]
-        repo_url = repo_node["url"]
-        repo_size_kb = repo_node.get("diskUsage") or 0
+        repo_meta["name"] = repo_node["name"]
+        repo_meta["url"] = repo_node["url"]
+        repo_meta["disk_kb"] = repo_node.get("diskUsage") or 0
         branch_ref = repo_node.get("defaultBranchRef")
         if not branch_ref or not branch_ref.get("target"):
             sys.exit(f"error: {slug} has no commits on its default branch")
-        default_branch = branch_ref.get("name") or default_branch
-        history = branch_ref["target"]["history"]
-        for n in history["nodes"]:
-            if n["oid"] in cached_oids:
-                hit_cache = True
-                break
-            new_nodes.append(n)
-            if last_n is not None and len(new_nodes) + len(cached_nodes) >= last_n:
-                short_circuited = True
-                break
-            if since:
-                d = ((n.get("author") or {}).get("date") or "")[:10]
-                if d and d < since:
-                    short_circuited = True
-                    break
-        if hit_cache or short_circuited:
-            break
-        if not history["pageInfo"]["hasNextPage"]:
-            hit_end = True
-            break
-        cursor = history["pageInfo"]["endCursor"]
-        print(f"  fetched {len(new_nodes)} new commits…", file=sys.stderr)
+        repo_meta["branch"] = branch_ref.get("name") or repo_meta["branch"]
+        return branch_ref["target"]["history"]
 
+    new_nodes, top_reason = _paginate_history(
+        top_fetch_page, cached_oids, last_n, since,
+        have_count_baseline=len(cached_nodes), label="new",
+    )
+
+    if top_reason == "page_end" and cached_oids:
+        print(
+            f"  cache: orphaned by force-push/rewrite, discarded ({len(cached_nodes)} commits)",
+            file=sys.stderr,
+        )
+        cached_nodes = []
+        cached_oids = set()
+        loaded_complete = False
     if new_nodes:
         print(f"  fetched {len(new_nodes)} new commits", file=sys.stderr)
-    nodes = new_nodes + cached_nodes
-    new_complete = hit_end or (hit_cache and loaded_complete)
+
+    older_nodes = []
+    bottom_reason = None
+    have_count = len(new_nodes) + len(cached_nodes)
+    cached_oldest_date = (
+        ((cached_nodes[-1].get("author") or {}).get("date") or "")[:10]
+        if cached_nodes else ""
+    )
+    if needs_older_fetch(
+        have_count, cached_oldest_date, loaded_complete,
+        commits_filter, since, until,
+    ):
+        anchor_oid = cached_nodes[-1]["oid"]
+
+        def bottom_fetch_page(cursor):
+            body = gh_graphql(
+                bottom_query,
+                {"owner": owner, "repo": repo, "oid": anchor_oid, "cursor": cursor},
+                token,
+            )
+            if "errors" in body:
+                sys.exit(f"GraphQL error: {body['errors']}")
+            repo_node = (body.get("data") or {}).get("repository") or {}
+            obj = repo_node.get("object")
+            if not obj:
+                return None
+            return obj.get("history") or {"nodes": [], "pageInfo": {}}
+
+        older_nodes, bottom_reason = _paginate_history(
+            bottom_fetch_page, cached_oids, last_n, since,
+            have_count_baseline=have_count, label="older", skip_first=True,
+        )
+        if bottom_reason == "anchor_null":
+            print(
+                "  warning: cache anchor commit no longer exists; keeping what we have",
+                file=sys.stderr,
+            )
+        elif older_nodes:
+            print(f"  fetched {len(older_nodes)} older commits", file=sys.stderr)
+
+    repo_name = repo_meta["name"]
+    repo_url = repo_meta["url"]
+    default_branch = repo_meta["branch"]
+    repo_size_kb = repo_meta["disk_kb"]
+
+    nodes = new_nodes + cached_nodes + older_nodes
+    if bottom_reason is None:
+        new_complete = top_reason == "page_end" or loaded_complete
+    else:
+        new_complete = bottom_reason == "page_end"
     if not no_cache and nodes:
         save_cache(slug, nodes, new_complete)
 
@@ -1098,9 +1186,9 @@ def main():
             print("No GitHub token — falling back to bare clone.", file=sys.stderr)
 
         if can_prompt:
-            cache_complete = not no_cache and token and load_cache(remote)[1]
-            if cache_complete:
-                total = None  # full cache already covers everything; nothing to subset
+            has_any_cache = not no_cache and token and bool(load_cache(remote)[0])
+            if has_any_cache:
+                total = None  # any cache becomes a delta anchor; no prompt needed
             elif token:
                 total = probe_remote_total(owner, repo, token)
             else:
