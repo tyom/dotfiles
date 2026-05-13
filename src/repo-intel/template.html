@@ -45,7 +45,7 @@
   h3 { font-size: 0.95rem; font-weight: 600; margin: 0 0 12px; color: var(--text-muted); }
   .subtitle { color: var(--text-muted); font-size: 0.85rem; margin-bottom: 24px; }
   .section { margin-bottom: 32px; }
-  .card { background: var(--bg-card); border: 1px solid var(--border-default); border-radius: 8px; padding: 20px; }
+  .card { background: var(--bg-card); border-radius: 8px; padding: 20px; }
   .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
   .grid-5 { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; }
   canvas { max-height: 300px; }
@@ -54,6 +54,8 @@
   th { text-align: left; color: var(--text-muted); font-weight: 500; padding: 8px 10px; border-bottom: 1px solid var(--border-default); white-space: nowrap; }
   td { padding: 8px 10px; border-bottom: 1px solid var(--border-subtle); white-space: nowrap; }
   tr:last-child td { border-bottom: none; }
+  tbody tr:not(.totals):not(.subtotal) { transition: background-color 0.1s; }
+  tbody tr:not(.totals):not(.subtotal):hover td { background: var(--bg-badge); }
   tr.totals td { border-top: 2px solid var(--border-default); font-weight: 600; color: var(--text-secondary); }
   tr.subtotal td { border-top: 1px solid var(--border-default); color: var(--text-muted); font-style: italic; }
   .num { text-align: right; font-variant-numeric: tabular-nums; }
