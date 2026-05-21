@@ -216,12 +216,12 @@
   /* Technologies section. */
   #tech .tech-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; align-items: start; }
   #tech .tech-bar-label { font-size: 0.78rem; color: var(--text-muted); margin: 0 0 4px; }
-  #tech .frameworks { display: flex; flex-direction: column; gap: 6px; }
-  #tech .fw-group { display: grid; grid-template-columns: 130px 1fr; gap: 10px; align-items: center; }
+  #tech .frameworks { display: flex; flex-direction: column; }
+  #tech .fw-group { display: grid; grid-template-columns: 130px 1fr; gap: 10px; align-items: baseline; padding: 9px 0; border-top: 1px solid var(--border-default); }
+  #tech .fw-group:first-child { border-top: none; }
   #tech .fw-lang { display: inline-flex; align-items: center; gap: 7px; font-size: 0.82rem; color: var(--text-secondary); font-weight: 600; }
   #tech .fw-lang .lang-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
-  #tech .fw-items { display: flex; flex-wrap: wrap; gap: 6px; }
-  #tech .fw-chip { background: var(--bg-badge); border: 1px solid var(--border-default); border-radius: 999px; padding: 2px 10px; font-size: 0.76rem; color: var(--text-secondary); white-space: nowrap; }
+  #tech .fw-items { font-size: 0.82rem; color: var(--text-secondary); line-height: 1.5; }
   #tech .tech-empty { color: var(--text-muted); font-size: 0.8rem; font-style: italic; }
   .timeline-tooltip .tt-ftypes { display: flex; flex-wrap: wrap; gap: 4px 10px; margin-top: 5px; }
   .timeline-tooltip .tt-ftype { display: inline-flex; align-items: center; gap: 5px; font-size: 0.7rem; color: var(--text-secondary); }
@@ -533,7 +533,7 @@ function renderTech() {
       ? `<div class="frameworks">` + frameworks.map(g =>
           `<div class="fw-group">` +
             `<span class="fw-lang"><span class="lang-dot" style="background:${g.color}"></span>${escapeHtml(g.language)}</span>` +
-            `<span class="fw-items">${g.names.map(n => `<span class="fw-chip">${escapeHtml(n)}</span>`).join('')}</span>` +
+            `<span class="fw-items">${g.names.map(escapeHtml).join(', ')}</span>` +
           `</div>`
         ).join('') + `</div>`
       : `<div class="tech-empty">No known frameworks detected in the repo's dependency manifests.</div>`
