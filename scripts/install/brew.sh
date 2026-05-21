@@ -52,4 +52,12 @@ fi
 
 print_step "Updating Homebrew" && brew update
 print_step "Installing Homebrew packages" && brew install "${packages[@]}"
+
+# repo-intel (standalone tool: github.com/tyom/repo-intel). Installed separately
+# and non-fatally so a missing/unpublished tap can't abort the core packages
+# above. If this is skipped, setup.sh's curl fallback installs it into ~/bin.
+print_step "Installing repo-intel (tap: tyom/homebrew-tap)" &&
+  brew install tyom/tap/repo-intel ||
+  print_info "Skipping repo-intel via brew (setup will fetch it via curl)"
+
 print_info "Cleaning outdating brew packages" && brew cleanup

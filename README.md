@@ -12,7 +12,7 @@ Personal dotfiles for macOS and Linux, designed for a smooth developer experienc
 - **Vim**: Pre-configured with vim-plug and curated plugins
 - **CLI Tools**: bat (syntax-highlighted cat), fzf (fuzzy finder), git-delta (better diffs), and more via Homebrew
 - **Dev Tools**: Volta and Node.js; Bun (optional)
-- **Bin Scripts**: Handy commands like `ungit` (clone GitHub repos/subdirs as files or text) and [`repo-intel`](./src/repo-intel/README.md) (contributor stats dashboard for any git repo)
+- **Bin Scripts**: Handy commands like `ungit` (clone GitHub repos/subdirs as files or text) and [`repo-intel`](https://github.com/tyom/repo-intel) (contributor stats dashboard for any git repo — now a standalone tool, installed via Homebrew or fetched into `~/bin` during setup)
 - **Claude Code Plugin**: Custom commands for code review, explanation, and refactoring
 
 ![Shell screenshot](https://tyom.github.io/dotfiles/shell.png)
@@ -257,8 +257,6 @@ Run `make` to see all available commands:
 | `make docker-clean`             | Remove persistent Docker containers       |
 | `make docker-test-remote`       | Smoke test remote install (deployed URL)  |
 | `make docker-test-remote-local` | Test remote install via local HTTP server |
-| `make repo-intel-build`         | Rebuild `stow/bin/repo-intel` from `src/` |
-| `make repo-intel-dev`           | Run `repo-intel` from source (pass `ARGS=`) |
 
 Docker commands support `VARIANT=minimal` for testing without Homebrew/Bun (e.g., `make docker-test VARIANT=minimal`).
 
