@@ -479,20 +479,15 @@ def _head_first_line(path, cwd=None):
     return (out if nl < 0 else out[:nl]).decode("utf-8", "replace")
 
 
-def detect_frameworks(cwd=None):
+def detect_frameworks(paths, cwd=None):
     """Detect frameworks at HEAD from a local repo / bare clone.
 
+    `paths`: the HEAD tree (repo-relative), already listed by the caller.
     Returns a list grouped by language, ordered by framework count:
         [{"language": "TypeScript", "color": "#3178c6", "names": [...]}, ...]
     Best-effort and local-only — the GraphQL remote path skips this.
     """
-    try:
-        tree = git("ls-tree", "-r", "HEAD", "--name-only", cwd=cwd)
-    except subprocess.CalledProcessError:
-        return []
-    return _frameworks_from_files(
-        [p for p in tree.splitlines() if p], lambda p: _git_show(p, cwd)
-    )
+    return _frameworks_from_files(paths, lambda p: _git_show(p, cwd))
 
 
 def _frameworks_from_files(paths, read_file):
@@ -606,24 +601,15 @@ def _frameworks_from_files(paths, read_file):
     return groups
 
 
-def head_languages(cwd=None):
-    """Inputs for the language bar that need the HEAD tree, not the log.
+def head_shebangs(present, cwd=None):
+    """Shebang map for the language bar: {path: language}.
 
-    Returns `(present, shebang)`:
-      - `present`: every path tracked at HEAD, so `classify_path` can drop churn
-        against files that no longer exist.
-      - `shebang`: {path: language} for extensionless/unknown files whose `#!`
-        line names an interpreter — peeked only for files `classify_path` would
-        otherwise bucket as "Other", so the read stays cheap.
-
-    Plumbing-only (`ls-tree` + `git show`), so it works on bare clones too. The
-    remote GraphQL path has no per-file data and skips this entirely.
+    `present`: the HEAD tree (repo-relative). Returns the subset of
+    extensionless/unknown files whose `#!` line names an interpreter — peeked
+    only for files `classify_path` would otherwise bucket as "Other", so the
+    read stays cheap. Plumbing-only (`git show`), so it works on bare clones;
+    the remote GraphQL path has no per-file data and skips this entirely.
     """
-    try:
-        tree = git("ls-tree", "-r", "HEAD", "--name-only", cwd=cwd)
-    except subprocess.CalledProcessError:
-        return set(), {}
-    present = {p for p in tree.splitlines() if p}
     shebang = {}
     for path in present:
         # Only extensionless files need a peek: scripts (`bin/deploy`) live here,
@@ -634,7 +620,7 @@ def head_languages(cwd=None):
         lang = shebang_lang(_head_first_line(path, cwd=cwd))
         if lang:
             shebang[path] = lang
-    return present, shebang
+    return shebang
 
 
 _CLONE_REFRESHED = set()
@@ -786,8 +772,8 @@ def collect_local(cwd=None, suppress_current_user=False):
             pass
 
     log = git(
-        # -c core.quotePath=false: keep non-ASCII paths raw so they match the
-        # raw paths from head_languages() (both feed classify_path's present set).
+        # -c core.quotePath=false: keep non-ASCII paths raw so log paths match
+        # the `present` set from the HEAD tree below (both feed classify_path).
         "-c", "core.quotePath=false",
         "log", "--no-merges", "-M",
         "--format=%H\x1f%s\x1f%aE\x1f%aN\x1f%aI",
@@ -795,7 +781,16 @@ def collect_local(cwd=None, suppress_current_user=False):
         cwd=cwd,
     )
     commits_meta, line_stats, lang_stats = {}, {}, {}
-    present, shebang = head_languages(cwd=cwd)
+    try:
+        tree = git("ls-tree", "-r", "HEAD", "--name-only", cwd=cwd)
+        present = {p for p in tree.splitlines() if p}
+    except subprocess.CalledProcessError:
+        present = set()
+    shebang = head_shebangs(present, cwd=cwd)
+    # classify_path scans the vendor regex per path; the same paths recur across
+    # thousands of commits, so cache per unique numstat field (present/shebang
+    # are fixed for the run).
+    lang_cache = {}
     cur = None
     for line in log.splitlines():
         if not line:
@@ -826,7 +821,12 @@ def collect_local(cwd=None, suppress_current_user=False):
         line_stats[cur][0] += added
         line_stats[cur][1] += deleted
         if len(cols) >= 3:
-            lang = classify_path(cols[2], present=present, shebang=shebang)
+            field = cols[2]
+            if field in lang_cache:
+                lang = lang_cache[field]
+            else:
+                lang = classify_path(field, present=present, shebang=shebang)
+                lang_cache[field] = lang
             if lang:
                 rec = lang_stats.setdefault(cur, {}).setdefault(lang, [0, 0, 0])
                 rec[0] += added
@@ -834,7 +834,7 @@ def collect_local(cwd=None, suppress_current_user=False):
                 rec[2] += 1
 
     default_branch = detect_default_branch(cwd=cwd)
-    extras = {"lang_stats": lang_stats, "frameworks": detect_frameworks(cwd=cwd)}
+    extras = {"lang_stats": lang_stats, "frameworks": detect_frameworks(present, cwd=cwd)}
     return (
         repo_name,
         github_base,
@@ -1355,6 +1355,17 @@ query($owner: String!, $repo: String!, $oid: GitObjectID!, $cursor: String, $pag
         repo_meta["branch"] = branch_ref.get("name") or repo_meta["branch"]
         return branch_ref["target"]["history"]
 
+    def bail_partial(nodes):
+        """Persist a contiguous partial run after a fetch failure, then exit so
+        the next run resumes from its tail. Saved as incomplete on purpose."""
+        if not no_cache and nodes:
+            save_cache(slug, nodes, False)
+            print(
+                f"  cached {len(nodes)} commits so far — re-run to resume",
+                file=sys.stderr,
+            )
+        sys.exit("error: GitHub fetch failed after repeated retries; aborting.")
+
     new_nodes, top_reason = _paginate_history(
         top_fetch_page, cached_oids, last_n, since,
         have_count_baseline=len(cached_nodes), label="new",
@@ -1364,13 +1375,7 @@ query($owner: String!, $repo: String!, $oid: GitObjectID!, $cursor: String, $pag
         # new_nodes is a contiguous run from HEAD. We never reached the old
         # cache, so merging would leave a gap — persist just the fresh prefix
         # (the next run resumes its tail via the older-fetch) and bail out.
-        if not no_cache and new_nodes:
-            save_cache(slug, new_nodes, False)
-            print(
-                f"  cached {len(new_nodes)} commits so far — re-run to resume",
-                file=sys.stderr,
-            )
-        sys.exit("error: GitHub fetch failed after repeated retries; aborting.")
+        bail_partial(new_nodes)
 
     if top_reason == "page_end" and cached_oids:
         print(
@@ -1431,13 +1436,7 @@ query($owner: String!, $repo: String!, $oid: GitObjectID!, $cursor: String, $pag
     if bottom_reason == "fetch_failed":
         # new + cached + older are contiguous, so the partial run is a valid
         # prefix to persist; the next run extends from its tail.
-        if not no_cache and nodes:
-            save_cache(slug, nodes, False)
-            print(
-                f"  cached {len(nodes)} commits so far — re-run to resume",
-                file=sys.stderr,
-            )
-        sys.exit("error: GitHub fetch failed after repeated retries; aborting.")
+        bail_partial(nodes)
     if bottom_reason is None:
         new_complete = top_reason == "page_end" or loaded_complete
     else:
