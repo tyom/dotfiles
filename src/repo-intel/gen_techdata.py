@@ -43,6 +43,13 @@ EXT_OVERRIDE = {
     "ts": "TypeScript", "rs": "Rust", "cs": "C#", "sql": "SQL",
 }
 
+# Generic extensions whose canonical Linguist owner is the colorless "Text"
+# language. Because color-less languages are dropped from the tables, a niche
+# *colored* claimant would otherwise win the slot (e.g. `.txt` → "Adblock Filter
+# List") — Linguist itself resolves these via a content classifier we can't run,
+# so we leave them unassigned and let classify_path bucket them as "Other".
+EXT_EXCLUDE = {"txt"}
+
 # Curated web/npm dependency → framework display name. Vercel/Netlify answer a
 # different question (deploy presets), so this is maintained directly.
 CURATED_WEB = {
@@ -250,6 +257,8 @@ def build_language_tables(langs):
     for ext, lang in EXT_OVERRIDE.items():
         if lang in name_color:
             ext_lang[ext] = lang
+    for ext in EXT_EXCLUDE:
+        ext_lang.pop(ext, None)
     name_color.update(SYNTHETIC_COLORS)  # synthetic buckets Linguist doesn't color
     return name_color, ext_lang, filename_lang
 
