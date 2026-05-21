@@ -197,6 +197,28 @@
   .lane-popover .lp-stats .add { color: var(--color-added); }
   .lane-popover .lp-stats .del { color: var(--color-deleted); }
   .lane-popover .lp-period { color: var(--text-muted); font-size: 0.72rem; margin-top: 4px; }
+  /* Language bar — shared by the author popover and the Technologies section. */
+  .langbar { display: flex; height: 8px; border-radius: 4px; overflow: hidden; background: var(--bg-badge); margin-top: 10px; }
+  .langbar > span { display: block; height: 100%; min-width: 2px; }
+  .lang-legend { display: flex; flex-wrap: wrap; gap: 4px 14px; margin-top: 8px; font-size: 0.74rem; color: var(--text-secondary); }
+  .lang-legend .lang-item { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+  .lang-legend .lang-dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
+  .lang-legend .lang-pct { color: var(--text-muted); font-variant-numeric: tabular-nums; }
+  .lane-popover .langbar { margin-top: 12px; }
+  .lane-popover .lang-legend { font-size: 0.72rem; gap: 3px 10px; }
+  /* Technologies section. */
+  #tech .tech-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; align-items: start; }
+  #tech .tech-bar-label { font-size: 0.78rem; color: var(--text-muted); margin: 0 0 4px; }
+  #tech .frameworks { display: flex; flex-direction: column; gap: 12px; }
+  #tech .fw-group { display: grid; grid-template-columns: 130px 1fr; gap: 10px; align-items: baseline; }
+  #tech .fw-lang { display: inline-flex; align-items: center; gap: 7px; font-size: 0.82rem; color: var(--text-secondary); font-weight: 600; }
+  #tech .fw-lang .lang-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+  #tech .fw-items { display: flex; flex-wrap: wrap; gap: 6px; }
+  #tech .fw-chip { background: var(--bg-badge); border: 1px solid var(--border-default); border-radius: 999px; padding: 2px 10px; font-size: 0.76rem; color: var(--text-secondary); white-space: nowrap; }
+  #tech .tech-empty { color: var(--text-muted); font-size: 0.8rem; font-style: italic; }
+  .timeline-tooltip .tt-ftypes { display: flex; flex-wrap: wrap; gap: 4px 10px; margin-top: 5px; }
+  .timeline-tooltip .tt-ftype { display: inline-flex; align-items: center; gap: 5px; font-size: 0.7rem; color: var(--text-secondary); }
+  .timeline-tooltip .tt-ftype .tt-fdot { width: 8px; height: 8px; border-radius: 2px; flex-shrink: 0; }
   * { scrollbar-width: thin; scrollbar-color: var(--scrollbar-thumb) var(--bg-primary); }
   ::-webkit-scrollbar { height: 8px; width: 8px; }
   ::-webkit-scrollbar-track { background: var(--bg-primary); border-radius: 4px; }
@@ -205,6 +227,7 @@
   @media (max-width: 900px) {
     .grid-2 { grid-template-columns: 1fr; }
     .grid-5 { grid-template-columns: repeat(2, 1fr); }
+    #tech .tech-grid { grid-template-columns: 1fr; }
     .layout { flex-direction: column; }
     .sidebar { position: static; width: 100%; }
     .sidebar nav { flex-direction: row; flex-wrap: wrap; }
@@ -222,6 +245,7 @@
     <a href="#contributions">Contributions</a>
     <a href="#commit-timeline">Commit timeline</a>
     <a href="#summary">Summary</a>
+    <a href="#tech">Technologies</a>
     <a href="#overall">Overall</a>
     <a href="#commit-frequency">Commit frequency</a>
     <a href="#hour-patterns">Hour of day</a>
@@ -250,6 +274,10 @@
     </tr></thead>
     <tbody id="tableBody"></tbody>
   </table></div></div></div>
+  <div class="section" id="tech" hidden><div class="card"><h2>Technologies</h2><div class="tech-grid">
+    <div id="techLanguages"></div>
+    <div id="techFrameworks"></div>
+  </div></div></div>
   <div class="section" id="overall"><h2>Overall</h2><div class="grid-2">
     <div class="card chart-resettable"><canvas id="overallTimeline"></canvas></div>
     <div class="card chart-resettable"><canvas id="commitsPie"></canvas></div>
@@ -445,6 +473,53 @@ heatmapContainer.addEventListener('mouseout', e => {
 // === COMMIT TIMELINE ===
 function escapeHtml(s) { return String(s).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
 
+// Stacked language bar from a [{name, pct, color}] list (Python-precomputed).
+function langBarHtml(langs, { legend = true } = {}) {
+  if (!langs || !langs.length) return '';
+  const segs = langs.map(l =>
+    `<span style="width:${l.pct}%;background:${l.color}" title="${escapeHtml(l.name)} ${l.pct}%"></span>`
+  ).join('');
+  let html = `<div class="langbar">${segs}</div>`;
+  if (legend) {
+    const items = langs.map(l =>
+      `<span class="lang-item"><span class="lang-dot" style="background:${l.color}"></span>${escapeHtml(l.name)} <span class="lang-pct">${l.pct}%</span></span>`
+    ).join('');
+    html += `<div class="lang-legend">${items}</div>`;
+  }
+  return html;
+}
+
+// Repo-wide Technologies section: language bar + frameworks grouped by language.
+// Always shown; each column explains itself when there's nothing to display
+// (e.g. the GraphQL remote path has no per-file language data).
+function renderTech() {
+  const section = document.getElementById('tech');
+  if (!section) return;
+  section.hidden = false;
+  const repoLangs = D.repoLanguages || [];
+  const frameworks = D.frameworks || [];
+
+  const langEl = document.getElementById('techLanguages');
+  langEl.innerHTML = repoLangs.length
+    ? `<div class="tech-bar-label">Languages by lines changed</div>` +
+        langBarHtml(repoLangs, { legend: true })
+    : `<div class="tech-bar-label">Languages</div>` +
+        `<div class="tech-empty">Available on local or bare-clone runs — the remote GitHub API can't read per-file data. Run repo-intel inside a clone for the language breakdown.</div>`;
+
+  const fwEl = document.getElementById('techFrameworks');
+  fwEl.innerHTML = `<div class="tech-bar-label">Frameworks &amp; libraries</div>` + (
+    frameworks.length
+      ? `<div class="frameworks">` + frameworks.map(g =>
+          `<div class="fw-group">` +
+            `<span class="fw-lang"><span class="lang-dot" style="background:${g.color}"></span>${escapeHtml(g.language)}</span>` +
+            `<span class="fw-items">${g.names.map(n => `<span class="fw-chip">${escapeHtml(n)}</span>`).join('')}</span>` +
+          `</div>`
+        ).join('') + `</div>`
+      : `<div class="tech-empty">No known frameworks detected in the repo's dependency manifests.</div>`
+  );
+}
+renderTech();
+
 // GitHub branch paths preserve slashes (`feature/foo`), so encode segment-wise.
 function encodeBranch(b) { return (b || 'main').split('/').map(encodeURIComponent).join('/'); }
 
@@ -514,7 +589,8 @@ function showAuthorPopover(idx, el) {
     `<div class="lp-divider"></div>` +
     `<div class="lp-stats">${fmt(c.commits)} commits · ${c.activeDays} active day${c.activeDays === 1 ? '' : 's'}</div>` +
     `<div class="lp-stats"><span class="add">+${fmt(c.added)}</span> <span class="del">-${fmt(c.deleted)}</span> (net ${netHtml})</div>` +
-    `<div class="lp-period">${c.first} — ${c.last}</div>`;
+    `<div class="lp-period">${c.first} — ${c.last}</div>` +
+    langBarHtml(c.languages, { legend: true });
   installAvatarFallback(authorPopover.querySelector('.lp-avatar'));
 
   authorPopover.style.transform = '';
@@ -1276,9 +1352,22 @@ function buildTimeline() {
           `<div class="tt-subject">${escapeHtml(c.s || '')}</div>` +
           `<div class="tt-meta">${dateStr} ${timeStr} · <span style="color:${colorAdded}">+${fmt(c.a || 0)}</span> <span style="color:${colorDeleted}">-${fmt(c.l || 0)}</span> · <span class="tt-hash">${c.h}</span></div>`;
       }
+      const ftAgg = {};
+      for (const cc of bundle) for (const [name, fcolor, files] of (cc.f || [])) {
+        if (!ftAgg[name]) ftAgg[name] = [fcolor, 0];
+        ftAgg[name][1] += files;
+      }
+      const ftSorted = Object.entries(ftAgg).sort((a, b) => b[1][1] - a[1][1]);
+      const ftShown = ftSorted.slice(0, 5);
+      const ftMore = ftSorted.length - ftShown.length;
+      const ftypesHtml = ftShown.length
+        ? `<div class="tt-ftypes">` + ftShown.map(([name, [fcolor, files]]) =>
+            `<span class="tt-ftype"><span class="tt-fdot" style="background:${fcolor}"></span>${escapeHtml(name)} ×${fmt(files)}</span>`
+          ).join('') + (ftMore > 0 ? `<span class="tt-ftype">+${ftMore}</span>` : '') + `</div>`
+        : '';
       tooltip.innerHTML =
         `<div class="tt-author-row">${avatarHtml}<span class="tt-author">${escapeHtml(author.name)}</span>${headerExtra}</div>` +
-        body;
+        body + ftypesHtml;
       installAvatarFallback(tooltip.querySelector('.tt-avatar'));
       tooltipHash = c.h;
     }

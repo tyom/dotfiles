@@ -8,7 +8,16 @@ single-file and depends only on Python 3 + `git`.
 `repo-intel` reads commit history from either the current git repo or
 a remote GitHub repo and writes a self-contained HTML dashboard
 showing top contributors, weekly/daily activity, time-of-day patterns,
-and per-author commit feeds.
+and per-author commit feeds. It also breaks down work by **language**
+(per-commit file types in the timeline tooltip, a per-author language
+bar in the contributor popover, and a repo-wide "Technologies" section)
+and detects **frameworks** from dependency manifests grouped by language.
+
+The per-file **language** breakdown needs file-level line stats that only
+the local and bare-clone paths produce — the token-authenticated GraphQL
+remote path omits it, so the Technologies section's language column shows a
+short placeholder there instead. **Framework** detection works on every path
+(on the remote path the dependency manifests are fetched over the API).
 
 The [GitHub CLI (`gh`)](https://cli.github.com/) is optional but
 recommended: when authenticated (`gh auth login`), `repo-intel` uses
@@ -126,11 +135,24 @@ repo-intel --no-cache tyom/dotfiles                   # bypass cache
 
 ## Files
 
-| File            | Purpose                                                                 |
-| --------------- | ----------------------------------------------------------------------- |
-| `repo-intel.py` | The script. Holds `TEMPLATE = "__TEMPLATE_PLACEHOLDER__"` until bundled |
-| `template.html` | Dashboard HTML, with `/*__DATA_INJECTION__*/` for runtime data          |
-| `build.py`      | Substitutes the `TEMPLATE =` line with `template.html` as a `repr()`    |
+| File              | Purpose                                                                      |
+| ----------------- | ---------------------------------------------------------------------------- |
+| `repo-intel.py`   | The script. Holds `TEMPLATE` + `TECHDATA` placeholders until bundled         |
+| `template.html`   | Dashboard HTML, with `/*__DATA_INJECTION__*/` for runtime data               |
+| `techdata.json`   | Generated language + framework detection data (committed; embedded at build) |
+| `gen_techdata.py` | Regenerates `techdata.json` from GitHub Linguist + a curated framework map   |
+| `build.py`        | Substitutes the `TEMPLATE` / `TECHDATA` lines with their data as a `repr()`   |
+
+### Detection data (`techdata.json`)
+
+Language detection (extension/filename → language, colors, vendored-path noise
+filter) is generated from [GitHub Linguist](https://github.com/github-linguist/linguist)
+— `languages.yml` (with fine-grained languages folded into their `group`, e.g.
+`TSX`→`TypeScript`) and `vendor.yml`. Frameworks are a small curated
+dependency → framework map maintained in `gen_techdata.py` (Vercel/Netlify's
+lists target deploy presets, not the libraries a repo uses, so they're a poor
+fit). `techdata.json` is committed and embedded into the artifact, so the
+shipped tool stays offline and single-file.
 
 ## Workflows
 
@@ -142,9 +164,18 @@ make repo-intel-build
 
 Writes `stow/bin/repo-intel` (chmod 0755). Commit both source and
 artifact — the artifact is checked in so a fresh clone + `make install`
-works without a build step.
+works without a build step. `repo-intel-build` reads the committed
+`techdata.json`; it is **not** regenerated on every build (that would need
+network), so builds stay offline and reproducible.
 
-**Develop against the template live** (no rebuild needed between edits):
+**Refresh detection data** (only when bumping Linguist or editing the
+framework map — needs network):
+
+```bash
+make repo-intel-techdata   # rewrites techdata.json; then commit it + rebuild
+```
+
+**Develop against the source live** (no rebuild needed between edits):
 
 ```bash
 make repo-intel-dev                          # uses cwd, top 10
@@ -152,19 +183,22 @@ make repo-intel-dev ARGS="3 facebook/react"  # top 3 of a remote repo
 ```
 
 The source script auto-detects that `TEMPLATE` is still the placeholder
-and falls back to reading `template.html` from disk. The built artifact
-never hits that branch — it carries the embedded template.
+and falls back to reading `template.html` (and `techdata.json`) from disk.
+The built artifact never hits that branch — it carries both embedded.
 
 ## How the embedding works
 
-`build.py` looks for exactly one occurrence of the line:
+`build.py` looks for exactly one occurrence each of:
 
 ```python
 TEMPLATE = "__TEMPLATE_PLACEHOLDER__"
+TECHDATA = "__TECHDATA_PLACEHOLDER__"
 ```
 
-and replaces it with `TEMPLATE = <repr(template_html)>`. The result is
-a valid Python file — one long string literal on line 48 of the
-artifact. Templating happens at build time; the runtime substitution of
-`/*__DATA_INJECTION__*/` with `window.__DATA__ = {...}` still happens
-inside `main()` as before.
+and replaces them with `TEMPLATE = <repr(template_html)>` and
+`TECHDATA = <repr(techdata_json)>`. The result is a valid Python file
+carrying both as string literals. Templating happens at build time; the
+runtime substitution of `/*__DATA_INJECTION__*/` with
+`window.__DATA__ = {...}` still happens inside `main()` as before. When
+unbuilt, the script detects the placeholders and reads `template.html`
+and `techdata.json` from disk instead.

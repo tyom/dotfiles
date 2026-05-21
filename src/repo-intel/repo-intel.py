@@ -276,8 +276,278 @@ def iso_week_label(dt):
     return f"{y}-W{w:02d}"
 
 
+# Language + framework detection data, generated from GitHub Linguist and a
+# curated framework map by gen_techdata.py (see `make repo-intel-techdata`).
+# build.py inlines the JSON here; when unbuilt we read the sibling file. Used
+# only on the local + bare-clone paths — the GraphQL remote path lacks per-file
+# data, so these maps go unused there.
+TECHDATA = "__TECHDATA_PLACEHOLDER__"
+OTHER_LANG = "Other"
+OTHER_COLOR = "#8b949e"
+
+
+def _load_techdata():
+    raw = TECHDATA
+    if raw == "__TECHDATA_PLACEHOLDER__":
+        sibling = Path(__file__).resolve().parent / "techdata.json"
+        if not sibling.exists():
+            return {}
+        try:
+            return json.loads(sibling.read_text())
+        except (json.JSONDecodeError, OSError):
+            return {}
+    try:
+        return json.loads(raw)
+    except (json.JSONDecodeError, ValueError):
+        return {}
+
+
+_TECH = _load_techdata()
+_LANG = _TECH.get("lang", {})
+EXT_LANG = _LANG.get("ext", {})            # extension (no dot, lower) -> language
+FILENAME_LANG = _LANG.get("filename", {})  # lowercased filename -> language
+NAME_COLOR = _LANG.get("color", {})        # language -> hex color
+FW_DEPS = _TECH.get("fw_deps", {})         # {ecosystem: {dependency: framework}}
+FW_SENTINELS_JS = _TECH.get("fw_sentinels_js", [])     # [[basename, framework]]
+FW_SENTINELS_OTHER = _TECH.get("fw_sentinels_other", [])  # [[path, framework, lang]]
+
+
+def _compile_vendor(patterns):
+    """One matcher from Linguist's vendor.yml regexes; skips Python-incompatible
+    ones (they're Ruby-flavored) so the union still compiles."""
+    good = []
+    for p in patterns:
+        try:
+            re.compile(p)
+            good.append(p)
+        except re.error:
+            continue
+    try:
+        return re.compile("|".join(f"(?:{p})" for p in good)) if good else None
+    except re.error:
+        return None
+
+
+_VENDOR_RE = _compile_vendor(_TECH.get("vendor", []))
+
+# Lockfiles Linguist classifies as *generated* (handled in code, not vendor.yml)
+# — kept as a small supplement so they don't dominate the language bar.
+NOISE_BASENAMES = frozenset({
+    "package-lock.json", "yarn.lock", "pnpm-lock.yaml", "npm-shrinkwrap.json",
+    "composer.lock", "cargo.lock", "gemfile.lock", "poetry.lock", "go.sum",
+    "pdm.lock", "uv.lock", "flake.lock",
+})
+
+
+def numstat_newpath(field):
+    """Resolve a numstat path column to the post-rename path.
+
+    Renames render as `old => new`, or with a shared brace group like
+    `src/{old => new}/file.js`; plain paths pass through unchanged.
+    """
+    if " => " not in field:
+        return field
+    lo = field.find("{")
+    hi = field.find("}", lo) if lo != -1 else -1
+    if lo != -1 and hi != -1 and " => " in field[lo:hi]:
+        new = field[lo + 1:hi].split(" => ", 1)[1]
+        return field[:lo] + new + field[hi + 1:]
+    return field.split(" => ", 1)[1]
+
+
+def classify_path(field):
+    """Map a numstat path column to a language name, or None to exclude it."""
+    path = numstat_newpath(field.strip().strip('"')).replace("\\", "/")
+    if _VENDOR_RE and _VENDOR_RE.search(path):  # Linguist vendored paths
+        return None
+    base = path.rsplit("/", 1)[-1].lower()
+    if base in NOISE_BASENAMES:
+        return None
+    if base.endswith((".min.js", ".min.css", ".map")):
+        return None
+    if base in FILENAME_LANG:  # Dockerfile, Makefile, Rakefile, …
+        return FILENAME_LANG[base]
+    dot = base.rfind(".")
+    if dot <= 0:  # no extension, or a dotfile like ".gitignore"
+        return OTHER_LANG
+    return EXT_LANG.get(base[dot + 1:], OTHER_LANG)
+
+
+def top_languages(langs, limit=6):
+    """Build a sorted language-bar list from {name: [added, deleted, files]}.
+
+    Ranks by lines touched (added + deleted); languages past `limit` collapse
+    into a single grey "Other" segment. Returns [] when nothing qualifies.
+    """
+    items = [(name, a + d, files) for name, (a, d, files) in langs.items()]
+    total = sum(lines for _, lines, _ in items)
+    if total <= 0:
+        return []
+    items.sort(key=lambda x: x[1], reverse=True)
+    out = [
+        {
+            "name": name,
+            "lines": lines,
+            "files": files,
+            "pct": round(lines * 100 / total, 1),
+            "color": NAME_COLOR.get(name, OTHER_COLOR),
+        }
+        for name, lines, files in items[:limit]
+    ]
+    overflow = sum(lines for _, lines, _ in items[limit:])
+    if overflow > 0:
+        existing = next((o for o in out if o["name"] == OTHER_LANG), None)
+        if existing:
+            existing["lines"] += overflow
+            existing["pct"] = round(existing["lines"] * 100 / total, 1)
+        else:
+            out.append({
+                "name": OTHER_LANG,
+                "lines": overflow,
+                "files": 0,
+                "pct": round(overflow * 100 / total, 1),
+                "color": OTHER_COLOR,
+            })
+    return out
+
+
 def git(*args, cwd=None):
     return subprocess.check_output(["git", *args], text=True, cwd=cwd)
+
+
+def _git_show(path, cwd=None):
+    """Contents of `path` at HEAD, or "" if missing. Works on bare clones."""
+    try:
+        return git("show", f"HEAD:{path}", cwd=cwd)
+    except subprocess.CalledProcessError:
+        return ""
+
+
+def detect_frameworks(cwd=None):
+    """Detect frameworks at HEAD from a local repo / bare clone.
+
+    Returns a list grouped by language, ordered by framework count:
+        [{"language": "TypeScript", "color": "#3178c6", "names": [...]}, ...]
+    Best-effort and local-only — the GraphQL remote path skips this.
+    """
+    try:
+        tree = git("ls-tree", "-r", "HEAD", "--name-only", cwd=cwd)
+    except subprocess.CalledProcessError:
+        return []
+    return _frameworks_from_files(
+        [p for p in tree.splitlines() if p], lambda p: _git_show(p, cwd)
+    )
+
+
+def _frameworks_from_files(paths, read_file):
+    """Core framework detection over a file list, driven by techdata maps.
+
+    `paths`: repo-relative paths that exist. `read_file(path)` -> contents
+    ("" if unavailable; only called for manifests worth parsing). Decoupled
+    from git so the remote path can supply GraphQL-fetched blobs.
+    """
+    if not FW_DEPS:
+        return []
+    paths = set(paths)
+    by_base = defaultdict(list)
+    for p in paths:
+        by_base[p.rsplit("/", 1)[-1].lower()].append(p)
+
+    found = defaultdict(list)
+    seen = defaultdict(set)
+
+    def add(language, name):
+        if name and name not in seen[language]:
+            seen[language].add(name)
+            found[language].append(name)
+
+    def present(dep, text):
+        return re.search(r"(?<![\w.-])" + re.escape(dep) + r"(?![\w.-])", text) is not None
+
+    def gather(bases, requirements=False):
+        text = ""
+        for base, names in by_base.items():
+            if base in bases or (
+                requirements and base.startswith("requirements") and base.endswith(".txt")
+            ):
+                for path in names:
+                    text += "\n" + read_file(path)
+        return text
+
+    # JS/TS — package.json (deps + dev/peer). Language resolves to TypeScript
+    # when a tsconfig or a typescript dependency is present.
+    is_ts = bool(by_base.get("tsconfig.json"))
+    npm_map = FW_DEPS.get("npm", {})
+    npm_hits = []
+    for path in by_base.get("package.json", []):
+        try:
+            pkg = json.loads(read_file(path) or "{}")
+        except (json.JSONDecodeError, ValueError):
+            continue
+        deps = {}
+        for key in ("dependencies", "devDependencies", "peerDependencies"):
+            d = pkg.get(key)
+            if isinstance(d, dict):
+                deps.update(d)
+        if "typescript" in deps:
+            is_ts = True
+        npm_hits.extend(npm_map[dep] for dep in deps if dep in npm_map)
+    js_lang = "TypeScript" if is_ts else "JavaScript"
+    for fw in npm_hits:
+        add(js_lang, fw)
+
+    # Text-matched ecosystems — concatenate the relevant manifests and look for
+    # whole-word dependency names.
+    py_text = gather({"pyproject.toml", "pipfile", "setup.py", "setup.cfg"},
+                     requirements=True).lower()
+    for dep, fw in FW_DEPS.get("Python", {}).items():
+        if present(dep, py_text):
+            add("Python", fw)
+    rb_text = gather({"gemfile", "gemfile.lock"}).lower()
+    for dep, fw in FW_DEPS.get("Ruby", {}).items():
+        if present(dep, rb_text):
+            add("Ruby", fw)
+    go_text = gather({"go.mod", "go.sum"})  # module paths, case-sensitive
+    for dep, fw in FW_DEPS.get("Go", {}).items():
+        if dep in go_text:
+            add("Go", fw)
+    rs_text = gather({"cargo.toml"}).lower()
+    for dep, fw in FW_DEPS.get("Rust", {}).items():
+        if present(dep, rs_text):
+            add("Rust", fw)
+
+    # PHP — composer.json require sections (JSON).
+    php_map = FW_DEPS.get("PHP", {})
+    for path in by_base.get("composer.json", []):
+        try:
+            comp = json.loads(read_file(path) or "{}")
+        except (json.JSONDecodeError, ValueError):
+            continue
+        deps = {}
+        for key in ("require", "require-dev"):
+            d = comp.get(key)
+            if isinstance(d, dict):
+                deps.update(d)
+        for dep, fw in php_map.items():
+            if dep in deps:
+                add("PHP", fw)
+
+    # Sentinel files — catch frameworks no parsed manifest surfaced.
+    for base, fw in FW_SENTINELS_JS:
+        if base.lower() in by_base:
+            add(js_lang, fw)
+    for base, fw, lang in FW_SENTINELS_OTHER:
+        if (base in paths) if "/" in base else (base.lower() in by_base):
+            add(lang, fw)
+
+    groups = []
+    for lang in sorted(found, key=lambda L: (-len(found[L]), L)):
+        groups.append({
+            "language": lang,
+            "color": NAME_COLOR.get(lang, OTHER_COLOR),
+            "names": found[lang][:15],
+        })
+    return groups
 
 
 _CLONE_REFRESHED = set()
@@ -429,12 +699,12 @@ def collect_local(cwd=None, suppress_current_user=False):
             pass
 
     log = git(
-        "log", "--no-merges",
+        "log", "--no-merges", "-M",
         "--format=%H\x1f%s\x1f%aE\x1f%aN\x1f%aI",
         "--numstat",
         cwd=cwd,
     )
-    commits_meta, line_stats = {}, {}
+    commits_meta, line_stats, lang_stats = {}, {}, {}
     cur = None
     for line in log.splitlines():
         if not line:
@@ -459,12 +729,21 @@ def collect_local(cwd=None, suppress_current_user=False):
         if len(cols) < 2 or cols[0] == "-" or cols[1] == "-":
             continue
         try:
-            line_stats[cur][0] += int(cols[0])
-            line_stats[cur][1] += int(cols[1])
+            added, deleted = int(cols[0]), int(cols[1])
         except ValueError:
-            pass
+            continue
+        line_stats[cur][0] += added
+        line_stats[cur][1] += deleted
+        if len(cols) >= 3:
+            lang = classify_path(cols[2])
+            if lang:
+                rec = lang_stats.setdefault(cur, {}).setdefault(lang, [0, 0, 0])
+                rec[0] += added
+                rec[1] += deleted
+                rec[2] += 1
 
     default_branch = detect_default_branch(cwd=cwd)
+    extras = {"lang_stats": lang_stats, "frameworks": detect_frameworks(cwd=cwd)}
     return (
         repo_name,
         github_base,
@@ -476,6 +755,7 @@ def collect_local(cwd=None, suppress_current_user=False):
         default_branch,
         repo_disk_kb(cwd=cwd),
         collect_local_tags(cwd=cwd),
+        extras,
     )
 
 
@@ -748,6 +1028,100 @@ query($owner: String!, $repo: String!, $cursor: String) {
     return tags
 
 
+def gh_rest_get(path, token):
+    """GET an api.github.com REST endpoint; returns the parsed JSON body."""
+    req = urllib.request.Request(
+        f"https://api.github.com{path}",
+        headers={
+            "Authorization": f"bearer {token}",
+            "User-Agent": "repo-intel",
+            "Accept": "application/vnd.github+json",
+        },
+    )
+    with urllib.request.urlopen(req) as resp:
+        return json.loads(resp.read())
+
+
+# Manifests _frameworks_from_files actually parses (so we only fetch those
+# blobs). tsconfig.json / sentinels are presence-only — covered by the tree.
+_REMOTE_MANIFEST_BASES = frozenset({
+    "package.json", "composer.json", "pyproject.toml", "pipfile",
+    "setup.py", "setup.cfg", "gemfile", "go.mod", "cargo.toml",
+})
+
+
+def _remote_manifest_paths(paths):
+    out = []
+    for p in paths:
+        base = p.rsplit("/", 1)[-1].lower()
+        if base in _REMOTE_MANIFEST_BASES or (
+            base.startswith("requirements") and base.endswith(".txt")
+        ):
+            out.append(p)
+    return out
+
+
+def fetch_blob_texts(owner, repo, paths, token):
+    """HEAD blob text for each path via aliased GraphQL. Returns {path: text}."""
+    out = {}
+    paths = list(paths)
+    for start in range(0, len(paths), 50):
+        chunk = paths[start:start + 50]
+        var_decls = ", ".join(f"$p{i}: String!" for i in range(len(chunk)))
+        frags = " ".join(
+            f"b{i}: object(expression: $p{i}) {{ ... on Blob {{ text }} }}"
+            for i in range(len(chunk))
+        )
+        query = (
+            f"query($owner: String!, $repo: String!, {var_decls}) "
+            f"{{ repository(owner: $owner, name: $repo) {{ {frags} }} }}"
+        )
+        variables = {"owner": owner, "repo": repo}
+        for i, p in enumerate(chunk):
+            variables[f"p{i}"] = f"HEAD:{p}"
+        try:
+            body = gh_graphql(query, variables, token)
+        except urllib.error.URLError as exc:
+            print(f"  warning: manifest fetch failed: {exc}", file=sys.stderr)
+            continue
+        node = gh_repository(body)
+        for i, p in enumerate(chunk):
+            blob = node.get(f"b{i}")
+            if blob and blob.get("text") is not None:
+                out[p] = blob["text"]
+    return out
+
+
+def fetch_frameworks_remote(owner, repo, token):
+    """Detect frameworks on the GraphQL path without a clone.
+
+    Lists the repo tree (REST, recursive — manifests can be nested) and fetches
+    just the manifest blobs (GraphQL), then runs the shared detection core.
+    Per-file *languages* stay local-only (too expensive over the network), but
+    manifests are cheap, so frameworks work here too.
+    """
+    if not token:
+        return []
+    try:
+        tree = gh_rest_get(f"/repos/{owner}/{repo}/git/trees/HEAD?recursive=1", token)
+    except urllib.error.URLError as exc:
+        print(f"  warning: framework tree fetch failed: {exc}", file=sys.stderr)
+        return []
+    if tree.get("truncated"):
+        # GitHub caps the recursive tree at ~100k entries / 7MB; deep manifests
+        # past the cap are dropped, so detection may miss frameworks silently.
+        print(
+            "  warning: repo tree truncated by GitHub — framework detection "
+            "may be incomplete",
+            file=sys.stderr,
+        )
+    paths = [e["path"] for e in (tree.get("tree") or []) if e.get("type") == "blob"]
+    if not paths:
+        return []
+    contents = fetch_blob_texts(owner, repo, _remote_manifest_paths(paths), token)
+    return _frameworks_from_files(paths, lambda p: contents.get(p, ""))
+
+
 def _paginate_history(fetch_page, cached_oids, last_n, since,
                       have_count_baseline, label, skip_first=False):
     """Walk a Commit.history connection page by page.
@@ -810,6 +1184,7 @@ def collect_remote(slug, token, no_cache=False, commits_filter=None, since=None,
             default_branch,
             repo_size_kb,
             tags,
+            extras,
         ) = collect_local(cwd=clone_dir, suppress_current_user=True)
         if not github_base:
             github_base = f"https://github.com/{owner}/{repo}"
@@ -824,6 +1199,7 @@ def collect_remote(slug, token, no_cache=False, commits_filter=None, since=None,
             default_branch,
             repo_size_kb,
             tags,
+            extras,
         )
 
     history_block = """
@@ -997,6 +1373,9 @@ query($owner: String!, $repo: String!, $oid: GitObjectID!, $cursor: String, $pag
                 logins[email] = user["login"]
 
     tags = fetch_remote_tags(owner, repo, token)
+    # Per-file languages need a clone, but manifests are cheap to fetch — so
+    # frameworks work on the GraphQL path; lang_stats stays empty here.
+    frameworks = fetch_frameworks_remote(owner, repo, token)
     return (
         repo_name,
         repo_url,
@@ -1008,6 +1387,7 @@ query($owner: String!, $repo: String!, $oid: GitObjectID!, $cursor: String, $pag
         default_branch,
         repo_size_kb,
         tags,
+        {"lang_stats": {}, "frameworks": frameworks},
     )
 
 
@@ -1060,7 +1440,11 @@ def build_data(
     default_branch,
     repo_size_kb,
     tags,
+    extras,
 ):
+    lang_stats = (extras or {}).get("lang_stats", {})
+    frameworks = (extras or {}).get("frameworks", [])
+    repo_langs = {}
     authors = {}
     daily_by_author = defaultdict(lambda: defaultdict(int))
     hourly_by_author = defaultdict(lambda: [0] * 24)
@@ -1095,6 +1479,7 @@ def build_data(
                 "deleted": 0,
                 "dates": set(),
                 "daily_counts": defaultdict(int),
+                "langs": {},
                 "first": d_key,
                 "last": d_key,
             },
@@ -1104,6 +1489,15 @@ def build_data(
         rec["deleted"] += d
         rec["dates"].add(d_key)
         rec["daily_counts"][d_key] += 1
+        for lang, (la, ld, lf) in lang_stats.get(h, {}).items():
+            agg = rec["langs"].setdefault(lang, [0, 0, 0])
+            agg[0] += la
+            agg[1] += ld
+            agg[2] += lf
+            repo = repo_langs.setdefault(lang, [0, 0, 0])
+            repo[0] += la
+            repo[1] += ld
+            repo[2] += lf
         if d_key < rec["first"]:
             rec["first"] = d_key
         if d_key > rec["last"]:
@@ -1143,6 +1537,7 @@ def build_data(
                 "busiestCount": busiest_count,
                 "avatarUrl": avatar_url(r["email"], override=avatars.get(r["email"])),
                 "highlight": bool(current_email) and r["email"] == current_email,
+                "languages": top_languages(r["langs"]),
             }
         )
 
@@ -1160,16 +1555,23 @@ def build_data(
         if meta["email"] not in top_emails:
             continue
         a, d = line_stats.get(h, [0, 0])
-        commits_list.append(
-            {
-                "h": h[:7],
-                "s": (meta["subject"] or "")[:120],
-                "e": meta["email"],
-                "d": meta.get("iso") or "",
-                "a": a,
-                "l": d,
-            }
-        )
+        entry = {
+            "h": h[:7],
+            "s": (meta["subject"] or "")[:120],
+            "e": meta["email"],
+            "d": meta.get("iso") or "",
+            "a": a,
+            "l": d,
+        }
+        cl = lang_stats.get(h)
+        if cl:
+            ftypes = sorted(
+                ([name, NAME_COLOR.get(name, OTHER_COLOR), files]
+                 for name, (_, _, files) in cl.items()),
+                key=lambda x: x[2], reverse=True,
+            )
+            entry["f"] = ftypes[:4]
+        commits_list.append(entry)
 
     date_range = (
         {"start": min(all_dates), "end": max(all_dates)}
@@ -1196,6 +1598,8 @@ def build_data(
         "dowData": dow_data,
         "commits": commits_list,
         "tags": tags or [],
+        "repoLanguages": top_languages(repo_langs),
+        "frameworks": frameworks or [],
     }
 
 
@@ -1290,6 +1694,7 @@ def main():
             default_branch,
             repo_size_kb,
             tags,
+            extras,
         ) = collect_remote(
             remote,
             token,
@@ -1318,6 +1723,7 @@ def main():
             default_branch,
             repo_size_kb,
             tags,
+            extras,
         ) = collect_local()
 
     if not commits_meta:
@@ -1348,6 +1754,7 @@ def main():
         default_branch,
         repo_size_kb,
         tags,
+        extras,
     )
 
     enrich_contributor_profiles(data["contributors"], commits_meta, github_base, token=token)
