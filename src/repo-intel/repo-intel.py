@@ -1212,6 +1212,44 @@ def fetch_frameworks_remote(owner, repo, token):
     return _frameworks_from_files(paths, lambda p: contents.get(p, ""))
 
 
+def fetch_languages_remote(owner, repo, token):
+    """Repo-wide language breakdown on the GraphQL path, no clone needed.
+
+    GitHub runs Linguist itself and exposes the result as bytes-per-language at
+    HEAD. That's a composition snapshot, not the per-commit line churn the local
+    path tracks — so it can only fill the repo-wide bar, never per-author or
+    per-commit language stats. Reuses `top_languages` (ranking by the first
+    slot, here byte size) so colors and overflow collapsing match local runs.
+    Returns [] on error or when the repo has no detected languages.
+    """
+    if not token:
+        return []
+    query = """
+query($owner: String!, $repo: String!) {
+  repository(owner: $owner, name: $repo) {
+    languages(first: 50, orderBy: {field: SIZE, direction: DESC}) {
+      edges { size node { name } }
+    }
+  }
+}
+""".strip()
+    try:
+        body = gh_graphql(query, {"owner": owner, "repo": repo}, token)
+    except urllib.error.URLError as exc:
+        print(f"  warning: language fetch failed: {exc}", file=sys.stderr)
+        return []
+    if "errors" in body:
+        return []
+    edges = ((gh_repository(body).get("languages") or {}).get("edges")) or []
+    langs = {}
+    for e in edges:
+        name = ((e.get("node") or {}).get("name") or "").strip()
+        size = e.get("size") or 0
+        if name and size > 0:
+            langs[name] = [size, 0, 0]
+    return top_languages(langs)
+
+
 def _paginate_history(fetch_page, cached_oids, last_n, since,
                       have_count_baseline, label, skip_first=False):
     """Walk a Commit.history connection page by page.
@@ -1462,9 +1500,12 @@ query($owner: String!, $repo: String!, $oid: GitObjectID!, $cursor: String, $pag
                 logins[email] = user["login"]
 
     tags = fetch_remote_tags(owner, repo, token)
-    # Per-file languages need a clone, but manifests are cheap to fetch — so
-    # frameworks work on the GraphQL path; lang_stats stays empty here.
+    # Per-commit/per-author language churn needs a clone, so `lang_stats` stays
+    # empty here. But the repo-wide bar and frameworks both come straight from
+    # the API: GitHub runs Linguist for `repo_languages`, and manifests are
+    # cheap to fetch for frameworks.
     frameworks = fetch_frameworks_remote(owner, repo, token)
+    repo_languages = fetch_languages_remote(owner, repo, token)
     return (
         repo_name,
         repo_url,
@@ -1476,7 +1517,7 @@ query($owner: String!, $repo: String!, $oid: GitObjectID!, $cursor: String, $pag
         default_branch,
         repo_size_kb,
         tags,
-        {"lang_stats": {}, "frameworks": frameworks},
+        {"lang_stats": {}, "frameworks": frameworks, "repo_languages": repo_languages},
     )
 
 
@@ -1533,6 +1574,10 @@ def build_data(
 ):
     lang_stats = (extras or {}).get("lang_stats", {})
     frameworks = (extras or {}).get("frameworks", [])
+    # Remote runs ship a precomputed repo-wide bar (bytes at HEAD); local/bare
+    # runs build it below from per-commit line churn. `repo_languages` being a
+    # non-empty list signals the former.
+    repo_languages = (extras or {}).get("repo_languages") or []
     repo_langs = {}
     authors = {}
     daily_by_author = defaultdict(lambda: defaultdict(int))
@@ -1687,7 +1732,8 @@ def build_data(
         "dowData": dow_data,
         "commits": commits_list,
         "tags": tags or [],
-        "repoLanguages": top_languages(repo_langs),
+        "repoLanguages": repo_languages or top_languages(repo_langs),
+        "repoLanguagesBasis": "size" if repo_languages else "churn",
         "frameworks": frameworks or [],
     }
 

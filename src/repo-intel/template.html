@@ -540,11 +540,14 @@ function renderTech() {
   const frameworks = D.frameworks || [];
 
   const langEl = document.getElementById('techLanguages');
+  const langLabel = D.repoLanguagesBasis === 'size'
+    ? 'Languages by code size'
+    : 'Languages by lines changed';
   langEl.innerHTML = repoLangs.length
-    ? `<div class="tech-bar-label">Languages by lines changed</div>` +
+    ? `<div class="tech-bar-label">${langLabel}</div>` +
         langBarHtml(repoLangs, { legend: true, repoBase: D.githubBaseUrl })
     : `<div class="tech-bar-label">Languages</div>` +
-        `<div class="tech-empty">Available on local or bare-clone runs — the remote GitHub API can't read per-file data. Run repo-intel inside a clone for the language breakdown.</div>`;
+        `<div class="tech-empty">Couldn't load language data from the GitHub API for this repo.</div>`;
 
   const fwEl = document.getElementById('techFrameworks');
   fwEl.innerHTML = `<div class="tech-bar-label">Frameworks &amp; tools</div>` + (
