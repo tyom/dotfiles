@@ -411,7 +411,7 @@ function buildHeatmap(containerId, daily, mode) {
   let monthHtml = '<div class="heatmap-months">'; monthSpans.forEach(ms => { monthHtml += `<span style="flex:${ms.count} ${ms.count} 0;text-align:left;">${ms.label}</span>`; }); monthHtml += '</div>';
   let dayLabelsHtml = '<div class="heatmap-day-labels">'; ['Mon','','Wed','','Fri','',''].forEach(l => { dayLabelsHtml += `<span>${l}</span>`; }); dayLabelsHtml += '</div>';
   const baseUrl = D.githubBaseUrl;
-  const branchPath = (D.defaultBranch || 'main').split('/').map(encodeURIComponent).join('/');
+  const branchPath = encodeBranch(D.defaultBranch);
   let gridHtml = '<div class="heatmap">';
   weeksArr.forEach((week, wi) => { gridHtml += '<div class="heatmap-week">'; if (wi === 0 && week[0].dow > 0) for (let i = 0; i < week[0].dow; i++) gridHtml += '<div class="heatmap-cell" style="visibility:hidden;"></div>'; week.forEach(day => { const bg = cellColor(day.count); const cellBg = day.dow >= 5 ? `linear-gradient(rgba(240,170,90,0.05),rgba(240,170,90,0.05)),${bg}` : bg; const href = baseUrl ? `${baseUrl}/commits/${branchPath}?after=&since=${day.key}&until=${day.key}` : '#'; gridHtml += `<a href="${href}" target="_blank" class="heatmap-cell" style="background:${cellBg};" data-date="${day.key}" data-count="${day.count}" data-color="${bg}"></a>`; }); if (wi === weeksArr.length - 1 && week[week.length - 1].dow < 6) for (let i = week[week.length - 1].dow + 1; i <= 6; i++) gridHtml += '<div class="heatmap-cell" style="visibility:hidden;"></div>'; gridHtml += '</div>'; });
   gridHtml += '</div>';
@@ -994,15 +994,13 @@ function buildTimeline() {
     return html;
   }
 
+  let yearLabels = [];  // cached after each rebuildYears; re-queried per frame otherwise
   function positionYearLabels() {
     const sl = scrollDiv.scrollLeft;
     const vw = canvasViewW || viewportW();
-    const labels = yearsBar.querySelectorAll('.year-label');
-    for (const lab of labels) {
+    for (const lab of yearLabels) {
       const x0 = +lab.dataset.x0, x1 = +lab.dataset.x1;
-      // Centre the label within the band's currently-visible portion, so it
-      // stays centred and on-screen at any zoom. Runs every scroll frame, so
-      // the motion is smooth rather than jumping.
+      // Centre within the band's visible portion so the label stays on-screen at any zoom.
       const visLo = Math.max(x0, sl), visHi = Math.min(x1, sl + vw);
       if (visHi <= visLo) { lab.style.display = 'none'; continue; }
       lab.style.display = '';
@@ -1013,6 +1011,7 @@ function buildTimeline() {
   function rebuildYears() {
     yearsBar.style.width = currentWidth + 'px';
     yearsBar.innerHTML = buildYearsInner(currentWidth);
+    yearLabels = yearsBar.querySelectorAll('.year-label');
     positionYearLabels();
   }
 
@@ -1494,7 +1493,7 @@ function buildTimeline() {
   });
   let isDown = false, startX, scrollLeft, lastX, lastTime, velocity = 0, animId = null;
   let suppressClickUntil = 0;
-  const SEL_THRESHOLD = 4; // mirrors MM_SEL_THRESHOLD; selection state declared above (TDZ-safe for drawCanvas)
+  const SEL_THRESHOLD = 4; // px before a press counts as a drag, not a click
 
   canvas.addEventListener('click', e => {
     if (Date.now() < suppressClickUntil || !D.githubBaseUrl) return;

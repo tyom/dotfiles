@@ -548,24 +548,23 @@ def _frameworks_from_files(paths, read_file):
         add(js_lang, fw)
 
     # Text-matched ecosystems — concatenate the relevant manifests and look for
-    # whole-word dependency names.
-    py_text = gather({"pyproject.toml", "pipfile", "setup.py", "setup.cfg"},
-                     requirements=True).lower()
-    for dep, fw in FW_DEPS.get("Python", {}).items():
-        if present(dep, py_text):
-            add("Python", fw)
-    rb_text = gather({"gemfile", "gemfile.lock"}).lower()
-    for dep, fw in FW_DEPS.get("Ruby", {}).items():
-        if present(dep, rb_text):
-            add("Ruby", fw)
-    go_text = gather({"go.mod", "go.sum"})  # module paths, case-sensitive
-    for dep, fw in FW_DEPS.get("Go", {}).items():
-        if dep in go_text:
-            add("Go", fw)
-    rs_text = gather({"cargo.toml"}).lower()
-    for dep, fw in FW_DEPS.get("Rust", {}).items():
-        if present(dep, rs_text):
-            add("Rust", fw)
+    # dependency names. Go matches case-sensitive substrings (deps are full
+    # module paths like `github.com/gin-gonic/gin`); the rest fold to lowercase
+    # and match on whole words. Python also pulls in requirements*.txt.
+    text_ecosystems = (
+        # (language, manifest basenames, requirements*.txt?, case-sensitive substring?)
+        ("Python", {"pyproject.toml", "pipfile", "setup.py", "setup.cfg"}, True, False),
+        ("Ruby", {"gemfile", "gemfile.lock"}, False, False),
+        ("Go", {"go.mod", "go.sum"}, False, True),
+        ("Rust", {"cargo.toml"}, False, False),
+    )
+    for lang, bases, requirements, case_sensitive in text_ecosystems:
+        text = gather(bases, requirements=requirements)
+        if not case_sensitive:
+            text = text.lower()
+        for dep, fw in FW_DEPS.get(lang, {}).items():
+            if (dep in text) if case_sensitive else present(dep, text):
+                add(lang, fw)
 
     # PHP — composer.json require sections (JSON).
     php_map = FW_DEPS.get("PHP", {})
