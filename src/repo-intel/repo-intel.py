@@ -765,6 +765,11 @@ def _paginate_history(fetch_page, cached_oids, last_n, since,
         try:
             history = fetch_page(cursor)
         except urllib.error.URLError as exc:
+            # A non-retryable HTTP status (401/403/404) is a hard failure, not
+            # a resumable one — propagate it rather than persisting a partial
+            # cache and telling the user to re-run.
+            if isinstance(exc, urllib.error.HTTPError) and exc.code not in RETRYABLE_STATUS:
+                raise
             print(f"  error: {label} fetch aborted: {exc}", file=sys.stderr)
             return nodes, "fetch_failed"
         if history is None:
