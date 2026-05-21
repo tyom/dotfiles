@@ -116,11 +116,25 @@ CURATED_BACKEND = {
     },
 }
 
+# Colors for synthetic framework groups Linguist doesn't define a language for.
+# Purple keeps "Tools" distinct from the grey "Other" bucket on the same page.
+SYNTHETIC_COLORS = {"Tools": "#a371f7"}
+
 # Backend / non-JS sentinel files: basename (or sub-path) → (framework, language).
+# The "Tools" bucket surfaces build/devops tooling that's present as a config
+# file rather than a dependency — it'd otherwise hide in the long tail of the
+# language bar (Dockerfile/Makefile are tiny by line count).
 CURATED_SENTINELS = [
     ["manage.py", "Django", "Python"],
     ["artisan", "Laravel", "PHP"],
     ["config/application.rb", "Rails", "Ruby"],
+    ["Dockerfile", "Docker", "Tools"],
+    ["docker-compose.yml", "Docker Compose", "Tools"],
+    ["docker-compose.yaml", "Docker Compose", "Tools"],
+    ["compose.yml", "Docker Compose", "Tools"],
+    ["compose.yaml", "Docker Compose", "Tools"],
+    ["Makefile", "Make", "Tools"],
+    ["GNUmakefile", "Make", "Tools"],
 ]
 
 
@@ -207,6 +221,7 @@ def build_language_tables(langs):
     for ext, lang in EXT_OVERRIDE.items():
         if lang in name_color:
             ext_lang[ext] = lang
+    name_color.update(SYNTHETIC_COLORS)  # synthetic buckets Linguist doesn't color
     return name_color, ext_lang, filename_lang
 
 

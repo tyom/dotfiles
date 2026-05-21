@@ -338,6 +338,36 @@ NOISE_BASENAMES = frozenset({
     "pdm.lock", "uv.lock", "flake.lock",
 })
 
+# Shebang interpreter → language, for extensionless scripts Linguist can't name
+# from a path alone (e.g. `bin/deploy` with `#!/usr/bin/env bash`). A small
+# curated map mirroring Linguist's `interpreters:`; trailing version digits are
+# stripped (`python3` → `python`) before lookup. Names must be real Linguist
+# languages so they pick up a color.
+SHEBANG_LANG = {
+    "sh": "Shell", "bash": "Shell", "zsh": "Shell", "dash": "Shell",
+    "ksh": "Shell", "fish": "fish", "python": "Python", "ruby": "Ruby",
+    "node": "JavaScript", "perl": "Perl", "awk": "Awk", "gawk": "Awk",
+    "lua": "Lua", "php": "PHP", "rscript": "R", "tclsh": "Tcl",
+    "groovy": "Groovy", "osascript": "AppleScript",
+}
+
+
+def shebang_lang(first_line):
+    """Language for a `#!…` first line, or None. Resolves `env interp` and pins
+    `python3`→Python by stripping trailing version digits from the interpreter."""
+    if not first_line.startswith("#!"):
+        return None
+    interp = None
+    for tok in first_line[2:].split():
+        name = tok.rsplit("/", 1)[-1]
+        if name != "env":  # skip the `env` in `#!/usr/bin/env python3`
+            interp = name
+            break
+    if not interp:
+        return None
+    interp = interp.lower()
+    return SHEBANG_LANG.get(interp) or SHEBANG_LANG.get(interp.rstrip("0123456789"))
+
 
 def numstat_newpath(field):
     """Resolve a numstat path column to the post-rename path.
@@ -355,9 +385,18 @@ def numstat_newpath(field):
     return field.split(" => ", 1)[1]
 
 
-def classify_path(field):
-    """Map a numstat path column to a language name, or None to exclude it."""
+def classify_path(field, present=None, shebang=None):
+    """Map a numstat path column to a language name, or None to exclude it.
+
+    `present`: when given, the set of paths at HEAD — files absent from it
+    (deleted since, or renamed away) are excluded so the bar reflects the repo
+    as it stands, not churn against files that no longer exist.
+    `shebang`: {path: language} for extensionless/unknown scripts a `#!` line
+    identified, so they land in their real language instead of "Other".
+    """
     path = numstat_newpath(field.strip().strip('"')).replace("\\", "/")
+    if present is not None and path not in present:
+        return None  # file no longer exists at HEAD — count only survivors
     if _VENDOR_RE and _VENDOR_RE.search(path):  # Linguist vendored paths
         return None
     base = path.rsplit("/", 1)[-1].lower()
@@ -368,9 +407,13 @@ def classify_path(field):
     if base in FILENAME_LANG:  # Dockerfile, Makefile, Rakefile, …
         return FILENAME_LANG[base]
     dot = base.rfind(".")
-    if dot <= 0:  # no extension, or a dotfile like ".gitignore"
-        return OTHER_LANG
-    return EXT_LANG.get(base[dot + 1:], OTHER_LANG)
+    if dot > 0:
+        lang = EXT_LANG.get(base[dot + 1:])
+        if lang:
+            return lang
+    if shebang and path in shebang:  # extensionless/unknown but has a #! line
+        return shebang[path]
+    return OTHER_LANG
 
 
 def top_languages(langs, limit=6):
@@ -421,6 +464,19 @@ def _git_show(path, cwd=None):
         return git("show", f"HEAD:{path}", cwd=cwd)
     except subprocess.CalledProcessError:
         return ""
+
+
+def _head_first_line(path, cwd=None):
+    """First line of `path` at HEAD, decoded leniently, or "". Reads bytes so a
+    stray binary doesn't crash the utf-8 decode `git(text=True)` would attempt."""
+    try:
+        out = subprocess.run(
+            ["git", "show", f"HEAD:{path}"], cwd=cwd, capture_output=True
+        ).stdout
+    except OSError:
+        return ""
+    nl = out.find(b"\n")
+    return (out if nl < 0 else out[:nl]).decode("utf-8", "replace")
 
 
 def detect_frameworks(cwd=None):
@@ -548,6 +604,37 @@ def _frameworks_from_files(paths, read_file):
             "names": found[lang][:15],
         })
     return groups
+
+
+def head_languages(cwd=None):
+    """Inputs for the language bar that need the HEAD tree, not the log.
+
+    Returns `(present, shebang)`:
+      - `present`: every path tracked at HEAD, so `classify_path` can drop churn
+        against files that no longer exist.
+      - `shebang`: {path: language} for extensionless/unknown files whose `#!`
+        line names an interpreter — peeked only for files `classify_path` would
+        otherwise bucket as "Other", so the read stays cheap.
+
+    Plumbing-only (`ls-tree` + `git show`), so it works on bare clones too. The
+    remote GraphQL path has no per-file data and skips this entirely.
+    """
+    try:
+        tree = git("ls-tree", "-r", "HEAD", "--name-only", cwd=cwd)
+    except subprocess.CalledProcessError:
+        return set(), {}
+    present = {p for p in tree.splitlines() if p}
+    shebang = {}
+    for path in present:
+        # Only extensionless files need a peek: scripts (`bin/deploy`) live here,
+        # while binaries carry an extension and would just waste a read (and
+        # choke a text decode). Skip anything classify_path can already name.
+        if "." in path.rsplit("/", 1)[-1] or classify_path(path) != OTHER_LANG:
+            continue
+        lang = shebang_lang(_head_first_line(path, cwd=cwd))
+        if lang:
+            shebang[path] = lang
+    return present, shebang
 
 
 _CLONE_REFRESHED = set()
@@ -699,12 +786,16 @@ def collect_local(cwd=None, suppress_current_user=False):
             pass
 
     log = git(
+        # -c core.quotePath=false: keep non-ASCII paths raw so they match the
+        # raw paths from head_languages() (both feed classify_path's present set).
+        "-c", "core.quotePath=false",
         "log", "--no-merges", "-M",
         "--format=%H\x1f%s\x1f%aE\x1f%aN\x1f%aI",
         "--numstat",
         cwd=cwd,
     )
     commits_meta, line_stats, lang_stats = {}, {}, {}
+    present, shebang = head_languages(cwd=cwd)
     cur = None
     for line in log.splitlines():
         if not line:
@@ -735,7 +826,7 @@ def collect_local(cwd=None, suppress_current_user=False):
         line_stats[cur][0] += added
         line_stats[cur][1] += deleted
         if len(cols) >= 3:
-            lang = classify_path(cols[2])
+            lang = classify_path(cols[2], present=present, shebang=shebang)
             if lang:
                 rec = lang_stats.setdefault(cur, {}).setdefault(lang, [0, 0, 0])
                 rec[0] += added
