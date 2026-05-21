@@ -140,7 +140,7 @@ CURATED_SENTINELS = [
 
 def fetch(url):
     req = urllib.request.Request(url, headers={"User-Agent": "repo-intel-gen"})
-    with urllib.request.urlopen(req) as resp:
+    with urllib.request.urlopen(req, timeout=10) as resp:
         return resp.read().decode("utf-8")
 
 
@@ -200,7 +200,11 @@ def build_language_tables(langs):
     for name, info in langs.items():
         if not info.get("color"):
             continue
-        eff = info.get("group") or name  # roll fine-grained langs into parent
+        # Roll fine-grained langs into their parent, but only when that parent
+        # is itself a colored language — otherwise a group like "Checksums"
+        # would seed color-less entries.
+        group = info.get("group")
+        eff = group if group and group in name_color else name
         rank = TYPE_RANK.get(info.get("type", ""), 4)
         for idx, ext in enumerate(info.get("extensions", [])):
             key = ext[1:].lower() if ext.startswith(".") else ext.lower()
