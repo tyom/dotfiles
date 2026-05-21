@@ -64,6 +64,7 @@ import os
 import re
 import subprocess
 import sys
+import time
 import urllib.request
 import webbrowser
 from collections import defaultdict
@@ -494,6 +495,47 @@ def gh_graphql(query, variables, token):
         return json.loads(resp.read())
 
 
+# GitHub returns these transient statuses when its GraphQL backend is
+# overloaded or times out; they're worth retrying.
+RETRYABLE_STATUS = frozenset({429, 500, 502, 503, 504})
+
+# Plan for a single Commit.history page: (page_size, seconds_to_wait_first).
+# Resolving Commit.history makes GitHub compute per-commit diff stats
+# (additions/deletions), so a page holding a few large commits can blow past
+# its backend timeout and return 502 — deterministically, at the same cursor.
+# Shrinking `first` cuts the per-request work; the backoff rides out flakiness.
+HISTORY_FETCH_PLAN = (
+    (100, 0),
+    (100, 2),
+    (25, 4),
+    (25, 8),
+    (10, 15),
+)
+
+
+def fetch_history_page(query, variables, token, label):
+    """gh_graphql for a Commit.history page, retrying transient 5xx with
+    backoff and a shrinking page size. Raises the last error if all attempts
+    fail. `variables` must omit `pageSize` — it is injected per attempt."""
+    last_exc = None
+    for page_size, sleep_s in HISTORY_FETCH_PLAN:
+        if sleep_s:
+            time.sleep(sleep_s)
+        try:
+            return gh_graphql(query, {**variables, "pageSize": page_size}, token)
+        except urllib.error.HTTPError as exc:
+            if exc.code not in RETRYABLE_STATUS:
+                raise
+            last_exc, detail = exc, f"HTTP {exc.code}"
+        except urllib.error.URLError as exc:
+            last_exc, detail = exc, str(exc.reason)
+        print(
+            f"  warning: {label} page (size {page_size}) failed: {detail}",
+            file=sys.stderr,
+        )
+    raise last_exc
+
+
 def gh_repository(body):
     """Extract data.repository defensively — GraphQL returns null on errors."""
     return (body.get("data") or {}).get("repository") or {}
@@ -712,13 +754,19 @@ def _paginate_history(fetch_page, cached_oids, last_n, since,
 
     fetch_page(cursor) -> history dict, or None when the anchor object is gone.
     Returns (nodes, reason) where reason ∈
-        "hit_cache" | "short_circuit" | "page_end" | "anchor_null"
+        "hit_cache" | "short_circuit" | "page_end" | "anchor_null" | "fetch_failed"
+    On "fetch_failed" the returned nodes are still a contiguous run from the
+    walk's start, so the caller can persist them and resume on a re-run.
     """
     nodes = []
     cursor = None
     dropped_anchor = not skip_first
     while True:
-        history = fetch_page(cursor)
+        try:
+            history = fetch_page(cursor)
+        except urllib.error.URLError as exc:
+            print(f"  error: {label} fetch aborted: {exc}", file=sys.stderr)
+            return nodes, "fetch_failed"
         if history is None:
             return nodes, "anchor_null"
         for n in history.get("nodes") or []:
@@ -774,7 +822,7 @@ def collect_remote(slug, token, no_cache=False, commits_filter=None, since=None,
         )
 
     history_block = """
-history(first: 100, after: $cursor) {
+history(first: $pageSize, after: $cursor) {
   pageInfo { hasNextPage endCursor }
   nodes {
     oid messageHeadline
@@ -784,7 +832,7 @@ history(first: 100, after: $cursor) {
 }""".strip()
 
     top_query = f"""
-query($owner: String!, $repo: String!, $cursor: String) {{
+query($owner: String!, $repo: String!, $cursor: String, $pageSize: Int!) {{
   repository(owner: $owner, name: $repo) {{
     name url diskUsage
     defaultBranchRef {{
@@ -795,7 +843,7 @@ query($owner: String!, $repo: String!, $cursor: String) {{
 }}""".strip()
 
     bottom_query = f"""
-query($owner: String!, $repo: String!, $oid: GitObjectID!, $cursor: String) {{
+query($owner: String!, $repo: String!, $oid: GitObjectID!, $cursor: String, $pageSize: Int!) {{
   repository(owner: $owner, name: $repo) {{
     object(oid: $oid) {{ ... on Commit {{ {history_block} }} }}
   }}
@@ -818,7 +866,9 @@ query($owner: String!, $repo: String!, $oid: GitObjectID!, $cursor: String) {{
     }
 
     def top_fetch_page(cursor):
-        body = gh_graphql(top_query, {"owner": owner, "repo": repo, "cursor": cursor}, token)
+        body = fetch_history_page(
+            top_query, {"owner": owner, "repo": repo, "cursor": cursor}, token, "new"
+        )
         if "errors" in body:
             sys.exit(f"GraphQL error: {body['errors']}")
         repo_node = gh_repository(body)
@@ -837,6 +887,18 @@ query($owner: String!, $repo: String!, $oid: GitObjectID!, $cursor: String) {{
         top_fetch_page, cached_oids, last_n, since,
         have_count_baseline=len(cached_nodes), label="new",
     )
+
+    if top_reason == "fetch_failed":
+        # new_nodes is a contiguous run from HEAD. We never reached the old
+        # cache, so merging would leave a gap — persist just the fresh prefix
+        # (the next run resumes its tail via the older-fetch) and bail out.
+        if not no_cache and new_nodes:
+            save_cache(slug, new_nodes, False)
+            print(
+                f"  cached {len(new_nodes)} commits so far — re-run to resume",
+                file=sys.stderr,
+            )
+        sys.exit("error: GitHub fetch failed after repeated retries; aborting.")
 
     if top_reason == "page_end" and cached_oids:
         print(
@@ -863,10 +925,11 @@ query($owner: String!, $repo: String!, $oid: GitObjectID!, $cursor: String) {{
         anchor_oid = cached_nodes[-1]["oid"]
 
         def bottom_fetch_page(cursor):
-            body = gh_graphql(
+            body = fetch_history_page(
                 bottom_query,
                 {"owner": owner, "repo": repo, "oid": anchor_oid, "cursor": cursor},
                 token,
+                "older",
             )
             if "errors" in body:
                 sys.exit(f"GraphQL error: {body['errors']}")
@@ -893,6 +956,16 @@ query($owner: String!, $repo: String!, $oid: GitObjectID!, $cursor: String) {{
     repo_size_kb = repo_meta["disk_kb"]
 
     nodes = new_nodes + cached_nodes + older_nodes
+    if bottom_reason == "fetch_failed":
+        # new + cached + older are contiguous, so the partial run is a valid
+        # prefix to persist; the next run extends from its tail.
+        if not no_cache and nodes:
+            save_cache(slug, nodes, False)
+            print(
+                f"  cached {len(nodes)} commits so far — re-run to resume",
+                file=sys.stderr,
+            )
+        sys.exit("error: GitHub fetch failed after repeated retries; aborting.")
     if bottom_reason is None:
         new_complete = top_reason == "page_end" or loaded_complete
     else:
