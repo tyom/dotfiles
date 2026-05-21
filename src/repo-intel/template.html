@@ -296,6 +296,7 @@ const weekLabel = w => { const [y, wn] = w.split('-W').map(Number); const jan4 =
 
 const baseMatch = (D.githubBaseUrl || '').match(/\/\/[^/]+\/([^/]+\/[^/]+?)\/?$/);
 const titleText = baseMatch ? baseMatch[1] : D.repoName;
+document.title = titleText ? `${titleText} · Repo Intel` : 'Repo Intel';
 const titleEl = document.getElementById('title');
 if (D.githubBaseUrl) {
   const a = document.createElement('a');
