@@ -62,10 +62,26 @@ CURATED_WEB = {
     "styled-components": "styled-components",
     "jest": "Jest", "vitest": "Vitest", "mocha": "Mocha",
     "playwright": "Playwright", "@playwright/test": "Playwright",
-    "cypress": "Cypress", "eslint": "ESLint", "prettier": "Prettier",
+    "cypress": "Cypress", "puppeteer": "Puppeteer", "testcafe": "TestCafe",
+    "@testing-library/react": "Testing Library",
+    "@testing-library/vue": "Testing Library",
+    "@testing-library/dom": "Testing Library",
+    "eslint": "ESLint", "prettier": "Prettier", "@biomejs/biome": "Biome",
+    # Storybook ships across many scoped packages; the framework adapters below
+    # cover both apps that embed it and addons that declare it as a peer dep.
+    "storybook": "Storybook", "@storybook/react": "Storybook",
+    "@storybook/vue3": "Storybook", "@storybook/angular": "Storybook",
+    "@storybook/svelte": "Storybook", "@storybook/html": "Storybook",
+    "@storybook/web-components": "Storybook", "@storybook/preact": "Storybook",
+    # Monorepo / task runners.
+    "turbo": "Turborepo", "nx": "Nx", "@nx/workspace": "Nx",
+    # Transpilers.
+    "@swc/core": "SWC", "@babel/core": "Babel",
     "redux": "Redux", "@reduxjs/toolkit": "Redux", "zustand": "Zustand",
-    "@apollo/client": "Apollo", "prisma": "Prisma",
-    "@prisma/client": "Prisma", "typeorm": "TypeORM",
+    "@apollo/client": "Apollo", "graphql": "GraphQL",
+    "@trpc/server": "tRPC", "@trpc/client": "tRPC",
+    "prisma": "Prisma", "@prisma/client": "Prisma",
+    "drizzle-orm": "Drizzle", "typeorm": "TypeORM",
     "mongoose": "Mongoose", "sequelize": "Sequelize",
     "three": "three.js", "d3": "D3", "chart.js": "Chart.js",
 }
@@ -135,6 +151,15 @@ CURATED_SENTINELS = [
     ["compose.yaml", "Docker Compose", "Tools"],
     ["Makefile", "Make", "Tools"],
     ["GNUmakefile", "Make", "Tools"],
+    ["pnpm-lock.yaml", "pnpm", "Tools"],
+    ["yarn.lock", "Yarn", "Tools"],
+    ["bun.lockb", "Bun", "Tools"],
+    ["bun.lock", "Bun", "Tools"],
+    [".gitlab-ci.yml", "GitLab CI", "Tools"],
+    ["vercel.json", "Vercel", "Tools"],
+    ["netlify.toml", "Netlify", "Tools"],
+    # Trailing slash → directory-prefix match (no single file to key on).
+    [".github/workflows/", "GitHub Actions", "Tools"],
 ]
 
 

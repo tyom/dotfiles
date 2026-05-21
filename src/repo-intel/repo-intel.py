@@ -587,7 +587,13 @@ def _frameworks_from_files(paths, read_file):
         if base.lower() in by_base:
             add(js_lang, fw)
     for base, fw, lang in FW_SENTINELS_OTHER:
-        if (base in paths) if "/" in base else (base.lower() in by_base):
+        if base.endswith("/"):  # directory-prefix sentinel (e.g. .github/workflows/)
+            hit = any(p.startswith(base) for p in paths)
+        elif "/" in base:  # exact sub-path
+            hit = base in paths
+        else:  # basename
+            hit = base.lower() in by_base
+        if hit:
             add(lang, fw)
 
     groups = []
