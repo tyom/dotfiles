@@ -1,16 +1,17 @@
 #!/usr/bin/env python3
 """Bundle src/repo-intel into a single-file executable.
 
-Substitutes the TEMPLATE placeholder in repo-intel.py with the contents
-of template.html as a Python string literal, then writes the result to
-the given output path with mode 0755.
+Substitutes two placeholders in repo-intel.py with their data as Python string
+literals — TEMPLATE with template.html, TECHDATA with techdata.json — then
+writes the result to the given output path with mode 0755.
 """
 
 import os
 import sys
 from pathlib import Path
 
-PLACEHOLDER = 'TEMPLATE = "__TEMPLATE_PLACEHOLDER__"'
+TEMPLATE_PLACEHOLDER = 'TEMPLATE = "__TEMPLATE_PLACEHOLDER__"'
+TECHDATA_PLACEHOLDER = 'TECHDATA = "__TECHDATA_PLACEHOLDER__"'
 
 
 def main():
@@ -22,10 +23,26 @@ def main():
     script = (src_dir / "repo-intel.py").read_text()
     template = (src_dir / "template.html").read_text()
 
-    if script.count(PLACEHOLDER) != 1:
-        sys.exit(f"error: expected exactly one {PLACEHOLDER!r} line in repo-intel.py")
+    techdata_path = src_dir / "techdata.json"
+    if not techdata_path.exists():
+        sys.exit(
+            f"error: {techdata_path} not found — run `make repo-intel-techdata` "
+            "(needs network) to generate it, then commit it."
+        )
+    techdata = techdata_path.read_text()
 
-    bundled = script.replace(PLACEHOLDER, f"TEMPLATE = {template!r}")
+    for name, placeholder in (
+        ("template.html", TEMPLATE_PLACEHOLDER),
+        ("techdata.json", TECHDATA_PLACEHOLDER),
+    ):
+        if script.count(placeholder) != 1:
+            sys.exit(f"error: expected exactly one {placeholder!r} line in repo-intel.py")
+
+    bundled = (
+        script
+        .replace(TEMPLATE_PLACEHOLDER, f"TEMPLATE = {template!r}")
+        .replace(TECHDATA_PLACEHOLDER, f"TECHDATA = {techdata!r}")
+    )
     out_path.parent.mkdir(parents=True, exist_ok=True)
     out_path.write_text(bundled)
     out_path.chmod(0o755)

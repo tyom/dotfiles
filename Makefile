@@ -50,7 +50,10 @@ docker-test-remote-local: ## Test remote install using local HTTP server
 repo-intel-build: ## Rebuild stow/bin/repo-intel from src/repo-intel
 	python3 src/repo-intel/build.py stow/bin/repo-intel
 
-repo-intel-dev: ## Run repo-intel from source (reads template.html live; pass args via ARGS=)
+repo-intel-techdata: ## Regenerate src/repo-intel/techdata.json from Linguist (needs network)
+	python3 src/repo-intel/gen_techdata.py
+
+repo-intel-dev: ## Run repo-intel from source (reads template.html + techdata.json live; pass args via ARGS=)
 	python3 src/repo-intel/repo-intel.py $(ARGS)
 
-.PHONY: help install uninstall brew docker-build docker-test docker-shell docker-setup docker-clean docker-test-remote docker-test-remote-local repo-intel-build repo-intel-dev
+.PHONY: help install uninstall brew docker-build docker-test docker-shell docker-setup docker-clean docker-test-remote docker-test-remote-local repo-intel-build repo-intel-techdata repo-intel-dev

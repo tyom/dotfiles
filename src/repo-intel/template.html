@@ -134,6 +134,7 @@
   .timeline-scroll { flex: 1; overflow-x: auto; cursor: grab; -webkit-user-select: none; user-select: none; min-width: 0; padding-bottom: 0; scrollbar-width: none; }
   .timeline-scroll::-webkit-scrollbar { display: none; width: 0; height: 0; }
   .timeline-scroll.dragging { cursor: grabbing; scroll-behavior: auto; }
+  .timeline-scroll.zoom-mode { cursor: crosshair; }
   .timeline-inner { position: relative; overflow-x: clip; }
   .timeline-axis { position: relative; font-size: 0.65rem; color: var(--text-muted); }
   .timeline-axis span { position: absolute; transform: translateX(-50%); top: 0; white-space: nowrap; }
@@ -141,9 +142,12 @@
   .timeline-axis .timeline-tick { transform: none; top: 0; bottom: 0; width: 1px; background: rgba(255,255,255,0.06); pointer-events: none; }
   .timeline-canvas { display: block; position: sticky; left: 0; max-height: none; }
   .timeline-histogram { margin-top: 10px; opacity: 1; cursor: pointer; touch-action: none; }
-  .timeline-tags { margin-top: 6px; touch-action: none; }
+  .timeline-tags { touch-action: none; }
+  .timeline-years { position: relative; font-size: 0.68rem; color: var(--text-muted); font-variant-numeric: tabular-nums; }
+  .timeline-years .year-seg { position: absolute; top: 0; bottom: 0; border-left: 1px solid rgba(255,255,255,0.14); background: rgba(255,255,255,0.035); }
+  .timeline-years .year-seg.odd { background: rgba(255,255,255,0.085); }
+  .timeline-years .year-label { position: absolute; top: 0; line-height: 18px; transform: translateX(-50%); white-space: nowrap; pointer-events: none; }
   .timeline-labels .histogram-label { display: flex; align-items: center; justify-content: center; font-size: 0.7rem; color: var(--text-muted); margin-top: 10px; }
-  .timeline-labels .tags-label { display: flex; align-items: center; justify-content: flex-end; font-size: 0.65rem; color: var(--text-muted); margin-top: 6px; padding-right: 2px; letter-spacing: 0.04em; text-transform: uppercase; }
   .timeline-tooltip {
     position: fixed; z-index: 100; pointer-events: none;
     background: rgba(13,17,23,0.96); color: var(--text-primary); font-size: 0.75rem;
@@ -164,6 +168,7 @@
   .timeline-tooltip .tt-bundle-item:first-child { padding-top: 0; border-top: none; }
   .timeline-tooltip .tt-bundle-subject { color: var(--text-primary); word-break: break-word; }
   .timeline-tooltip .tt-bundle-meta { color: var(--text-muted); font-size: 0.7rem; margin-top: 2px; }
+  .timeline-tooltip .tt-tag-kicker { font-size: 0.62rem; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-muted); margin-right: 6px; }
   .timeline-tooltip .tt-tag-name { font-family: ui-monospace, SFMono-Regular, monospace; font-weight: 600; color: var(--text-primary); }
   .timeline-tooltip .tt-tag-icon { display: inline-block; width: 8px; height: 8px; border-radius: 50%; border: 1px solid rgba(255,255,255,0.9); margin-right: 6px; vertical-align: middle; }
   .timeline-labels .lane-label:hover { color: var(--text-primary); }
@@ -197,6 +202,49 @@
   .lane-popover .lp-stats .add { color: var(--color-added); }
   .lane-popover .lp-stats .del { color: var(--color-deleted); }
   .lane-popover .lp-period { color: var(--text-muted); font-size: 0.72rem; margin-top: 4px; }
+  /* Language bar — shared by the author popover and the Technologies section. */
+  .langbar { display: flex; height: 8px; border-radius: 4px; overflow: hidden; background: var(--bg-badge); margin-top: 10px; }
+  .langbar > span { display: block; height: 100%; min-width: 2px; }
+  .lang-legend { display: flex; flex-wrap: wrap; gap: 4px 14px; margin-top: 8px; font-size: 0.74rem; color: var(--text-secondary); }
+  .lang-legend .lang-item { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+  .lang-legend a.lang-item { color: inherit; text-decoration: none; }
+  .lang-legend a.lang-item:hover { text-decoration: underline; }
+  .lang-legend .lang-dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
+  .lang-legend .lang-pct { color: var(--text-muted); font-variant-numeric: tabular-nums; }
+  .lane-popover .langbar { margin-top: 12px; }
+  .lane-popover .lang-legend { font-size: 0.72rem; gap: 3px 10px; }
+  /* Commit-bucket popover — opened by clicking a bar in the pattern charts. */
+  .commit-popover {
+    position: fixed; z-index: 120; pointer-events: auto;
+    background: rgba(13,17,23,0.98); color: var(--text-primary);
+    border: 1px solid var(--border-default); border-radius: 6px;
+    padding: 12px 14px; min-width: 280px; max-width: 380px;
+    box-shadow: 0 8px 28px rgba(0,0,0,0.5);
+    opacity: 0; transition: opacity 0.12s; visibility: hidden;
+  }
+  .commit-popover.visible { opacity: 1; visibility: visible; }
+  .commit-popover .cp-title { font-weight: 600; font-size: 0.9rem; line-height: 1.2; }
+  .commit-popover .cp-sub { color: var(--text-muted); font-size: 0.76rem; margin: 2px 0 10px; }
+  .commit-popover .cp-list { max-height: 280px; overflow-y: auto; margin: 0 -14px; padding: 0; }
+  .commit-popover .cp-row { display: flex; gap: 9px; align-items: baseline; padding: 5px 14px; text-decoration: none; color: var(--text-secondary); }
+  .commit-popover .cp-row:hover { background: var(--bg-badge); }
+  .commit-popover .cp-hash { font-family: ui-monospace, monospace; font-size: 0.72rem; color: var(--text-muted); flex-shrink: 0; }
+  .commit-popover .cp-msg { font-size: 0.78rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; min-width: 0; }
+  .commit-popover .cp-date { font-size: 0.72rem; color: var(--text-muted); flex-shrink: 0; font-variant-numeric: tabular-nums; }
+  .commit-popover .cp-more { color: var(--text-muted); font-size: 0.74rem; margin-top: 8px; text-align: center; }
+  /* Technologies section. */
+  #tech .tech-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; align-items: start; }
+  #tech .tech-bar-label { font-size: 0.78rem; color: var(--text-muted); margin: 0 0 4px; }
+  #tech .frameworks { display: flex; flex-direction: column; }
+  #tech .fw-group { display: grid; grid-template-columns: 130px 1fr; gap: 10px; align-items: baseline; padding: 9px 0; border-top: 1px solid var(--border-default); }
+  #tech .fw-group:first-child { border-top: none; }
+  #tech .fw-lang { display: inline-flex; align-items: center; gap: 7px; font-size: 0.82rem; color: var(--text-secondary); font-weight: 600; }
+  #tech .fw-lang .lang-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+  #tech .fw-items { font-size: 0.82rem; color: var(--text-secondary); line-height: 1.5; }
+  #tech .tech-empty { color: var(--text-muted); font-size: 0.8rem; font-style: italic; }
+  .timeline-tooltip .tt-ftypes { display: flex; flex-wrap: wrap; gap: 4px 10px; margin-top: 5px; }
+  .timeline-tooltip .tt-ftype { display: inline-flex; align-items: center; gap: 5px; font-size: 0.7rem; color: var(--text-secondary); }
+  .timeline-tooltip .tt-ftype .tt-fdot { width: 8px; height: 8px; border-radius: 2px; flex-shrink: 0; }
   * { scrollbar-width: thin; scrollbar-color: var(--scrollbar-thumb) var(--bg-primary); }
   ::-webkit-scrollbar { height: 8px; width: 8px; }
   ::-webkit-scrollbar-track { background: var(--bg-primary); border-radius: 4px; }
@@ -205,6 +253,7 @@
   @media (max-width: 900px) {
     .grid-2 { grid-template-columns: 1fr; }
     .grid-5 { grid-template-columns: repeat(2, 1fr); }
+    #tech .tech-grid { grid-template-columns: 1fr; }
     .layout { flex-direction: column; }
     .sidebar { position: static; width: 100%; }
     .sidebar nav { flex-direction: row; flex-wrap: wrap; }
@@ -221,6 +270,7 @@
   <aside class="sidebar"><nav>
     <a href="#contributions">Contributions</a>
     <a href="#commit-timeline">Commit timeline</a>
+    <a href="#tech">Technologies</a>
     <a href="#summary">Summary</a>
     <a href="#overall">Overall</a>
     <a href="#commit-frequency">Commit frequency</a>
@@ -230,12 +280,16 @@
   <main class="main">
   <div class="section" id="contributions"><div class="card"><div class="contributions-header"><h2>Contributions</h2><div class="year-toggles" id="yearToggles"></div></div><div id="heatmapContainer"></div></div></div>
   <div class="section" id="commit-timeline"><div class="card"><h2 class="timeline-h">Commit timeline</h2>
-    <div class="timeline-hint">Drag canvas to pan · Drag the histogram below to jump · Shift-scroll or pinch to zoom · Hover for details · Hover tag dots to mark a moment · Click to open on GitHub</div>
+    <div class="timeline-hint">Drag to draw a zoom window (drag to pan once zoomed in) · Drag the histogram below to jump · Shift-scroll or pinch to zoom · Hover for details · Hover tag dots to mark a moment · Click to open on GitHub</div>
     <div class="timeline-wrap">
       <div class="timeline-labels" id="timelineLabels"></div>
       <div class="timeline-scroll" id="timelineScroll"><div class="timeline-inner" id="timelineInner"></div></div>
     </div>
   </div></div>
+  <div class="section" id="tech" hidden><div class="card"><h2>Technologies</h2><div class="tech-grid">
+    <div id="techLanguages"></div>
+    <div id="techFrameworks"></div>
+  </div></div></div>
   <div class="section" id="summary"><div class="card"><h2>Summary</h2><div class="table-wrap"><table>
     <thead><tr>
       <th>#</th><th>Author</th>
@@ -376,9 +430,9 @@ function buildHeatmap(containerId, daily, mode) {
   let monthHtml = '<div class="heatmap-months">'; monthSpans.forEach(ms => { monthHtml += `<span style="flex:${ms.count} ${ms.count} 0;text-align:left;">${ms.label}</span>`; }); monthHtml += '</div>';
   let dayLabelsHtml = '<div class="heatmap-day-labels">'; ['Mon','','Wed','','Fri','',''].forEach(l => { dayLabelsHtml += `<span>${l}</span>`; }); dayLabelsHtml += '</div>';
   const baseUrl = D.githubBaseUrl;
-  const branchPath = (D.defaultBranch || 'main').split('/').map(encodeURIComponent).join('/');
+  const branchPath = encodeBranch(D.defaultBranch);
   let gridHtml = '<div class="heatmap">';
-  weeksArr.forEach((week, wi) => { gridHtml += '<div class="heatmap-week">'; if (wi === 0 && week[0].dow > 0) for (let i = 0; i < week[0].dow; i++) gridHtml += '<div class="heatmap-cell" style="visibility:hidden;"></div>'; week.forEach(day => { const bg = cellColor(day.count); const href = baseUrl ? `${baseUrl}/commits/${branchPath}?after=&since=${day.key}&until=${day.key}` : '#'; gridHtml += `<a href="${href}" target="_blank" class="heatmap-cell" style="background:${bg};" data-date="${day.key}" data-count="${day.count}" data-color="${bg}"></a>`; }); if (wi === weeksArr.length - 1 && week[week.length - 1].dow < 6) for (let i = week[week.length - 1].dow + 1; i <= 6; i++) gridHtml += '<div class="heatmap-cell" style="visibility:hidden;"></div>'; gridHtml += '</div>'; });
+  weeksArr.forEach((week, wi) => { gridHtml += '<div class="heatmap-week">'; if (wi === 0 && week[0].dow > 0) for (let i = 0; i < week[0].dow; i++) gridHtml += '<div class="heatmap-cell" style="visibility:hidden;"></div>'; week.forEach(day => { const bg = cellColor(day.count); const cellBg = day.dow >= 5 ? `linear-gradient(rgba(240,170,90,0.05),rgba(240,170,90,0.05)),${bg}` : bg; const href = baseUrl ? `${baseUrl}/commits/${branchPath}?after=&since=${day.key}&until=${day.key}` : '#'; gridHtml += `<a href="${href}" target="_blank" class="heatmap-cell" style="background:${cellBg};" data-date="${day.key}" data-count="${day.count}" data-color="${bg}"></a>`; }); if (wi === weeksArr.length - 1 && week[week.length - 1].dow < 6) for (let i = week[week.length - 1].dow + 1; i <= 6; i++) gridHtml += '<div class="heatmap-cell" style="visibility:hidden;"></div>'; gridHtml += '</div>'; });
   gridHtml += '</div>';
   const legendHtml = `<div class="heatmap-legend"><span>Less</span><div class="heatmap-cell" style="background:var(--bg-empty-cell);"></div><div class="heatmap-cell" style="background:${shade(0.25)};"></div><div class="heatmap-cell" style="background:${shade(0.5)};"></div><div class="heatmap-cell" style="background:${shade(0.75)};"></div><div class="heatmap-cell" style="background:${color};"></div><span>More</span></div>`;
   container.innerHTML = `<div class="heatmap-wrap">${monthHtml}<div class="heatmap-grid">${dayLabelsHtml}${gridHtml}</div>${legendHtml}</div>`;
@@ -444,6 +498,70 @@ heatmapContainer.addEventListener('mouseout', e => {
 
 // === COMMIT TIMELINE ===
 function escapeHtml(s) { return String(s).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
+
+// GitHub code-search URL for a language within a repo, or '' when there's no
+// GitHub base (local-only repo) or the bucket isn't a real language ("Other").
+// `base` is like https://github.com/owner/repo; the search lives on the same host.
+function langSearchUrl(base, name) {
+  const m = /^(https?:\/\/[^/]+)\/(.+?)\/?$/.exec(base || '');
+  if (!m || name === 'Other') return '';
+  return `${m[1]}/search?q=${encodeURIComponent(`repo:${m[2]} language:${name}`)}&type=code`;
+}
+
+// Stacked language bar from a [{name, pct, color}] list (Python-precomputed).
+// `repoBase`, when given, links each legend entry to GitHub code search.
+function langBarHtml(langs, { legend = true, repoBase = '' } = {}) {
+  if (!langs || !langs.length) return '';
+  const segs = langs.map(l =>
+    `<span style="width:${l.pct}%;background:${l.color}" title="${escapeHtml(l.name)} ${l.pct}%"></span>`
+  ).join('');
+  let html = `<div class="langbar">${segs}</div>`;
+  if (legend) {
+    const items = langs.map(l => {
+      const inner = `<span class="lang-dot" style="background:${l.color}"></span>${escapeHtml(l.name)} <span class="lang-pct">${l.pct}%</span>`;
+      const url = langSearchUrl(repoBase, l.name);
+      return url
+        ? `<a class="lang-item" href="${escapeHtml(url)}" target="_blank" rel="noopener" title="Browse ${escapeHtml(l.name)} on GitHub">${inner}</a>`
+        : `<span class="lang-item">${inner}</span>`;
+    }).join('');
+    html += `<div class="lang-legend">${items}</div>`;
+  }
+  return html;
+}
+
+// Repo-wide Technologies section: language bar + frameworks grouped by language.
+// Always shown; each column explains itself when there's nothing to display
+// (e.g. the GraphQL remote path has no per-file language data).
+function renderTech() {
+  const section = document.getElementById('tech');
+  if (!section) return;
+  section.hidden = false;
+  const repoLangs = D.repoLanguages || [];
+  const frameworks = D.frameworks || [];
+
+  const langEl = document.getElementById('techLanguages');
+  const langLabel = D.repoLanguagesBasis === 'size'
+    ? 'Languages by code size'
+    : 'Languages by lines changed';
+  langEl.innerHTML = repoLangs.length
+    ? `<div class="tech-bar-label">${langLabel}</div>` +
+        langBarHtml(repoLangs, { legend: true, repoBase: D.githubBaseUrl })
+    : `<div class="tech-bar-label">Languages</div>` +
+        `<div class="tech-empty">Couldn't load language data from the GitHub API for this repo.</div>`;
+
+  const fwEl = document.getElementById('techFrameworks');
+  fwEl.innerHTML = `<div class="tech-bar-label">Frameworks &amp; tools</div>` + (
+    frameworks.length
+      ? `<div class="frameworks">` + frameworks.map(g =>
+          `<div class="fw-group">` +
+            `<span class="fw-lang"><span class="lang-dot" style="background:${g.color}"></span>${escapeHtml(g.language)}</span>` +
+            `<span class="fw-items">${g.names.map(escapeHtml).join(', ')}</span>` +
+          `</div>`
+        ).join('') + `</div>`
+      : `<div class="tech-empty">No known frameworks detected in the repo's dependency manifests.</div>`
+  );
+}
+renderTech();
 
 // GitHub branch paths preserve slashes (`feature/foo`), so encode segment-wise.
 function encodeBranch(b) { return (b || 'main').split('/').map(encodeURIComponent).join('/'); }
@@ -514,7 +632,8 @@ function showAuthorPopover(idx, el) {
     `<div class="lp-divider"></div>` +
     `<div class="lp-stats">${fmt(c.commits)} commits · ${c.activeDays} active day${c.activeDays === 1 ? '' : 's'}</div>` +
     `<div class="lp-stats"><span class="add">+${fmt(c.added)}</span> <span class="del">-${fmt(c.deleted)}</span> (net ${netHtml})</div>` +
-    `<div class="lp-period">${c.first} — ${c.last}</div>`;
+    `<div class="lp-period">${c.first} — ${c.last}</div>` +
+    langBarHtml(c.languages, { legend: true });
   installAvatarFallback(authorPopover.querySelector('.lp-avatar'));
 
   authorPopover.style.transform = '';
@@ -573,6 +692,7 @@ function buildTimeline() {
   const tagHitPad = 4;
   const histTagStripH = hasTags ? 6 : 0;
   const histHeight = histBarsHeight + histTagStripH;
+  const yearsBarHeight = 18;
   const height = contributors.length * laneHeight;
 
   const viewportWidth0 = Math.max(600, scrollDiv.clientWidth || 800);
@@ -586,8 +706,9 @@ function buildTimeline() {
     labelsHtml += `<a class="lane-label" data-idx="${i}" href="${authorUrl(c)}" target="_blank" rel="noopener" style="height:${laneHeight}px;"><span class="dot" style="background:${clr(i)}"></span><span>${escapeHtml(c.name)}</span></a>`;
   });
   if (hasTags) {
-    labelsHtml += `<div class="tags-label" style="height:${tagHeight}px;">Tags</div>`;
+    labelsHtml += `<div style="height:${tagHeight}px;"></div>`;
   }
+  labelsHtml += `<div class="years-label" style="height:${yearsBarHeight}px;"></div>`;
   labelsHtml += `<div class="histogram-label" style="height:${histHeight}px;"><button class="timeline-reset-btn" id="timelineReset" type="button">Reset zoom</button></div>`;
   labelsDiv.innerHTML = labelsHtml;
 
@@ -653,6 +774,11 @@ function buildTimeline() {
     innerDiv.appendChild(tagCanvas);
   }
 
+  const yearsBar = document.createElement('div');
+  yearsBar.className = 'timeline-years';
+  yearsBar.style.height = yearsBarHeight + 'px';
+  innerDiv.appendChild(yearsBar);
+
   const histCanvas = document.createElement('canvas');
   histCanvas.className = 'timeline-canvas timeline-histogram';
   const hctx = histCanvas.getContext('2d');
@@ -669,6 +795,8 @@ function buildTimeline() {
   let positions = [];
   let hoveredHash = null;
   let hoveredTagIdx = null;
+  // Drag-to-zoom selection state (read by drawCanvas, so declared before its first call).
+  let selecting = false, selStartX = 0, selCurX = 0, selMoved = false;
   const resetBtn = document.getElementById('timelineReset');
   let lastRangeText = '';
 
@@ -680,6 +808,7 @@ function buildTimeline() {
     currentWidth = Math.max(canvasViewW, Math.floor(totalDays * currentPxPerDay));
     innerDiv.style.width = currentWidth + 'px';
     rebuildAxis(true);
+    rebuildYears();
   }
   let resetAnimId = null;
   function stopResetAnim() {
@@ -786,19 +915,6 @@ function buildTimeline() {
       else if (mode === 'year') { cur.setDate(1); cur.setMonth(0); }
     }
 
-    let prevYear;
-    {
-      const prev = new Date(cur);
-      if (mode === 'hour') prev.setHours(prev.getHours() - hourStep);
-      else if (mode === 'day') prev.setDate(prev.getDate() - 1);
-      else if (mode === 'week') prev.setDate(prev.getDate() - 7);
-      else if (mode === 'month') prev.setMonth(prev.getMonth() - 1);
-      else if (mode === 'quarter') prev.setMonth(prev.getMonth() - 3);
-      else if (mode === 'half') prev.setMonth(prev.getMonth() - 6);
-      else prev.setFullYear(prev.getFullYear() - 1);
-      prevYear = prev.getFullYear();
-    }
-
     const fmtHour = h => {
       if (h === 0) return '12 AM';
       if (h === 12) return '12 PM';
@@ -819,13 +935,11 @@ function buildTimeline() {
       const nextX = ((nextCur - start) / totalMs) * width;
       const labelX = mode === 'hour' ? x : (x + nextX) / 2;
       const yr = cur.getFullYear();
-      const showYear = prevYear !== yr;
       if (labelX >= -60 && labelX <= width + 60) {
         let label, cls = '';
         if (mode === 'hour') {
           if (cur.getHours() === 0) {
-            const base = cur.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
-            label = showYear ? `${base} ${yr}` : base;
+            label = cur.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
           } else {
             label = fmtHour(cur.getHours());
             cls = ' class="axis-hour"';
@@ -833,15 +947,13 @@ function buildTimeline() {
         } else if (mode === 'year') {
           label = yr;
         } else if (mode === 'day' || mode === 'week') {
-          const base = cur.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
-          label = showYear ? `${base} ${yr}` : base;
+          // Year is shown in the years bar below, so it's omitted here.
+          label = cur.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
         } else {
-          const base = cur.toLocaleDateString('en-GB', { month: 'short' });
-          label = showYear ? `${base} ${yr}` : base;
+          label = cur.toLocaleDateString('en-GB', { month: 'short' });
         }
         html += `<span${cls} style="left:${labelX}px;">${label}</span>`;
       }
-      prevYear = yr;
       if (mode === 'hour') cur.setHours(cur.getHours() + hourStep);
       else if (mode === 'day') cur.setDate(cur.getDate() + 1);
       else if (mode === 'week') cur.setDate(cur.getDate() + 7);
@@ -882,6 +994,47 @@ function buildTimeline() {
     rangeEl.style.width = canvasViewW + 'px';
 
     rebuildHistogram();
+  }
+
+  function buildYearsInner(width) {
+    const firstYear = start.getFullYear();
+    const lastYear = end.getFullYear();
+    let html = '';
+    for (let y = firstYear; y <= lastYear; y++) {
+      const segStart = Math.max(startT, new Date(y, 0, 1).getTime());
+      const segEnd = Math.min(end.getTime(), new Date(y + 1, 0, 1).getTime());
+      if (segEnd <= segStart) continue;
+      const x0 = ((segStart - startT) / totalMs) * width;
+      const x1 = ((segEnd - startT) / totalMs) * width;
+      const cls = (y % 2 === 0) ? 'year-seg' : 'year-seg odd';
+      html += `<span class="${cls}" style="left:${x0}px;width:${x1 - x0}px;"></span>`;
+      // The label is repositioned each scroll frame by positionYearLabels to
+      // pin it to the viewport's left edge while its band is in view (CSS
+      // position:sticky can't be used — .timeline-inner has overflow:clip).
+      html += `<span class="year-label" data-x0="${x0}" data-x1="${x1}" style="left:${x0}px;">${y}</span>`;
+    }
+    return html;
+  }
+
+  let yearLabels = [];  // cached after each rebuildYears; re-queried per frame otherwise
+  function positionYearLabels() {
+    const sl = scrollDiv.scrollLeft;
+    const vw = canvasViewW || viewportW();
+    for (const lab of yearLabels) {
+      const x0 = +lab.dataset.x0, x1 = +lab.dataset.x1;
+      // Centre within the band's visible portion so the label stays on-screen at any zoom.
+      const visLo = Math.max(x0, sl), visHi = Math.min(x1, sl + vw);
+      if (visHi <= visLo) { lab.style.display = 'none'; continue; }
+      lab.style.display = '';
+      lab.style.left = (visLo + visHi) / 2 + 'px';
+    }
+  }
+
+  function rebuildYears() {
+    yearsBar.style.width = currentWidth + 'px';
+    yearsBar.innerHTML = buildYearsInner(currentWidth);
+    yearLabels = yearsBar.querySelectorAll('.year-label');
+    positionYearLabels();
   }
 
   let lastAxisSL = -Infinity;
@@ -945,6 +1098,33 @@ function buildTimeline() {
     }
   }
 
+  // Year-boundary verticals, drawn on both the lane canvas and the tag strip so
+  // they line up with the years-bar dividers below and read as one continuous
+  // line connecting the timeline to the years bar.
+  function drawYearLines(c, h) {
+    const sl = scrollDiv.scrollLeft;
+    const visEndMs = ((sl + canvasViewW) / currentWidth) * totalMs;
+    const cursor = new Date(startT + (sl / currentWidth) * totalMs);
+    cursor.setMonth(0, 1);
+    cursor.setHours(0, 0, 0, 0);
+    c.strokeStyle = 'rgba(255,255,255,0.14)';
+    c.lineWidth = 1;
+    c.beginPath();
+    let drawn = 0;
+    while (drawn < 200) {
+      const tMs = cursor.getTime() - startT;
+      if (tMs > visEndMs) break;
+      const x = (tMs / totalMs) * currentWidth - sl;
+      if (x >= -1 && x <= canvasViewW + 1) {
+        c.moveTo(Math.round(x) + 0.5, 0);
+        c.lineTo(Math.round(x) + 0.5, h);
+      }
+      cursor.setFullYear(cursor.getFullYear() + 1);
+      drawn++;
+    }
+    c.stroke();
+  }
+
   function drawCanvas() {
     const sl = scrollDiv.scrollLeft;
     ctx.setTransform(1, 0, 0, 1, 0, 0);
@@ -959,9 +1139,6 @@ function buildTimeline() {
     }
 
     if (currentPxPerDay > 6) drawWeekendBands();
-    if (currentPxPerDay < 1.5) {
-      drawGridLines(d => { d.setMonth(0); d.setDate(1); d.setHours(0, 0, 0, 0); }, d => d.setFullYear(d.getFullYear() + 1), 'rgba(255,255,255,0.08)');
-    }
     if (currentPxPerDay >= 1.5 && currentPxPerDay <= 25) {
       drawGridLines(d => { d.setDate(1); d.setHours(0, 0, 0, 0); }, d => d.setMonth(d.getMonth() + 1), 'rgba(255,255,255,0.06)');
     }
@@ -974,6 +1151,7 @@ function buildTimeline() {
     if (currentPxPerDay > 80) {
       drawGridLines(d => d.setHours(12, 0, 0, 0), d => d.setDate(d.getDate() + 1), 'rgba(255,255,255,0.05)', [3, 4]);
     }
+    drawYearLines(ctx, height);
 
     if (hoveredTagIdx != null && tags[hoveredTagIdx]) {
       const tMs = tagMsList[hoveredTagIdx];
@@ -1047,10 +1225,21 @@ function buildTimeline() {
       }
     }
 
+    if (selecting && selMoved) {
+      const xa = Math.min(selStartX, selCurX), xb = Math.max(selStartX, selCurX);
+      ctx.fillStyle = 'rgba(88,166,255,0.22)';
+      ctx.fillRect(xa, 0, xb - xa, height);
+      ctx.strokeStyle = 'rgba(88,166,255,0.95)';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(xa + 0.5, 0.5, Math.max(1, xb - xa - 1), height - 1);
+    }
+
     drawTags();
     drawHistogram();
     updateRangeText();
     updateResetBtn();
+    updateZoomCursor();
+    positionYearLabels();
   }
 
   function drawTags() {
@@ -1058,6 +1247,7 @@ function buildTimeline() {
     tagctx.setTransform(1, 0, 0, 1, 0, 0);
     tagctx.scale(dpr, dpr);
     tagctx.clearRect(0, 0, canvasViewW, tagHeight);
+    drawYearLines(tagctx, tagHeight);
     const sl = scrollDiv.scrollLeft;
     const cy = tagHeight / 2;
     tagctx.lineWidth = 1;
@@ -1276,9 +1466,22 @@ function buildTimeline() {
           `<div class="tt-subject">${escapeHtml(c.s || '')}</div>` +
           `<div class="tt-meta">${dateStr} ${timeStr} · <span style="color:${colorAdded}">+${fmt(c.a || 0)}</span> <span style="color:${colorDeleted}">-${fmt(c.l || 0)}</span> · <span class="tt-hash">${c.h}</span></div>`;
       }
+      const ftAgg = {};
+      for (const cc of bundle) for (const [name, fcolor, files] of (cc.f || [])) {
+        if (!ftAgg[name]) ftAgg[name] = [fcolor, 0];
+        ftAgg[name][1] += files;
+      }
+      const ftSorted = Object.entries(ftAgg).sort((a, b) => b[1][1] - a[1][1]);
+      const ftShown = ftSorted.slice(0, 5);
+      const ftMore = ftSorted.length - ftShown.length;
+      const ftypesHtml = ftShown.length
+        ? `<div class="tt-ftypes">` + ftShown.map(([name, [fcolor, files]]) =>
+            `<span class="tt-ftype"><span class="tt-fdot" style="background:${fcolor}"></span>${escapeHtml(name)} ×${fmt(files)}</span>`
+          ).join('') + (ftMore > 0 ? `<span class="tt-ftype">+${ftMore}</span>` : '') + `</div>`
+        : '';
       tooltip.innerHTML =
         `<div class="tt-author-row">${avatarHtml}<span class="tt-author">${escapeHtml(author.name)}</span>${headerExtra}</div>` +
-        body;
+        body + ftypesHtml;
       installAvatarFallback(tooltip.querySelector('.tt-avatar'));
       tooltipHash = c.h;
     }
@@ -1312,6 +1515,8 @@ function buildTimeline() {
   });
   let isDown = false, startX, scrollLeft, lastX, lastTime, velocity = 0, animId = null;
   let suppressClickUntil = 0;
+  const SEL_THRESHOLD = 4; // px before a press counts as a drag, not a click
+
   canvas.addEventListener('click', e => {
     if (Date.now() < suppressClickUntil || !D.githubBaseUrl) return;
     const rect = canvas.getBoundingClientRect();
@@ -1324,6 +1529,15 @@ function buildTimeline() {
   scrollDiv.addEventListener('mousedown', e => {
     stopInertia();
     stopResetAnim();
+    if (isZoomedOut()) {
+      // Nothing to pan when fully zoomed out — drag draws a zoom window instead.
+      selecting = true; dragging = true;
+      const rect = scrollDiv.getBoundingClientRect();
+      selStartX = Math.max(0, Math.min(canvasViewW, e.clientX - rect.left));
+      selCurX = selStartX; selMoved = false;
+      tooltip.classList.remove('visible');
+      return;
+    }
     isDown = true; dragging = true;
     scrollDiv.classList.add('dragging');
     startX = e.pageX - scrollDiv.offsetLeft;
@@ -1331,6 +1545,14 @@ function buildTimeline() {
     lastX = e.pageX; lastTime = Date.now(); velocity = 0;
   });
   scrollDiv.addEventListener('mousemove', e => {
+    if (selecting) {
+      e.preventDefault();
+      const rect = scrollDiv.getBoundingClientRect();
+      selCurX = Math.max(0, Math.min(canvasViewW, e.clientX - rect.left));
+      if (!selMoved && Math.abs(selCurX - selStartX) >= SEL_THRESHOLD) selMoved = true;
+      if (selMoved) drawCanvas();
+      return;
+    }
     if (!isDown) return;
     e.preventDefault();
     const x = e.pageX - scrollDiv.offsetLeft;
@@ -1339,6 +1561,29 @@ function buildTimeline() {
     if (dt > 0) { velocity = (e.pageX - lastX) / dt * 16; lastX = e.pageX; lastTime = now; }
   });
   function release(e) {
+    if (selecting) {
+      selecting = false; dragging = false;
+      const moved = selMoved; selMoved = false;
+      if (moved) {
+        const sl = scrollDiv.scrollLeft;
+        const xa = Math.min(selStartX, selCurX), xb = Math.max(selStartX, selCurX);
+        const sl1 = Math.max(0, Math.min(currentWidth, sl + xa));
+        const sl2 = Math.max(0, Math.min(currentWidth, sl + xb));
+        if (sl2 - sl1 >= 1 && currentWidth > 0 && canvasViewW > 0) {
+          const daysSpan = Math.max(1e-6, (sl2 - sl1) / currentPxPerDay);
+          const newPxPerDay = Math.max(minPxPerDay, Math.min(maxPxPerDay, canvasViewW / daysSpan));
+          const frac = sl1 / currentWidth;
+          currentPxPerDay = newPxPerDay;
+          applyLayout();
+          scrollDiv.scrollLeft = clampSL(frac * currentWidth);
+          drawCanvas();
+        }
+        suppressClickUntil = Date.now() + 250;
+      } else {
+        drawCanvas();
+      }
+      return;
+    }
     if (!isDown) return;
     const moved = Math.abs((e ? e.pageX : lastX) - (startX + scrollDiv.offsetLeft));
     isDown = false;
@@ -1353,6 +1598,8 @@ function buildTimeline() {
   function clampSL(sl) {
     return Math.max(0, Math.min(currentWidth - canvasViewW, sl));
   }
+  function isZoomedOut() { return currentPxPerDay <= minPxPerDay + 1e-4; }
+  function updateZoomCursor() { scrollDiv.classList.toggle('zoom-mode', isZoomedOut()); }
   function mmWindowAtX(x) {
     const { left, right } = getMinimapWindow();
     return x >= left && x <= right;
@@ -1460,7 +1707,7 @@ function buildTimeline() {
     const msg = (t.message || '').trim();
     const showMsg = msg && msg !== (t.name || '').trim();
     tooltip.innerHTML =
-      `<div class="tt-author-row"><span class="tt-tag-icon"></span><span class="tt-tag-name">${escapeHtml(t.name || '')}</span></div>` +
+      `<div class="tt-author-row"><span class="tt-tag-icon"></span><span class="tt-tag-kicker">TAG</span><span class="tt-tag-name">${escapeHtml(t.name || '')}</span></div>` +
       (showMsg ? `<div class="tt-subject">${escapeHtml(msg)}</div>` : '') +
       `<div class="tt-meta">${escapeHtml(dateStr || t.date || '')}${timeStr ? ' ' + escapeHtml(timeStr) : ''}${oidShort ? ' · <span class="tt-hash">' + escapeHtml(oidShort) + '</span>' : ''}</div>`;
     tooltipHash = null;
@@ -1626,18 +1873,94 @@ function renderChartCards(container, idPrefix, chartConfig) {
 
 const miniBarOpts = (c, i, xTicks) => ({ responsive: true, maintainAspectRatio: true, plugins: { legend: { display: false }, title: { display: true, text: c.name, color: clr(i), font: { size: 11 } } }, scales: { x: { ticks: { ...xTicks, font: { size: 9 } } }, y: { display: false, beginAtZero: true } } });
 
+// === COMMIT-BUCKET POPOVER (pattern-chart bars → GitHub commit pages) ===
+// The bars are histograms bucketed server-side by the commit's author-local
+// wall-clock (Python datetime.fromisoformat(iso).hour / .weekday()). Reproduce
+// that bucketing from the ISO string itself — new Date(iso).getHours() would
+// reinterpret the instant in the viewer's timezone and miss the bar.
+function isoBuckets(iso) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):/.exec(iso || '');
+  if (!m) return null;
+  const dow = (new Date(Date.UTC(+m[1], +m[2] - 1, +m[3])).getUTCDay() + 6) % 7;
+  return { hour: +m[4], dow };
+}
+function commitsInBucket(email, kind, idx) {
+  return (D.commits || [])
+    .filter(c => {
+      if (c.e !== email) return false;
+      const b = isoBuckets(c.d);
+      return b && (kind === 'hour' ? b.hour === idx : b.dow === idx);
+    })
+    .sort((a, b) => new Date(b.d) - new Date(a.d));
+}
+
+const dowFull = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+const commitPopover = document.createElement('div');
+commitPopover.className = 'commit-popover';
+document.body.appendChild(commitPopover);
+let commitPopoverOpen = false;
+function hideCommitPopover() { if (commitPopoverOpen) { commitPopover.classList.remove('visible'); commitPopoverOpen = false; } }
+
+function showCommitPopover(anchor, c, colorIdx, label, list) {
+  const ROW_CAP = 200;
+  const rows = list.slice(0, ROW_CAP).map(c2 =>
+    `<a class="cp-row" href="${D.githubBaseUrl}/commit/${encodeURIComponent(c2.h)}" target="_blank" rel="noopener">` +
+    `<span class="cp-hash">${escapeHtml(c2.h)}</span>` +
+    `<span class="cp-msg">${escapeHtml(c2.s || '')}</span>` +
+    `<span class="cp-date">${escapeHtml((c2.d || '').slice(0, 16).replace('T', ' '))}</span></a>`
+  ).join('');
+  const more = list.length > ROW_CAP ? `<div class="cp-more">+${fmt(list.length - ROW_CAP)} more</div>` : '';
+  commitPopover.innerHTML =
+    `<div class="cp-title" style="color:${clr(colorIdx)}">${escapeHtml(label)}</div>` +
+    `<div class="cp-sub">${escapeHtml(c.name)} · ${fmt(list.length)} commit${list.length === 1 ? '' : 's'}</div>` +
+    `<div class="cp-list">${rows}</div>${more}`;
+
+  commitPopover.style.left = '-9999px';
+  commitPopover.style.top = '0px';
+  commitPopover.classList.add('visible');
+  commitPopoverOpen = true;
+  const w = commitPopover.offsetWidth, h = commitPopover.offsetHeight, margin = 8;
+  const vw = document.documentElement.clientWidth, vh = document.documentElement.clientHeight;
+  let left = Math.max(margin, Math.min(anchor.x - w / 2, vw - w - margin));
+  let top = anchor.top - h - 10;
+  if (top < margin) top = anchor.bottom + 10;
+  if (top + h + margin > vh) top = Math.max(margin, vh - h - margin);
+  commitPopover.style.left = left + 'px';
+  commitPopover.style.top = top + 'px';
+}
+
+function makeBarClick(kind, c, colorIdx) {
+  return (evt, els, chart) => {
+    if (!D.githubBaseUrl || !els.length) return;
+    const idx = els[0].index;
+    const list = commitsInBucket(c.email, kind, idx);
+    if (!list.length) return;
+    const bar = chart.getDatasetMeta(0).data[idx];
+    const rect = chart.canvas.getBoundingClientRect();
+    const label = kind === 'hour' ? `${idx}:00–${idx}:59` : dowFull[idx];
+    showCommitPopover({ x: rect.left + bar.x, top: rect.top + bar.y, bottom: rect.bottom }, c, colorIdx, label, list);
+  };
+}
+const barHover = (evt, els) => { if (evt.native) evt.native.target.style.cursor = (els.length && D.githubBaseUrl) ? 'pointer' : ''; };
+
+// Dismiss on outside click, scroll, or Escape. Capture phase runs before the
+// chart's own click handler, so reopening on a fresh bar still works.
+document.addEventListener('click', e => { if (commitPopoverOpen && !commitPopover.contains(e.target)) hideCommitPopover(); }, true);
+document.addEventListener('keydown', e => { if (e.key === 'Escape') hideCommitPopover(); });
+window.addEventListener('scroll', e => { if (commitPopoverOpen && !commitPopover.contains(e.target)) hideCommitPopover(); }, true);
+
 const hourLabels = Array.from({length: 24}, (_, i) => `${i}:00`);
 renderChartCards(document.getElementById('hourlyCharts'), 'hourly', (c, i) => ({
   type: 'bar',
   data: { labels: hourLabels, datasets: [{ data: hourlyData[c.email], backgroundColor: clr(i) + '90', borderRadius: 2 }] },
-  options: miniBarOpts(c, i, { maxTicksLimit: 6 }),
+  options: { ...miniBarOpts(c, i, { maxTicksLimit: 6 }), onClick: makeBarClick('hour', c, i), onHover: barHover },
 }));
 
 const dowLabels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 renderChartCards(document.getElementById('dowCharts'), 'dow', (c, i) => ({
   type: 'bar',
   data: { labels: dowLabels, datasets: [{ data: dowData[c.email], backgroundColor: dowData[c.email].map((v, di) => di >= 5 ? clr(i) + '30' : clr(i) + '90'), borderRadius: 3 }] },
-  options: miniBarOpts(c, i, {}),
+  options: { ...miniBarOpts(c, i, {}), onClick: makeBarClick('dow', c, i), onHover: barHover },
 }));
 
 // === RESET BUTTONS ===
