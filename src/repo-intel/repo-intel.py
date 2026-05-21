@@ -5,7 +5,7 @@ HELP = """\
 repo-intel — generate a contributor stats dashboard for a git repo.
 
 Usage:
-  repo-intel [N] [REPO] [-o PATH] [--no-open]
+  repo-intel [N] [REPO] [-o PATH] [--no-open] [--clone]
   repo-intel -h | --help
 
 Arguments:
@@ -20,6 +20,9 @@ Options:
   -o, --output PATH   Write the dashboard to PATH instead of /tmp/<owner>--<repo>.html.
   --no-open           Don't open the result in a browser.
   --no-cache          Ignore the local cache and re-fetch all commits.
+  --clone             For a remote REPO, analyse a bare `git clone` instead of
+                      the GitHub GraphQL API (alias: --bare). Slower to fetch
+                      but unlocks per-author language churn the API can't give.
   --commits SPEC      Filter commits by position. SPEC is either N (last N
                       commits, newest) or A-B (positions [A, B), 0-indexed
                       from oldest, half-open like Python slicing).
@@ -34,6 +37,7 @@ Examples:
   repo-intel 15 facebook/react     # remote, top 15
   repo-intel -o ./stats.html       # write to a specific path
   repo-intel --no-open             # generate without launching browser
+  repo-intel facebook/react --clone  # analyse via bare clone, not the API
   repo-intel --commits 100         # only the last 100 commits
   repo-intel --commits 0-100       # the first 100 commits
   repo-intel --commits 400-800     # commits at positions 400..799 (oldest-first)
@@ -45,7 +49,8 @@ Remote auth:
   recommended — when authenticated it unlocks GraphQL remote fetching
   and author hovercard enrichment (avatar, bio, follower counts).
   Lookup order: `gh auth token -h github.com`, then $GITHUB_TOKEN.
-  Falls back to `git clone --bare` into /tmp if neither is available.
+  Falls back to `git clone --bare` into /tmp if neither is available;
+  pass --clone to force that bare-clone path even when a token is present.
 
 Output:
   /tmp/<owner>--<repo>.html (or --output PATH), opened in default browser
@@ -173,6 +178,7 @@ def parse_args(argv):
         sys.stdout.write(HELP)
         sys.exit(0)
     top_n, remote, output, no_open, no_cache = 10, None, None, False, False
+    clone = False
     commits_filter, since, until = None, None, None
     i = 0
 
@@ -196,6 +202,10 @@ def parse_args(argv):
                 continue
             if tok == "--no-cache":
                 no_cache = True
+                i += 1
+                continue
+            if tok in ("--clone", "--bare"):
+                clone = True
                 i += 1
                 continue
             if tok == "-o":
@@ -253,7 +263,7 @@ def parse_args(argv):
     if since and until and since > until:
         sys.stderr.write(f"repo-intel: --since {since} is after --until {until}\n")
         sys.exit(2)
-    return top_n, remote, output, no_open, no_cache, commits_filter, since, until
+    return top_n, remote, output, no_open, no_cache, clone, commits_filter, since, until
 
 
 def login_from_email(email):
@@ -454,8 +464,15 @@ def top_languages(langs, limit=6):
     return out
 
 
-def git(*args, cwd=None):
-    return subprocess.check_output(["git", *args], text=True, cwd=cwd)
+def git(*args, cwd=None, quiet=False):
+    # quiet=True hides git's stderr — for best-effort probes that are expected
+    # to fail (e.g. work-tree-only commands run against a bare clone).
+    return subprocess.check_output(
+        ["git", *args],
+        text=True,
+        cwd=cwd,
+        stderr=subprocess.DEVNULL if quiet else None,
+    )
 
 
 def _git_show(path, cwd=None):
@@ -708,7 +725,7 @@ def repo_disk_kb(cwd=None):
 def detect_default_branch(cwd=None):
     try:
         ref = git(
-            "symbolic-ref", "--short", "refs/remotes/origin/HEAD", cwd=cwd
+            "symbolic-ref", "--short", "refs/remotes/origin/HEAD", cwd=cwd, quiet=True
         ).strip()
         if ref.startswith("origin/"):
             return ref[len("origin/") :]
@@ -754,7 +771,12 @@ def collect_local_tags(cwd=None):
 
 
 def collect_local(cwd=None, suppress_current_user=False):
-    repo_root = git("rev-parse", "--show-toplevel", cwd=cwd).strip()
+    try:
+        repo_root = git("rev-parse", "--show-toplevel", cwd=cwd, quiet=True).strip()
+    except subprocess.CalledProcessError:
+        # Bare clone (no work tree): --show-toplevel fails. Fall back to the
+        # repo directory name — overridden by the origin match below anyway.
+        repo_root = (cwd or os.getcwd()).rstrip("/")
     repo_name = os.path.basename(repo_root)
     github_base = ""
     try:
@@ -1795,7 +1817,7 @@ def enrich_contributor_profiles(contributors, commits_meta, github_base, token=N
 
 
 def main():
-    top_n, remote, output, no_open, no_cache, commits_filter, since, until = parse_args(
+    top_n, remote, output, no_open, no_cache, clone, commits_filter, since, until = parse_args(
         sys.argv[1:]
     )
 
@@ -1803,8 +1825,13 @@ def main():
     if remote:
         owner, repo = remote.split("/", 1)
         token = get_github_token()
+        # --clone forces the bare-clone path even when a token is present: a
+        # local clone unlocks per-author language churn the GraphQL history API
+        # can't provide. The token (if any) is still used below for hovercard
+        # enrichment, so `use_graphql` — not `token` — gates the API path.
+        use_graphql = bool(token) and not clone
 
-        if not token:
+        if not use_graphql and not clone:
             print("No GitHub token — falling back to bare clone.", file=sys.stderr)
 
         # Subset prompt only in the GraphQL path: probing total via the API is
@@ -1812,7 +1839,7 @@ def main():
         # bare-clone path the full clone runs regardless, so the prompt would
         # only trim local display — pass `--commits` / `--since` for that.
         if (
-            token
+            use_graphql
             and not (commits_filter or since or until)
             and sys.stdin.isatty()
             and sys.stderr.isatty()
@@ -1822,8 +1849,10 @@ def main():
             if total and total > 1000:
                 commits_filter, since, until = prompt_subset(total)
 
-        if token:
+        if use_graphql:
             print(f"Fetching {remote} via GitHub GraphQL…", file=sys.stderr)
+        else:
+            print(f"Cloning {remote} (bare) for local analysis…", file=sys.stderr)
         (
             repo_name,
             github_base,
@@ -1838,7 +1867,7 @@ def main():
             extras,
         ) = collect_remote(
             remote,
-            token,
+            token if use_graphql else None,
             no_cache=no_cache,
             commits_filter=commits_filter,
             since=since,
