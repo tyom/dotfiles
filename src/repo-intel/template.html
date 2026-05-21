@@ -213,6 +213,25 @@
   .lang-legend .lang-pct { color: var(--text-muted); font-variant-numeric: tabular-nums; }
   .lane-popover .langbar { margin-top: 12px; }
   .lane-popover .lang-legend { font-size: 0.72rem; gap: 3px 10px; }
+  /* Commit-bucket popover — opened by clicking a bar in the pattern charts. */
+  .commit-popover {
+    position: fixed; z-index: 120; pointer-events: auto;
+    background: rgba(13,17,23,0.98); color: var(--text-primary);
+    border: 1px solid var(--border-default); border-radius: 6px;
+    padding: 12px 14px; min-width: 280px; max-width: 380px;
+    box-shadow: 0 8px 28px rgba(0,0,0,0.5);
+    opacity: 0; transition: opacity 0.12s; visibility: hidden;
+  }
+  .commit-popover.visible { opacity: 1; visibility: visible; }
+  .commit-popover .cp-title { font-weight: 600; font-size: 0.9rem; line-height: 1.2; }
+  .commit-popover .cp-sub { color: var(--text-muted); font-size: 0.76rem; margin: 2px 0 10px; }
+  .commit-popover .cp-list { max-height: 280px; overflow-y: auto; margin: 0 -14px; padding: 0; }
+  .commit-popover .cp-row { display: flex; gap: 9px; align-items: baseline; padding: 5px 14px; text-decoration: none; color: var(--text-secondary); }
+  .commit-popover .cp-row:hover { background: var(--bg-badge); }
+  .commit-popover .cp-hash { font-family: ui-monospace, monospace; font-size: 0.72rem; color: var(--text-muted); flex-shrink: 0; }
+  .commit-popover .cp-msg { font-size: 0.78rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; min-width: 0; }
+  .commit-popover .cp-date { font-size: 0.72rem; color: var(--text-muted); flex-shrink: 0; font-variant-numeric: tabular-nums; }
+  .commit-popover .cp-more { color: var(--text-muted); font-size: 0.74rem; margin-top: 8px; text-align: center; }
   /* Technologies section. */
   #tech .tech-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; align-items: start; }
   #tech .tech-bar-label { font-size: 0.78rem; color: var(--text-muted); margin: 0 0 4px; }
@@ -1851,18 +1870,94 @@ function renderChartCards(container, idPrefix, chartConfig) {
 
 const miniBarOpts = (c, i, xTicks) => ({ responsive: true, maintainAspectRatio: true, plugins: { legend: { display: false }, title: { display: true, text: c.name, color: clr(i), font: { size: 11 } } }, scales: { x: { ticks: { ...xTicks, font: { size: 9 } } }, y: { display: false, beginAtZero: true } } });
 
+// === COMMIT-BUCKET POPOVER (pattern-chart bars → GitHub commit pages) ===
+// The bars are histograms bucketed server-side by the commit's author-local
+// wall-clock (Python datetime.fromisoformat(iso).hour / .weekday()). Reproduce
+// that bucketing from the ISO string itself — new Date(iso).getHours() would
+// reinterpret the instant in the viewer's timezone and miss the bar.
+function isoBuckets(iso) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):/.exec(iso || '');
+  if (!m) return null;
+  const dow = (new Date(Date.UTC(+m[1], +m[2] - 1, +m[3])).getUTCDay() + 6) % 7;
+  return { hour: +m[4], dow };
+}
+function commitsInBucket(email, kind, idx) {
+  return (D.commits || [])
+    .filter(c => {
+      if (c.e !== email) return false;
+      const b = isoBuckets(c.d);
+      return b && (kind === 'hour' ? b.hour === idx : b.dow === idx);
+    })
+    .sort((a, b) => new Date(b.d) - new Date(a.d));
+}
+
+const dowFull = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+const commitPopover = document.createElement('div');
+commitPopover.className = 'commit-popover';
+document.body.appendChild(commitPopover);
+let commitPopoverOpen = false;
+function hideCommitPopover() { if (commitPopoverOpen) { commitPopover.classList.remove('visible'); commitPopoverOpen = false; } }
+
+function showCommitPopover(anchor, c, colorIdx, label, list) {
+  const ROW_CAP = 200;
+  const rows = list.slice(0, ROW_CAP).map(c2 =>
+    `<a class="cp-row" href="${D.githubBaseUrl}/commit/${encodeURIComponent(c2.h)}" target="_blank" rel="noopener">` +
+    `<span class="cp-hash">${escapeHtml(c2.h)}</span>` +
+    `<span class="cp-msg">${escapeHtml(c2.s || '')}</span>` +
+    `<span class="cp-date">${escapeHtml((c2.d || '').slice(0, 16).replace('T', ' '))}</span></a>`
+  ).join('');
+  const more = list.length > ROW_CAP ? `<div class="cp-more">+${fmt(list.length - ROW_CAP)} more</div>` : '';
+  commitPopover.innerHTML =
+    `<div class="cp-title" style="color:${clr(colorIdx)}">${escapeHtml(label)}</div>` +
+    `<div class="cp-sub">${escapeHtml(c.name)} · ${fmt(list.length)} commit${list.length === 1 ? '' : 's'}</div>` +
+    `<div class="cp-list">${rows}</div>${more}`;
+
+  commitPopover.style.left = '-9999px';
+  commitPopover.style.top = '0px';
+  commitPopover.classList.add('visible');
+  commitPopoverOpen = true;
+  const w = commitPopover.offsetWidth, h = commitPopover.offsetHeight, margin = 8;
+  const vw = document.documentElement.clientWidth, vh = document.documentElement.clientHeight;
+  let left = Math.max(margin, Math.min(anchor.x - w / 2, vw - w - margin));
+  let top = anchor.top - h - 10;
+  if (top < margin) top = anchor.bottom + 10;
+  if (top + h + margin > vh) top = Math.max(margin, vh - h - margin);
+  commitPopover.style.left = left + 'px';
+  commitPopover.style.top = top + 'px';
+}
+
+function makeBarClick(kind, c, colorIdx) {
+  return (evt, els, chart) => {
+    if (!D.githubBaseUrl || !els.length) return;
+    const idx = els[0].index;
+    const list = commitsInBucket(c.email, kind, idx);
+    if (!list.length) return;
+    const bar = chart.getDatasetMeta(0).data[idx];
+    const rect = chart.canvas.getBoundingClientRect();
+    const label = kind === 'hour' ? `${idx}:00–${idx}:59` : dowFull[idx];
+    showCommitPopover({ x: rect.left + bar.x, top: rect.top + bar.y, bottom: rect.bottom }, c, colorIdx, label, list);
+  };
+}
+const barHover = (evt, els) => { if (evt.native) evt.native.target.style.cursor = (els.length && D.githubBaseUrl) ? 'pointer' : ''; };
+
+// Dismiss on outside click, scroll, or Escape. Capture phase runs before the
+// chart's own click handler, so reopening on a fresh bar still works.
+document.addEventListener('click', e => { if (commitPopoverOpen && !commitPopover.contains(e.target)) hideCommitPopover(); }, true);
+document.addEventListener('keydown', e => { if (e.key === 'Escape') hideCommitPopover(); });
+window.addEventListener('scroll', e => { if (commitPopoverOpen && !commitPopover.contains(e.target)) hideCommitPopover(); }, true);
+
 const hourLabels = Array.from({length: 24}, (_, i) => `${i}:00`);
 renderChartCards(document.getElementById('hourlyCharts'), 'hourly', (c, i) => ({
   type: 'bar',
   data: { labels: hourLabels, datasets: [{ data: hourlyData[c.email], backgroundColor: clr(i) + '90', borderRadius: 2 }] },
-  options: miniBarOpts(c, i, { maxTicksLimit: 6 }),
+  options: { ...miniBarOpts(c, i, { maxTicksLimit: 6 }), onClick: makeBarClick('hour', c, i), onHover: barHover },
 }));
 
 const dowLabels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 renderChartCards(document.getElementById('dowCharts'), 'dow', (c, i) => ({
   type: 'bar',
   data: { labels: dowLabels, datasets: [{ data: dowData[c.email], backgroundColor: dowData[c.email].map((v, di) => di >= 5 ? clr(i) + '30' : clr(i) + '90'), borderRadius: 3 }] },
-  options: miniBarOpts(c, i, {}),
+  options: { ...miniBarOpts(c, i, {}), onClick: makeBarClick('dow', c, i), onHover: barHover },
 }));
 
 // === RESET BUTTONS ===
