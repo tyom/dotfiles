@@ -1,2 +1,6 @@
 *.log
 .env
+
+# Python bytecode (the stow tree previously hosted a Python tool)
+__pycache__/
+*.pyc
