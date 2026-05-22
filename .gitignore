@@ -1,7 +1,6 @@
 *.log
 .env
 
-# repo-intel is now a standalone tool (github.com/tyom/repo-intel).
-# The artifact is installed via Homebrew or fetched into the stow tree
-# during setup, not committed here.
-stow/bin/repo-intel
+# Python bytecode (the stow tree previously hosted a Python tool)
+__pycache__/
+*.pyc

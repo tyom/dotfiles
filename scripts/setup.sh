@@ -61,24 +61,6 @@ fi
 print_step 'Setting up zsh' &&
   source "$DOTFILES_DIR/scripts/zsh.sh"
 
-# repo-intel is a standalone tool (github.com/tyom/repo-intel). On macOS it's
-# installed via Homebrew (tyom/tap/repo-intel) above. Elsewhere — or if brew
-# was skipped — fetch the single-file artifact into the stow tree so it gets
-# symlinked to ~/bin like the other bin scripts.
-if ! command -v repo-intel &>/dev/null; then
-  print_step 'Installing repo-intel'
-  if curl -fsSL https://raw.githubusercontent.com/tyom/repo-intel/main/dist/repo-intel \
-    -o "$DOTFILES_DIR/stow/bin/repo-intel"; then
-    chmod +x "$DOTFILES_DIR/stow/bin/repo-intel"
-    print_success 'repo-intel fetched into stow/bin'
-  else
-    rm -f "$DOTFILES_DIR/stow/bin/repo-intel"
-    print_error 'Failed to fetch repo-intel (skipping)'
-  fi
-else
-  print_info 'repo-intel already installed'
-fi
-
 print_step 'Symlinking dotfiles' &&
   source "$DOTFILES_DIR/scripts/stow.sh"
 
