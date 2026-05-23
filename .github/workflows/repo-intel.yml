@@ -1,0 +1,55 @@
+# Publish a repo-intel contributor-stats dashboard to GitHub Pages.
+#
+# Generated dashboard lands at https://tyom.github.io/dotfiles/. The existing
+# static assets (install.sh + screenshots, previously served from /docs by the
+# legacy Jekyll source) are copied alongside it so their URLs keep working
+# after the Pages source is switched to GitHub Actions.
+#
+# IMPORTANT: fetch-depth: 0 is required — repo-intel reads the full git
+# history. With the default shallow checkout it would see only one commit.
+
+name: Repo Intel
+
+on:
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: tyom/repo-intel@v1 # moves with v1.x; pin @v1.2.1 to lock a version
+        with:
+          contributors: "10"
+          output: public
+
+      - name: Preserve the legacy /docs assets at their existing URLs
+        run: cp docs/install.sh docs/shell.png docs/vim.png docs/STRUCTURE.md public/
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: public
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

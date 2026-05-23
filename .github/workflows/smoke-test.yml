@@ -3,6 +3,7 @@ name: Smoke Test
 on:
   push:
     branches: [master]
+  workflow_dispatch:
 
 env:
   FORCE_COLOR: 3
@@ -13,24 +14,38 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # Wait for GitHub Pages deployment to complete for this commit
-      - name: Wait for Pages deployment
+      # Pages now deploys via the "Repo Intel" workflow (Actions source), not
+      # the legacy Jekyll builder — so wait on that run for this commit rather
+      # than polling the legacy pages/builds API.
+      - name: Wait for Repo Intel Pages deployment
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          echo "Waiting for Pages deployment of ${{ github.sha }}..."
-          for i in {1..30}; do
-            response=$(gh api repos/${{ github.repository }}/pages/builds/latest 2>/dev/null || echo '{}')
-            status=$(echo "$response" | jq -r '.status')
-            commit=$(echo "$response" | jq -r '.commit')
-            if [ "$status" = "built" ] && [ "$commit" = "${{ github.sha }}" ]; then
-              echo "Pages deployment completed successfully"
-              exit 0
+          echo "Waiting for the Repo Intel Pages deploy of ${{ github.sha }}..."
+          for i in {1..40}; do
+            run=$(gh api \
+              "repos/${{ github.repository }}/actions/runs?head_sha=${{ github.sha }}&per_page=100" \
+              --jq '[.workflow_runs[] | select(.name == "Repo Intel")]
+                    | sort_by(.created_at) | last // empty')
+            if [ -z "$run" ]; then
+              echo "No Repo Intel run yet - waiting... ($i/40)"
+              sleep 15
+              continue
             fi
-            echo "Status: $status, Commit: ${commit:0:7} - waiting... ($i/30)"
-            sleep 10
+            status=$(echo "$run" | jq -r '.status')
+            conclusion=$(echo "$run" | jq -r '.conclusion // ""')
+            if [ "$status" = "completed" ]; then
+              if [ "$conclusion" = "success" ]; then
+                echo "Repo Intel Pages deploy completed successfully"
+                exit 0
+              fi
+              echo "Repo Intel run concluded '$conclusion' - aborting smoke test"
+              exit 1
+            fi
+            echo "Repo Intel status: $status - waiting... ($i/40)"
+            sleep 15
           done
-          echo "Pages deployment timed out"
+          echo "Timed out waiting for the Repo Intel Pages deploy"
           exit 1
 
       - name: Test remote install (with Homebrew)
