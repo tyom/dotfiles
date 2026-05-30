@@ -152,6 +152,7 @@ async function getEditedFiles(
       const abs = resolve(fp);
       if (
         (abs.startsWith(projectRoot + "/") || abs === projectRoot) &&
+        !abs.includes("/node_modules/") &&
         !seen.has(abs)
       ) {
         seen.add(abs);
