@@ -9,6 +9,7 @@ packages=(
   scmpuff   # Add numbered shortcuts to common git commands
   tree      # Display directories as trees
   wget      # Internet file retriever
+  tyom/tap/ungit # Download a repo/dir/file from GitHub (tap: tyom/tap)
   # httpie    # Command line HTTP client
   # gh        # GitHub command-line tool
   # fx        # Command-line JSON processing tool

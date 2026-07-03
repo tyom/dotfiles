@@ -12,7 +12,7 @@ Personal dotfiles for macOS and Linux, designed for a smooth developer experienc
 - **Vim**: Pre-configured with vim-plug and curated plugins
 - **CLI Tools**: bat (syntax-highlighted cat), fzf (fuzzy finder), git-delta (better diffs), and more via Homebrew
 - **Dev Tools**: Volta and Node.js; Bun (optional)
-- **Bin Scripts**: Handy commands like `ungit` (clone GitHub repos/subdirs as files or text) and [`repo-intel`](https://github.com/tyom/repo-intel) (contributor stats dashboard for any git repo — now a standalone tool, installed via Homebrew or the standalone repo's installer)
+- **Bin Scripts**: Handy commands like `gb` and `git-author`, plus standalone tools installed via Homebrew: [`ungit`](https://github.com/tyom/ungit) (clone GitHub repos/subdirs as files or text) and [`repo-intel`](https://github.com/tyom/repo-intel) (contributor stats dashboard for any git repo)
 - **Claude Code Plugin**: Custom commands for code review, explanation, and refactoring
 
 ![Shell screenshot](https://tyom.github.io/dotfiles/shell.png)
