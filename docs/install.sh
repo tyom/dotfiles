@@ -57,8 +57,11 @@ else
       echo "Dotfiles already cloned. Pulling latest changes..."
       git -C "$DOTFILES_DIR" pull
     else
+      if [ -d "$DOTFILES_DIR" ] && [ -n "$(ls -A "$DOTFILES_DIR")" ]; then
+        echo "Error: $DOTFILES_DIR exists and is not a dotfiles clone. Remove it or set DOTFILES_DIR elsewhere."
+        exit 1
+      fi
       echo "Cloning dotfiles repository..."
-      rm -rf "$DOTFILES_DIR"
       git clone --depth 1 -b "$DOTFILES_BRANCH" "$DOTFILES_REPO" "$DOTFILES_DIR"
     fi
   else

@@ -16,11 +16,6 @@ fi
 
 print_step "Removing dotfile symlinks..."
 
-for package in "${STOW_PACKAGES[@]}"; do
-  if [ -d "$DOTFILES_DIR/$package" ]; then
-    echo "   Unstowing $package..."
-    $STOW_CMD -v -d "$DOTFILES_DIR" -t "$HOME" -D "$package" 2>&1 | grep -v "^BUG" || true
-  fi
-done
+$STOW_CMD -v -d "$DOTFILES_DIR" -t "$HOME" -D stow 2>&1 | grep -v "^BUG" || true
 
 print_success "Symlinks removed"

@@ -39,7 +39,7 @@ alias docker-rm-unused-images="docker images --no-trunc | grep '<none>' | awk '{
 alias docker-rm-unused-volumes="docker volume ls -qf dangling=true | xargs docker volume rm"
 
 # Run local server for current directory on port 8000
-alias server="python -m SimpleHTTPServer"
+alias server="python3 -m http.server"
 
 # Disk space
 alias diskspace="df -P -kHl"

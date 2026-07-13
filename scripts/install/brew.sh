@@ -47,7 +47,9 @@ if [ "$(which_os)" == "macos" ]; then
   else
     BREW_PREFIX="/usr/local"
   fi
-  echo "eval \"\$(${BREW_PREFIX}/bin/brew shellenv)\"" >>"$HOME/.zprofile"
+  BREW_SHELLENV="eval \"\$(${BREW_PREFIX}/bin/brew shellenv)\""
+  grep -qxF "$BREW_SHELLENV" "$HOME/.zprofile" 2>/dev/null ||
+    echo "$BREW_SHELLENV" >>"$HOME/.zprofile"
   eval "$(${BREW_PREFIX}/bin/brew shellenv)"
 fi
 

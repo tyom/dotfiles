@@ -49,12 +49,12 @@ function top_commands {
 
 # Show top n biggest files
 function largest_files {
-  du -k $@ | sort -rn | head -n 20 | perl -ne '($s,$f)=split(/\t/,$_,2);for(qw(K M G T)){if($s<1024){$x=($s<10?"%.1f":"%3d");printf("$x$_\t%s",$s,$f);last};$s/=1024}'
+  du -k "$@" | sort -rn | head -n 20 | perl -ne '($s,$f)=split(/\t/,$_,2);for(qw(K M G T)){if($s<1024){$x=($s<10?"%.1f":"%3d");printf("$x$_\t%s",$s,$f);last};$s/=1024}'
 }
 
 # find shorthand
 function f {
-  find . -name "$1" 2>&1 | grep -v 'Permission denied'
+  find . -name "$1" 2>/dev/null
 }
 
 # cd into whatever is the forefront Finder window.

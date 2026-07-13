@@ -39,12 +39,13 @@ DIR=$(echo "$input" | jq -r '.workspace.current_dir // .cwd // empty')
 BRANCH=$(git -C "${DIR:-.}" branch --show-current 2>/dev/null)
 BRANCH_LABEL=""
 if [ -n "$BRANCH" ]; then
-  BRANCH_LABEL=" | \033[90m⎇ $BRANCH\033[0m"
+  # Branch name passed as %s so it can't corrupt the printf format
+  BRANCH_LABEL=$(printf ' | \033[90m⎇ %s\033[0m' "$BRANCH")
 fi
 
 # Before the first response there's no usage yet — show model + branch only
 if (( $(echo "$USED_PCT == 0" | bc -l) )); then
-  printf "%s${BRANCH_LABEL}" "$MODEL"
+  printf "%s%s" "$MODEL" "$BRANCH_LABEL"
   exit 0
 fi
 
@@ -103,4 +104,4 @@ else
 fi
 
 # Output: Opus 4.5 | ⎇ master | 14k ████████▌  89%
-printf "%s${BRANCH_LABEL} | ${TOKEN_COLOR}%s${RESET} ${COLOR}${BAR_BG}%s${RESET}${COLOR} %.0f%%${RESET}" "$MODEL" "$TOKENS_LABEL" "$BAR" "$CLAMPED_PCT"
+printf "%s%s | ${TOKEN_COLOR}%s${RESET} ${COLOR}${BAR_BG}%s${RESET}${COLOR} %.0f%%${RESET}" "$MODEL" "$BRANCH_LABEL" "$TOKENS_LABEL" "$BAR" "$CLAMPED_PCT"
