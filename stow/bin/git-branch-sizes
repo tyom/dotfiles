@@ -1,0 +1,87 @@
+#!/usr/bin/env bash
+# Show unmerged git branches by their unique on-disk size: the packed
+# size of objects reachable from the branch but not from the base.
+#
+# Usage: git-branch-sizes [base] [--local] [-n N | --all]
+#   base       base branch to diff against (default: origin's default branch)
+#   --local    measure local branches instead of remote
+#   -n N       show top N branches (default: 10)
+#   --all      show all branches (no limit)
+
+set -euo pipefail
+
+usage() {
+  cat <<'USAGE'
+git-branch-sizes - rank unmerged branches by unique on-disk size
+
+Shows the packed size of objects reachable from each branch but not from
+the base branch, sorted largest first.
+
+Usage: git-branch-sizes [base] [--local] [-n N | --all]
+
+Options:
+  base           base branch to diff against (default: origin's default branch)
+  --local        measure local branches instead of remote
+  -n N           show top N branches (default: 10)
+  --all          show all branches (no limit)
+  -h, --help     show this help and exit
+
+Examples:
+  git-branch-sizes                  # top 10 remote branches vs origin's default
+  git-branch-sizes -n 25            # top 25
+  git-branch-sizes --all            # every unmerged branch
+  git-branch-sizes --local -n 20    # top 20 local branches
+  git-branch-sizes origin/develop   # diff against a different base
+USAGE
+}
+
+die() { echo "git-branch-sizes: $*" >&2; exit 2; }
+
+base=""
+refs="refs/remotes"
+limit=10
+while [ $# -gt 0 ]; do
+  case "$1" in
+    -h|--help) usage; exit 0 ;;
+    --local) refs="refs/heads" ;;
+    --all)   limit=0 ;;
+    -n)      [ $# -ge 2 ] || die "-n requires a value"; limit="$2"; shift ;;
+    -n*)     limit="${1#-n}" ;;
+    -*)      die "unknown option: $1" ;;
+    *)       base="$1" ;;
+  esac
+  shift
+done
+case "$limit" in ''|*[!0-9]*) die "-n expects a positive number, got: '$limit'" ;; esac
+
+# Default base: origin's default branch, falling back to origin/main.
+if [ -z "$base" ]; then
+  base=$(git symbolic-ref -q --short refs/remotes/origin/HEAD || echo origin/main)
+fi
+git rev-parse -q --verify "$base^{commit}" >/dev/null \
+  || die "base branch not found: $base (pass one explicitly)"
+
+# Colour when stdout is a terminal and NO_COLOR is unset.
+color=1
+[ -n "${NO_COLOR:-}" ] && color=0
+[ -t 1 ] || color=0
+
+# %(symref) is non-empty for symbolic refs like origin/HEAD; skip those.
+# Branch walks are independent, so size them in parallel across all cores.
+# shellcheck disable=SC2016  # $1/$2 must expand in the child sh, not here
+git for-each-ref --format='%(refname:short) %(symref)' --no-merged "$base" "$refs" |
+  awk '!$2 { print $1 }' |
+  xargs -P "$(getconf _NPROCESSORS_ONLN)" -I{} sh -c '
+    size=$(git rev-list --disk-usage --objects "$1" --not "$2" 2>/dev/null) \
+      || { echo "git-branch-sizes: skipping unreadable ref: $1" >&2; exit 0; }
+    printf "%s\t%s\n" "$size" "$1"
+  ' _ {} "$base" |
+  sort -rn |
+  awk -v limit="$limit" -v color="$color" '
+    BEGIN { red="\033[31m"; yellow="\033[33m"; reset="\033[0m"; split("B KB MB GB TB", unit) }
+    { bytes=$1; sz=bytes; i=1
+      while (sz>=1024 && i<5) { sz/=1024; i++ }
+      c=""
+      if (color) { if (bytes>=2^30) c=red; else if (bytes>=50*2^20) c=yellow }
+      printf "%s%8.1f%s\t%s%s\n", c, sz, unit[i], $2, (c?reset:"")
+      if (limit && NR>=limit) exit }'
