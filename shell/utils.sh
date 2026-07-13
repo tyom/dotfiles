@@ -155,3 +155,23 @@ function which_os {
 exists() {
   command -v $1 >/dev/null 2>&1
 }
+
+# Show "name|description" entries, then prompt to install all, pick
+# individually, or skip. Selected names are returned in the PICKED array.
+function pick_from_list {
+  local prompt="$1" entry
+  shift
+  PICKED=()
+  for entry in "$@"; do
+    printf '   \e[0;36m%-18s\e[0m %s\n' "${entry%%|*}" "${entry#*|}"
+  done
+  if continue_or_skip "$prompt" 'y'; then
+    for entry in "$@"; do PICKED+=("${entry%%|*}"); done
+  elif continue_or_skip 'Pick individually?' 'n'; then
+    for entry in "$@"; do
+      if continue_or_skip "Install ${entry%%|*}?" 'y'; then
+        PICKED+=("${entry%%|*}")
+      fi
+    done
+  fi
+}

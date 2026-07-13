@@ -16,26 +16,16 @@ echo -e "Installing dotfiles for $(which_os)…"
 continue_or_exit \
   'This will install dotfiles for your system and update your .zshrc file.' 'y'
 
+# brew.sh and brew-cask.sh list their packages, prompt (all/pick/skip),
+# and append their own SUMMARY lines
 if [[ "${MINIMAL_SETUP:-}" == "true" ]]; then
   print_info 'Skipping Homebrew (minimal setup)'
   SUMMARY+=('Homebrew packages: skipped (minimal setup)')
 else
-  if continue_or_skip 'Install Homebrew and useful packages? This may take a while.' 'y'; then
-    source "$DOTFILES_DIR/scripts/install/brew.sh"
-    SUMMARY+=("Homebrew packages: installed (${#packages[@]})")
-  else
-    print_info 'Skipping Homebrew'
-    SUMMARY+=('Homebrew packages: skipped')
-  fi
-fi
+  source "$DOTFILES_DIR/scripts/install/brew.sh"
 
-if [ "$(which_os)" == "macos" ]; then
-  if continue_or_skip 'Install brew cask (macOS apps via Homebrew)?' 'y'; then
+  if [ "$(which_os)" == "macos" ]; then
     source "$DOTFILES_DIR/scripts/install/brew-cask.sh"
-    SUMMARY+=("Brew Cask apps: installed (${#casks[@]})")
-  else
-    print_info 'Skipping Brew Cask'
-    SUMMARY+=('Brew Cask apps: skipped')
   fi
 fi
 
