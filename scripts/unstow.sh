@@ -16,6 +16,6 @@ fi
 
 print_step "Removing dotfile symlinks..."
 
-$STOW_CMD -v -d "$DOTFILES_DIR" -t "$HOME" -D stow 2>&1 | grep -v "^BUG" || true
+$STOW_CMD -v --ignore='\.DS_Store' -d "$DOTFILES_DIR" -t "$HOME" -D stow 2>&1 | grep -v "^BUG" || true
 
 print_success "Symlinks removed"
