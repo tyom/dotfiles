@@ -53,6 +53,9 @@ if [ "$(which_os)" == "macos" ]; then
   eval "$(${BREW_PREFIX}/bin/brew shellenv)"
 fi
 
+# Trust own taps so tap-trust-enabled brew installs their packages without prompts
+brew trust tyom/tap tyom/kcm &>/dev/null || true
+
 print_step "Updating Homebrew" && brew update
 print_step "Installing Homebrew packages" && brew install "${packages[@]}"
 
