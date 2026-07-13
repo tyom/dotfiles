@@ -1,5 +1,4 @@
-source $DOTFILES_DIR/scripts/vars.sh
-source $DOTFILES_DIR/shell/utils.sh
+# Sourced by zsh/config.zsh after shell/utils.sh (provides `exists`)
 
 export ZSH=$HOME/.oh-my-zsh
 
@@ -39,10 +38,12 @@ dirs_to_prepend=(
 )
 
 if exists brew; then
+  # ponytail: $HOMEBREW_PREFIX avoids ~25ms per `brew --prefix` fork at startup
+  : "${HOMEBREW_PREFIX:=$(brew --prefix)}"
   dirs_to_prepend+=(
-    "$(brew --prefix ruby)/bin"
-    "$(brew --prefix coreutils)/libexec/gnubin" # Add brew-installed GNU core utilities bin
-    "$(brew --prefix)/share/npm/bin"            # Add npm-installed package bin
+    "$HOMEBREW_PREFIX/opt/ruby/bin"
+    "$HOMEBREW_PREFIX/opt/coreutils/libexec/gnubin" # brew-installed GNU core utilities
+    "$HOMEBREW_PREFIX/share/npm/bin"                # npm-installed package bin
   )
 fi
 
@@ -59,7 +60,7 @@ export EDITOR="vim"
 
 # Prefer British English and use UTF-8
 export LC_ALL="en_GB.UTF-8"
-export LANG="en_GB"
+export LANG="en_GB.UTF-8"
 
 # Don’t clear the screen after quitting a manual page
 export MANPAGER="less -X"

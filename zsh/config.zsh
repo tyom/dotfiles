@@ -38,10 +38,8 @@ setopt hist_ignore_all_dups
 setopt extended_glob
 
 # Set FZF_BASE for oh-my-zsh fzf plugin (must be set BEFORE oh-my-zsh loads)
-if exists brew; then
-  FZF_BREW_PATH="$(brew --prefix)/opt/fzf"
-  [ -d "$FZF_BREW_PATH" ] && export FZF_BASE="$FZF_BREW_PATH"
-fi
+# HOMEBREW_PREFIX is set by exports.sh above
+[ -d "$HOMEBREW_PREFIX/opt/fzf" ] && export FZF_BASE="$HOMEBREW_PREFIX/opt/fzf"
 
 # Set plugins array (must be set BEFORE oh-my-zsh loads)
 # Note: 'git' plugin excluded to use custom aliases from shell/aliases.sh
