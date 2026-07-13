@@ -14,8 +14,8 @@ CMD_SUFFIX := $(if $(VARIANT),-$(VARIANT))
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-15s\033[0m %s\n", $$1, $$2}'
 
-install: ## Install dotfiles on local machine
-	./scripts/setup.sh
+install: ## Install dotfiles on local machine (VERBOSE=1 for full validation output)
+	./scripts/setup.sh $(if $(VERBOSE),--verbose)
 
 uninstall: ## Remove dotfiles symlinks
 	./scripts/unstow.sh

@@ -28,6 +28,8 @@ make install
 
 Installation takes a few minutes to download and configure packages. Setup can be run multiple times safely.
 
+Setup ends with a short summary of what was selected at each prompt and a one-line validation result. For the full per-check validation output, use `make install VERBOSE=1` (or `./scripts/setup.sh --verbose`). Docker test targets always run verbose.
+
 ### Remote Installation
 
 ```bash

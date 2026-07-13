@@ -49,13 +49,13 @@ validate)
 test)
   echo "Running setup (includes validation)..."
   export YES_OVERRIDE=true
-  ./scripts/setup.sh
+  ./scripts/setup.sh --verbose
   ;;
 test-minimal)
   echo "Running minimal setup (includes validation)..."
   export YES_OVERRIDE=true
   export MINIMAL_SETUP=true
-  ./scripts/setup.sh
+  ./scripts/setup.sh --verbose
   ;;
 shell)
   exec zsh
