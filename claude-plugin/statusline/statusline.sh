@@ -25,17 +25,26 @@ format_tokens() {
   local n=$1
   n=${n%.*}
   if [ "$n" -ge 1000000 ]; then
-    awk -v n="$n" 'BEGIN { printf "%.1fM", n/1000000 }'
+    awk -v n="$n" 'BEGIN { printf "%.2fM", n/1000000 }'
   elif [ "$n" -ge 1000 ]; then
-    awk -v n="$n" 'BEGIN { printf "%.1fk", n/1000 }'
+    awk -v n="$n" 'BEGIN { printf "%.2fk", n/1000 }'
   else
     echo "$n"
   fi
 }
 TOKENS_LABEL=$(format_tokens "$USED_TOKENS")
 
-# Don't show anything for 0%
+# Git branch of the workspace dir, dimmed
+DIR=$(echo "$input" | jq -r '.workspace.current_dir // .cwd // empty')
+BRANCH=$(git -C "${DIR:-.}" branch --show-current 2>/dev/null)
+BRANCH_LABEL=""
+if [ -n "$BRANCH" ]; then
+  BRANCH_LABEL=" | \033[90m⎇ $BRANCH\033[0m"
+fi
+
+# Before the first response there's no usage yet — show model + branch only
 if (( $(echo "$USED_PCT == 0" | bc -l) )); then
+  printf "%s${BRANCH_LABEL}" "$MODEL"
   exit 0
 fi
 
@@ -60,16 +69,18 @@ if [ "$EMPTY_SQUARES" -lt 0 ]; then
   EMPTY_SQUARES=0
 fi
 
+# Bar cells sit on a dim background so the half block ▌ has no gap on its right
 BAR=""
 for ((i=0; i<FULL_SQUARES; i++)); do
-  BAR+="■"
+  BAR+="█"
 done
 if [ "$HAS_HALF" -eq 1 ]; then
-  BAR+="◧"
+  BAR+="▌"
 fi
 for ((i=0; i<EMPTY_SQUARES; i++)); do
-  BAR+="□"
+  BAR+=" "
 done
+BAR_BG="\033[48;5;236m"
 
 # Bar color: grey < 60%, orange 60-80%, red >= 80% (auto-compact at 77.5%)
 if (( $(echo "$CLAMPED_PCT < 60" | bc -l) )); then
@@ -91,5 +102,5 @@ else
   TOKEN_COLOR="\033[31m"
 fi
 
-# Output: Opus 4.5 | 14k ■■■■■■■■■■■■■■■■■■■■ 89%
-printf "%s | ${TOKEN_COLOR}%s${RESET} ${COLOR}%s %.0f%%${RESET}" "$MODEL" "$TOKENS_LABEL" "$BAR" "$CLAMPED_PCT"
+# Output: Opus 4.5 | ⎇ master | 14k ████████▌  89%
+printf "%s${BRANCH_LABEL} | ${TOKEN_COLOR}%s${RESET} ${COLOR}${BAR_BG}%s${RESET}${COLOR} %.0f%%${RESET}" "$MODEL" "$TOKENS_LABEL" "$BAR" "$CLAMPED_PCT"
