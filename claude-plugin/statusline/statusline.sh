@@ -40,7 +40,7 @@ BRANCH=$(git -C "${DIR:-.}" branch --show-current 2>/dev/null)
 BRANCH_LABEL=""
 if [ -n "$BRANCH" ]; then
   # Branch name passed as %s so it can't corrupt the printf format
-  BRANCH_LABEL=$(printf ' | \033[90m⎇ %s\033[0m' "$BRANCH")
+  BRANCH_LABEL=$(printf ' | \033[38;5;244m⎇ %s\033[0m' "$BRANCH")
 fi
 
 # Before the first response there's no usage yet — show model + branch only
@@ -83,17 +83,9 @@ for ((i=0; i<EMPTY_SQUARES; i++)); do
 done
 BAR_BG="\033[48;5;236m"
 
-# Bar color: grey < 60%, orange 60-80%, red >= 80% (auto-compact at 77.5%)
-if (( $(echo "$CLAMPED_PCT < 60" | bc -l) )); then
-  COLOR="\033[90m"
-elif (( $(echo "$CLAMPED_PCT < 80" | bc -l) )); then
-  COLOR="\033[38;5;208m"
-else
-  COLOR="\033[31m"
-fi
 RESET="\033[0m"
 
-# Color the token count by absolute usage: green ≤100k, yellow 100k-600k, red >600k
+# Token count and bar share one color, by absolute usage: green ≤100k, yellow 100k-600k, red >600k
 TOKENS_INT=${USED_TOKENS%.*}
 if [ "$TOKENS_INT" -le 100000 ]; then
   TOKEN_COLOR="\033[32m"
@@ -103,5 +95,5 @@ else
   TOKEN_COLOR="\033[31m"
 fi
 
-# Output: Opus 4.5 | ⎇ master | 14k ████████▌  89%
-printf "%s%s | ${TOKEN_COLOR}%s${RESET} ${COLOR}${BAR_BG}%s${RESET}${COLOR} %.0f%%${RESET}" "$MODEL" "$BRANCH_LABEL" "$TOKENS_LABEL" "$BAR" "$CLAMPED_PCT"
+# Output: Opus 4.5 | 14k ████████▌ 89% | ⎇ master
+printf "%s | ${TOKEN_COLOR}%s${RESET} ${TOKEN_COLOR}${BAR_BG}%s${RESET}${TOKEN_COLOR} %.0f%%${RESET}%s" "$MODEL" "$TOKENS_LABEL" "$BAR" "$CLAMPED_PCT" "$BRANCH_LABEL"
