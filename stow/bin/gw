@@ -1,0 +1,207 @@
+#!/usr/bin/env bash
+
+# Git worktrees mapped to branches, sorted by commit date.
+# ✓ = branch merged into base, → = the current worktree, 🔒 = locked.
+# Usage:
+#   gw          list worktrees
+#   gw prune    remove worktrees (and branches) for merged branches
+
+set -e
+
+RESET=$'\033[0m'
+BRIGHT=$'\033[1m'
+GRAY=$'\033[90m'
+LIGHT_GRAY=$'\033[38;5;246m'
+GREEN=$'\033[32m'
+YELLOW=$'\033[33m'
+RED=$'\033[31m'
+CYAN=$'\033[36m'
+
+truncate() {
+  local str="$1" max="$2"
+  if [[ ${#str} -gt $max ]]; then
+    printf '%s' "${str:0:$max}…"
+  else
+    printf '%s' "$str"
+  fi
+}
+
+# Base branch to test "merged" against (main, else master).
+base=main
+git show-ref --verify --quiet refs/heads/main || base=master
+
+this_wt=$(git rev-parse --show-toplevel 2>/dev/null)
+
+# Parse `git worktree list --porcelain` into "path|branch|sha|locked" records.
+records=$(git worktree list --porcelain 2>/dev/null | awk '
+  /^worktree /  { path=substr($0,10) }
+  /^HEAD /      { sha=substr($0,6,7) }
+  /^branch /    { br=substr($0,8); sub(/^refs\/heads\//,"",br) }
+  /^detached/   { br="(detached)" }
+  /^locked/     { locked="🔒" }
+  /^$/          { if(path){print path"|"br"|"sha"|"locked}; path="";br="";sha="";locked="" }
+  END           { if(path){print path"|"br"|"sha"|"locked} }
+')
+
+# Attach commit timestamp for sorting.
+declare -a rows=()
+while IFS='|' read -r path branch sha locked; do
+  [[ -z "$path" ]] && continue
+  ts=$(git log --no-walk --pretty=format:"%ct|%cr|%s" "$sha" -- 2>/dev/null) || ts="0|?|"
+  rows+=("$ts|$path|$branch|$sha|$locked")
+done <<<"$records"
+
+sorted=$(printf '%s\n' "${rows[@]}" | sort -t'|' -k1 -n)
+
+# Main repo directory (the primary worktree).
+repo_dir=$(git worktree list --porcelain 2>/dev/null | awk '/^worktree /{print substr($0,10); exit}')
+
+# Paths inside the repo dir show as ./relative; ones outside show the full tilde path.
+short_path() {
+  local p="$1"
+  if [[ "$p" == "$repo_dir"/* ]]; then
+    printf './%s' "${p#"$repo_dir"/}"
+  else
+    printf '%s' "${p/#$HOME/\~}"
+  fi
+}
+
+# A branch is prunable when it's merged into base and isn't base or the current worktree.
+is_merged() {
+  local branch="$1" sha="$2" path="$3"
+  [[ "$branch" == "$base" || "$path" == "$this_wt" || "$branch" == "(detached)" ]] && return 1
+  git merge-base --is-ancestor "$sha" "$base" 2>/dev/null
+}
+
+cmd_list() {
+  local max_branch_len=0 sp cols indent
+  while IFS='|' read -r _ _ _ path branch _ _; do
+    [[ -z "$path" ]] && continue
+    [[ ${#branch} -gt $max_branch_len ]] && max_branch_len=${#branch}
+  done <<<"$sorted"
+
+  cols=${COLUMNS:-$(tput cols 2>/dev/null || echo 100)}
+  # Message line is indented to the sha column: lock(3) + timeago(14) + 2 + marker(1) + 2.
+  indent=$(printf '%22s' '')
+
+  local timeago message path branch sha locked merged is_current marker sha_color
+  while IFS='|' read -r _ timeago message path branch sha locked; do
+    [[ -z "$path" ]] && continue
+
+    merged=""
+    is_merged "$branch" "$sha" "$path" && merged="1"
+    is_current=""
+    [[ "$path" == "$this_wt" ]] && is_current="1"
+
+    if [[ -n "$is_current" ]]; then
+      marker="→"
+    elif [[ -n "$merged" ]]; then
+      marker="${GREEN}✓${RESET}"
+    else
+      marker=" "
+    fi
+
+    sha_color="$YELLOW"
+    [[ -n "$is_current" ]] && sha_color="$BRIGHT"
+
+    # Leading lock column: 🔒 renders ~2 cols; pad absent locks to match, +1 separator.
+    [[ -n "$locked" ]] && lockmark="🔒" || lockmark="  "
+
+    printf '%s %b%-14s%b  %s  %b%s%b  %b%-*s%b  %b%s%b\n' \
+      "$lockmark" \
+      "$GRAY" "$(truncate "$timeago" 14)" "$RESET" \
+      "$marker" \
+      "$sha_color" "$sha" "$RESET" \
+      "$GREEN" "$max_branch_len" "$branch" "$RESET" \
+      "$CYAN" "$(short_path "$path")" "$RESET"
+
+    printf '%s%b%s%b\n' "$indent" \
+      "$LIGHT_GRAY" "$(truncate "$message" $((cols - 20)))" "$RESET"
+  done <<<"$sorted"
+}
+
+remove_wt() {
+  local path="$1" branch="$2"
+  git worktree unlock "$path" 2>/dev/null || true
+  git worktree remove --force "$path"
+  [[ -n "$branch" && "$branch" != "(detached)" ]] && git branch -D "$branch"
+}
+
+cmd_prune() {
+  local -a unlocked=() locked=()
+  local path branch sha lock
+  while IFS='|' read -r _ _ _ path branch sha lock; do
+    [[ -z "$path" ]] && continue
+    is_merged "$branch" "$sha" "$path" || continue
+    if [[ -n "$lock" ]]; then
+      locked+=("$path|$branch")
+    else
+      unlocked+=("$path|$branch")
+    fi
+  done <<<"$sorted"
+
+  if [[ ${#unlocked[@]} -eq 0 && ${#locked[@]} -eq 0 ]]; then
+    echo "Nothing to prune — no merged worktrees."
+    return
+  fi
+
+  local entry p b
+  echo "${BRIGHT}Merged worktrees to remove (branch will be deleted too):${RESET}"
+  for entry in "${unlocked[@]}"; do
+    IFS='|' read -r p b <<<"$entry"
+    printf '  %b%s%b  %b%s%b\n' "$GREEN" "$b" "$RESET" "$CYAN" "$(short_path "$p")" "$RESET"
+  done
+  for entry in "${locked[@]}"; do
+    IFS='|' read -r p b <<<"$entry"
+    printf '  🔒 %b%s%b  %b%s%b\n' "$GREEN" "$b" "$RESET" "$CYAN" "$(short_path "$p")" "$RESET"
+  done
+  echo
+
+  local reply targets=()
+  if [[ ${#locked[@]} -gt 0 ]]; then
+    printf 'Remove merged [%by%b], all merged incl. %b🔒 locked%b [%ba%b], or cancel [%bn%b]? ' \
+      "$GREEN" "$RESET" "$RED" "$RESET" "$YELLOW" "$RESET" "$GRAY" "$RESET"
+    read -r reply
+    case "$reply" in
+      y|Y) targets=("${unlocked[@]}") ;;
+      a|A) targets=("${unlocked[@]}" "${locked[@]}") ;;
+      *)   echo "Cancelled."; return ;;
+    esac
+  else
+    printf 'Remove these %d worktree(s)? [%by%b/%bn%b] ' \
+      "${#unlocked[@]}" "$GREEN" "$RESET" "$GRAY" "$RESET"
+    read -r reply
+    case "$reply" in
+      y|Y) targets=("${unlocked[@]}") ;;
+      *)   echo "Cancelled."; return ;;
+    esac
+  fi
+
+  for entry in "${targets[@]}"; do
+    IFS='|' read -r p b <<<"$entry"
+    echo "Removing ${b} (${p})…"
+    remove_wt "$p" "$b"
+  done
+  git worktree prune
+  echo "Done."
+}
+
+usage() {
+  cat <<EOF
+${BRIGHT}gw${RESET} — list git worktrees mapped to their branches, sorted by commit date.
+
+${BRIGHT}Usage:${RESET}
+  gw            List worktrees. ${GREEN}✓${RESET} merged into ${base}, → current, 🔒 locked.
+  gw prune      Remove worktrees (and delete branches) for merged branches.
+                Prompts before removing; if any are 🔒 locked, choose
+                [y] merged only, [a] all incl. locked, or [n] cancel.
+  gw -h, --help Show this help.
+EOF
+}
+
+case "${1:-list}" in
+  prune)        cmd_prune ;;
+  list)         cmd_list ;;
+  -h|--help|help) usage ;;
+  *)            usage >&2; exit 1 ;;
+esac
