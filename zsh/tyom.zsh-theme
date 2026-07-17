@@ -32,7 +32,7 @@ function _conda_env_name {
 }
 
 PROMPT='
-$(_user_host) $(_conda_env_name) ⫶ ${_current_dir}
+$(_user_host) $(_conda_env_name) ${_current_dir}
 %{$fg[$CARETCOLOR]%}❯%{$reset_color%} '
 
 RPROMPT='$(_node_version) $(_prompt_git_state) $(git_prompt_info)$(git_prompt_status)'
