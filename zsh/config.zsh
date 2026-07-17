@@ -21,6 +21,9 @@ HISTFILE=~/.zsh_history
 HISTSIZE=10000
 SAVEHIST=10000
 
+# Custom completions (picked up by oh-my-zsh's compinit)
+fpath=($DOTFILES_DIR/zsh/completions $fpath)
+
 # Tab completion fix for 'cd ..<TAB>'
 zstyle ':completion:*' special-dirs true
 

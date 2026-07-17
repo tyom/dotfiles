@@ -85,6 +85,19 @@ function webmify {
 }
 
 # git worktree helpers
+
+# Wrap the gw script so `gw switch <branch>` can cd (a child process can't
+# change this shell's directory). Everything else passes through.
+function gw {
+  if [ "$1" = "switch" ]; then
+    local dir
+    dir=$(command gw switch "$2") || return 1
+    cd "$dir"
+  else
+    command gw "$@"
+  fi
+}
+
 function _git_toplevel {
   git rev-parse --show-toplevel 2>/dev/null
 }

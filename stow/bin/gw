@@ -3,8 +3,10 @@
 # Git worktrees mapped to branches, sorted by commit date.
 # ✓ = branch merged into base, → = the current worktree, 🔒 = locked.
 # Usage:
-#   gw          list worktrees
-#   gw prune    remove worktrees (and branches) for merged branches
+#   gw                 list worktrees
+#   gw prune           remove worktrees (and branches) for merged branches
+#   gw switch <branch> print the worktree path for a branch (the gw shell
+#                      function wraps this to actually cd there)
 
 set -e
 
@@ -14,6 +16,7 @@ GRAY=$'\033[90m'
 LIGHT_GRAY=$'\033[38;5;246m'
 GREEN=$'\033[32m'
 YELLOW=$'\033[33m'
+LIGHT_YELLOW=$'\033[93m'
 RED=$'\033[31m'
 CYAN=$'\033[36m'
 
@@ -81,10 +84,11 @@ cmd_list() {
   done <<<"$sorted"
 
   cols=${COLUMNS:-$(tput cols 2>/dev/null || echo 100)}
-  # Message line is indented to the sha column: lock(3) + timeago(14) + 2 + marker(1) + 2.
-  indent=$(printf '%22s' '')
+  # Message line is indented to the branch column:
+  # lock(3) + timeago(14) + 2 + marker(1) + 2 + sha(7) + 2.
+  indent=$(printf '%31s' '')
 
-  local timeago message path branch sha locked merged is_current marker sha_color
+  local timeago message path branch sha locked merged is_current marker sha_color branch_color
   while IFS='|' read -r _ timeago message path branch sha locked; do
     [[ -z "$path" ]] && continue
 
@@ -104,6 +108,9 @@ cmd_list() {
     sha_color="$YELLOW"
     [[ -n "$is_current" ]] && sha_color="$BRIGHT"
 
+    branch_color="$GREEN"
+    [[ "$branch" == "(detached)" ]] && branch_color="$LIGHT_YELLOW"
+
     # Leading lock column: 🔒 renders ~2 cols; pad absent locks to match, +1 separator.
     [[ -n "$locked" ]] && lockmark="🔒" || lockmark="  "
 
@@ -112,11 +119,11 @@ cmd_list() {
       "$GRAY" "$(truncate "$timeago" 14)" "$RESET" \
       "$marker" \
       "$sha_color" "$sha" "$RESET" \
-      "$GREEN" "$max_branch_len" "$branch" "$RESET" \
+      "$branch_color" "$max_branch_len" "$branch" "$RESET" \
       "$CYAN" "$(short_path "$path")" "$RESET"
 
     printf '%s%b%s%b\n' "$indent" \
-      "$LIGHT_GRAY" "$(truncate "$message" $((cols - 20)))" "$RESET"
+      "$LIGHT_GRAY" "$(truncate "$message" $((cols - 31)))" "$RESET"
   done <<<"$sorted"
 }
 
@@ -186,6 +193,24 @@ cmd_prune() {
   echo "Done."
 }
 
+# Print the worktree path for a branch. The gw shell function (shell/functions.sh)
+# cds to this output; a script can't change its parent shell's directory.
+cmd_switch() {
+  local target="$1" path branch
+  if [[ -z "$target" ]]; then
+    echo "Usage: gw switch <branch>" >&2
+    return 1
+  fi
+  while IFS='|' read -r path branch _ _; do
+    if [[ "$branch" == "$target" ]]; then
+      printf '%s\n' "$path"
+      return 0
+    fi
+  done <<<"$records"
+  echo "No worktree for branch '$target'" >&2
+  return 1
+}
+
 usage() {
   cat <<EOF
 ${BRIGHT}gw${RESET} — list git worktrees mapped to their branches, sorted by commit date.
@@ -195,12 +220,16 @@ ${BRIGHT}Usage:${RESET}
   gw prune      Remove worktrees (and delete branches) for merged branches.
                 Prompts before removing; if any are 🔒 locked, choose
                 [y] merged only, [a] all incl. locked, or [n] cancel.
+  gw switch <branch>
+                cd to the worktree for <branch> (via the gw shell function;
+                the script itself just prints the path).
   gw -h, --help Show this help.
 EOF
 }
 
 case "${1:-list}" in
   prune)        cmd_prune ;;
+  switch)       cmd_switch "$2" ;;
   list)         cmd_list ;;
   -h|--help|help) usage ;;
   *)            usage >&2; exit 1 ;;

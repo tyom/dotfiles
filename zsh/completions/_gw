@@ -1,0 +1,16 @@
+#compdef gw
+
+# Completion for gw (stow/bin/gw + gw wrapper in shell/functions.sh).
+if (( CURRENT == 2 )); then
+  local -a subcmds
+  subcmds=(
+    'switch:cd to the worktree for a branch'
+    'prune:remove worktrees for merged branches'
+  )
+  _describe 'gw command' subcmds
+elif (( CURRENT == 3 )) && [[ $words[2] == switch ]]; then
+  local -a branches
+  branches=(${(f)"$(git worktree list --porcelain 2>/dev/null |
+    awk '/^branch /{sub(/^refs\/heads\//,"",$2); print $2}')"})
+  _describe 'worktree branch' branches
+fi
