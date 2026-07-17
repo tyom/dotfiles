@@ -20,14 +20,6 @@ casks=(
   # 'qlstephen|Preview plain text files without extensions'
 )
 
-echo ""
-print_step "macOS casks:"
-pick_from_list 'Install all of these casks?' "${casks[@]}"
-
-if [ ${#PICKED[@]} -eq 0 ]; then
-  print_info 'Skipping Brew Cask apps'
-  SUMMARY+=('Brew Cask apps: skipped')
-else
-  brew install --cask "${PICKED[@]}"
-  SUMMARY+=("Brew Cask apps: installed (${#PICKED[@]})")
-fi
+print_step "Installing macOS casks"
+brew install --cask "${casks[@]%%|*}"
+SUMMARY+=("Brew Cask apps: installed (${#casks[@]})")

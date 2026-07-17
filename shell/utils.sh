@@ -1,95 +1,68 @@
-function continue_or_skip {
-  local default="${2:-}"
-  local prompt="(y/n)"
+# Checklist menu. Entries are "name|description|on/off" (on = pre-checked).
+# Toggle by number, Enter confirms, q quits. Checked names land in CHECKED.
+# YES_OVERRIDE checks everything; no tty keeps the defaults.
+function multi_select {
+  local title="$1" entry i n
+  shift
+  local names=() descs=() states=()
+  for entry in "$@"; do
+    names+=("${entry%%|*}")
+    entry="${entry#*|}"
+    descs+=("${entry%%|*}")
+    states+=("${entry#*|}")
+  done
+  n=${#names[@]}
 
-  if [[ "$default" == "y" ]]; then
-    prompt="[Y/n]"
-  elif [[ "$default" == "n" ]]; then
-    prompt="[y/N]"
-  fi
-
-  print_question "$1 $prompt "
-
-  # Handle YES_OVERRIDE (auto-accept all)
-  if $YES_OVERRIDE; then
-    echo
-    return 0
-  fi
-
-  # Try interactive input via /dev/tty (works with curl | bash)
-  if [[ -e /dev/tty ]]; then
-    read -n 1 yn </dev/tty
-    echo
-
-    # Handle empty input (Enter) with default
-    if [[ -z "$yn" || "$yn" == $'\n' ]]; then
-      [[ "$default" == "y" ]] && return 0
-      [[ "$default" == "n" ]] && return 1
-    fi
-
-    [[ "$yn" =~ ^[Yy]$ ]] && return 0
-    [[ "$yn" =~ ^[Nn]$ ]] && return 1
-
-    continue_or_skip "$1" "$default"
-    return $?
-  fi
-
-  # Truly non-interactive: use defaults
-  echo
-  [[ "$default" == "y" ]] && return 0
-  return 1
-}
-
-# yes to continue, no to exit
-function continue_or_exit {
-  local default="${2:-}"
-  local prompt="(y/n)"
-
-  if [[ "$default" == "y" ]]; then
-    prompt="[Y/n]"
-  elif [[ "$default" == "n" ]]; then
-    prompt="[y/N]"
-  fi
-
-  print_question "$1 Continue? $prompt "
-
-  # Handle YES_OVERRIDE (auto-accept all)
-  if $YES_OVERRIDE; then
-    echo
-    return 0
-  fi
-
-  # Try interactive input via /dev/tty (works with curl | bash)
-  if [[ -e /dev/tty ]]; then
-    while true; do
-      read -n 1 yn </dev/tty
-      echo
-
-      # Handle empty input (Enter) with default
-      if [[ -z "$yn" ]]; then
-        [[ "$default" == "y" ]] && break
-        [[ "$default" == "n" ]] && exit
-        echo " Please answer yes or no."
-        continue
+  if $YES_OVERRIDE || [[ ! -e /dev/tty ]]; then
+    CHECKED=()
+    for ((i = 0; i < n; i++)); do
+      if $YES_OVERRIDE || [[ "${states[i]}" == "on" ]]; then
+        CHECKED+=("${names[i]}")
       fi
-
-      case $yn in
-      [Yy]*) break ;;
-      [Nn]*) exit ;;
-      *) echo " Please answer yes or no." ;;
-      esac
     done
     return 0
   fi
 
-  # Truly non-interactive: use defaults or exit
-  echo
-  if [[ "$default" == "y" ]]; then
-    return 0
-  else
-    echo "Non-interactive mode requires default=y. Exiting."
-    exit 1
-  fi
+  local drawn=false key box
+  while true; do
+    $drawn && printf "\r\e[%dA" $((n + 1))
+    drawn=true
+    print_step "$title"
+    for ((i = 0; i < n; i++)); do
+      box=' '
+      [[ "${states[i]}" == "on" ]] && box='✔'
+      printf '   \e[0;33m%d\e[0m [\e[0;32m%s\e[0m] \e[0;36m%-22s\e[0m %s\e[K\n' \
+        $((i + 1)) "$box" "${names[i]}" "${descs[i]}"
+    done
+    printf " Toggle \e[0;33m1-%d\e[0m, \e[0;32mEnter\e[0m to install, \e[0;31mq\e[0m to quit \e[K" "$n"
+    read -n 1 -s key </dev/tty || key=''
+    case "$key" in
+    '') echo; break ;;
+    [qQ])
+      echo
+      exit 0
+      ;;
+    [1-9])
+      i=$((key - 1))
+      if ((i < n)); then
+        [[ "${states[i]}" == "on" ]] && states[i]="off" || states[i]="on"
+      fi
+      ;;
+    esac
+  done
+
+  CHECKED=()
+  for ((i = 0; i < n; i++)); do
+    [[ "${states[i]}" == "on" ]] && CHECKED+=("${names[i]}")
+  done
+}
+
+function is_checked {
+  local x
+  for x in "${CHECKED[@]}"; do
+    [[ "$x" == "$1" ]] && return 0
+  done
+  return 1
 }
 
 function execute {
@@ -154,24 +127,4 @@ function which_os {
 
 exists() {
   command -v $1 >/dev/null 2>&1
-}
-
-# Show "name|description" entries, then prompt to install all, pick
-# individually, or skip. Selected names are returned in the PICKED array.
-function pick_from_list {
-  local prompt="$1" entry
-  shift
-  PICKED=()
-  for entry in "$@"; do
-    printf '   \e[0;36m%-18s\e[0m %s\n' "${entry%%|*}" "${entry#*|}"
-  done
-  if continue_or_skip "$prompt" 'y'; then
-    for entry in "$@"; do PICKED+=("${entry%%|*}"); done
-  elif continue_or_skip 'Pick individually?' 'n'; then
-    for entry in "$@"; do
-      if continue_or_skip "Install ${entry%%|*}?" 'y'; then
-        PICKED+=("${entry%%|*}")
-      fi
-    done
-  fi
 }

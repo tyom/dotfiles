@@ -28,7 +28,7 @@ make install
 
 Installation takes a few minutes to download and configure packages. Setup can be run multiple times safely.
 
-Setup ends with a short summary of what was selected at each prompt and a one-line validation result. For the full per-check validation output, use `make install VERBOSE=1` (or `./scripts/setup.sh --verbose`). Docker test targets always run verbose.
+Setup starts with a checklist of what to install — toggle items by number, press Enter to go (optional extras like Homebrew packages and the Claude Code plugin start unchecked). It ends with a summary of what was installed and a one-line validation result. For the full per-check validation output, use `make install VERBOSE=1` (or `./scripts/setup.sh --verbose`). Docker test targets always run verbose.
 
 ### Remote Installation
 
@@ -39,7 +39,7 @@ curl -fsSL https://tyom.github.io/dotfiles/install.sh | bash
 Options:
 
 ```bash
-# Non-interactive (skip all prompts)
+# Non-interactive (install everything, no checklist)
 curl -fsSL https://tyom.github.io/dotfiles/install.sh | bash -s -- -y
 
 # Install to a different directory
