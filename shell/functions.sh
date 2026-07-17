@@ -98,7 +98,7 @@ function gw {
   fi
 }
 
-function _git_toplevel {
+function _repo_toplevel {
   git rev-parse --show-toplevel 2>/dev/null
 }
 
@@ -110,7 +110,7 @@ function gwa {
     return 1
   fi
   local toplevel
-  toplevel=$(_git_toplevel) || { echo "Not a git repository"; return 1; }
+  toplevel=$(_repo_toplevel) || { echo "Not a git repository"; return 1; }
   git worktree add "$toplevel/.worktrees/$branch" "$branch" 2>/dev/null \
     || git worktree add -b "$branch" "$toplevel/.worktrees/$branch"
 }
@@ -131,7 +131,7 @@ function gwd {
     return 1
   fi
   local toplevel
-  toplevel=$(_git_toplevel) || { echo "Not a git repository"; return 1; }
+  toplevel=$(_repo_toplevel) || { echo "Not a git repository"; return 1; }
   git worktree remove "$toplevel/.worktrees/$branch"
 }
 

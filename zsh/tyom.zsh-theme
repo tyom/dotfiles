@@ -18,7 +18,7 @@ function _node_version {
   fi
 }
 
-function _git_status {
+function _prompt_git_state {
   [[ -d ".git/rebase-apply" || -d ".git/rebase-merge" ]] && echo "%{$fg[yellow]%}(REBASING)%{$reset_color%}"
   [ -f .git/MERGE_HEAD ] && echo "%{$fg[yellow]%}(MERGING)%{$reset_color%}"
   [ -f .git/BISECT_LOG ] && echo "%{$fg[yellow]%}(BISECTING)%{$reset_color%}"
@@ -35,7 +35,7 @@ PROMPT='
 $(_user_host) $(_conda_env_name) ⫶ ${_current_dir}
 %{$fg[$CARETCOLOR]%}❯%{$reset_color%} '
 
-RPROMPT='$(_node_version) $(_git_status) $(git_prompt_info)$(git_prompt_status)'
+RPROMPT='$(_node_version) $(_prompt_git_state) $(git_prompt_info)$(git_prompt_status)'
 
 ZSH_THEME_GIT_PROMPT_PREFIX="%F{187}Ⴤ%f %F{115}"
 ZSH_THEME_GIT_PROMPT_SUFFIX="%{$reset_color%}"
