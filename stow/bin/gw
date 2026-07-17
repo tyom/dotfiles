@@ -16,7 +16,7 @@ GRAY=$'\033[90m'
 LIGHT_GRAY=$'\033[38;5;246m'
 GREEN=$'\033[32m'
 YELLOW=$'\033[33m'
-LIGHT_YELLOW=$'\033[93m'
+DIM_GREEN=$'\033[2;32m'
 RED=$'\033[31m'
 CYAN=$'\033[36m'
 
@@ -109,7 +109,7 @@ cmd_list() {
     [[ -n "$is_current" ]] && sha_color="$BRIGHT"
 
     branch_color="$GREEN"
-    [[ "$branch" == "(detached)" ]] && branch_color="$LIGHT_YELLOW"
+    [[ "$branch" == "(detached)" ]] && branch_color="$DIM_GREEN"
 
     # Leading lock column: 🔒 renders ~2 cols; pad absent locks to match, +1 separator.
     [[ -n "$locked" ]] && lockmark="🔒" || lockmark="  "
@@ -196,18 +196,20 @@ cmd_prune() {
 # Print the worktree path for a branch. The gw shell function (shell/functions.sh)
 # cds to this output; a script can't change its parent shell's directory.
 cmd_switch() {
-  local target="$1" path branch
+  local target="$1" path branch sha
   if [[ -z "$target" ]]; then
-    echo "Usage: gw switch <branch>" >&2
+    echo "Usage: gw switch <branch|sha>" >&2
     return 1
   fi
-  while IFS='|' read -r path branch _ _; do
-    if [[ "$branch" == "$target" ]]; then
+  while IFS='|' read -r path branch sha _; do
+    # Match branch name, or a sha prefix (stored sha is 7 chars, so a longer
+    # target matches when it starts with the stored sha).
+    if [[ "$branch" == "$target" || "$sha" == "$target"* || "$target" == "$sha"* ]]; then
       printf '%s\n' "$path"
       return 0
     fi
   done <<<"$records"
-  echo "No worktree for branch '$target'" >&2
+  echo "No worktree for branch or sha '$target'" >&2
   return 1
 }
 
@@ -220,9 +222,10 @@ ${BRIGHT}Usage:${RESET}
   gw prune      Remove worktrees (and delete branches) for merged branches.
                 Prompts before removing; if any are 🔒 locked, choose
                 [y] merged only, [a] all incl. locked, or [n] cancel.
-  gw switch <branch>
-                cd to the worktree for <branch> (via the gw shell function;
-                the script itself just prints the path).
+  gw switch <branch|sha>
+                cd to the worktree for <branch>, or by sha prefix for
+                detached worktrees (via the gw shell function; the script
+                itself just prints the path).
   gw -h, --help Show this help.
 EOF
 }

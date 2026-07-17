@@ -4,13 +4,16 @@
 if (( CURRENT == 2 )); then
   local -a subcmds
   subcmds=(
-    'switch:cd to the worktree for a branch'
+    'switch:cd to the worktree for a branch or sha'
     'prune:remove worktrees for merged branches'
   )
   _describe 'gw command' subcmds
 elif (( CURRENT == 3 )) && [[ $words[2] == switch ]]; then
+  # Branch names, or the short sha for detached worktrees.
   local -a branches
   branches=(${(f)"$(git worktree list --porcelain 2>/dev/null |
-    awk '/^branch /{sub(/^refs\/heads\//,"",$2); print $2}')"})
-  _describe 'worktree branch' branches
+    awk '/^HEAD /{sha=substr($0,6,7)}
+         /^branch /{sub(/^refs\/heads\//,"",$2); print $2}
+         /^detached/{print sha}')"})
+  _describe 'worktree branch or sha' branches
 fi
