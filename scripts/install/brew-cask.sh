@@ -4,12 +4,13 @@ source scripts/vars.sh
 source shell/utils.sh
 
 if [ "$(which_os)" != "macos" ]; then
-  print_info "Skipping Quick Look plugins (macOS only)"
+  print_info "Skipping casks (macOS only)"
   exit 0
 fi
 
-# Quick Look Plugins (https://github.com/sindresorhus/quick-look-plugins)
+# Apps and Quick Look plugins (https://github.com/sindresorhus/quick-look-plugins)
 casks=(
+  'ghostty|Fast GPU-accelerated terminal emulator'
   'quicklook-json|Pretty-print JSON files'
   'suspicious-package|Inspect macOS installer packages .pkg'
   'quicklook-csv|Preview CSV files as tables'
@@ -20,7 +21,7 @@ casks=(
 )
 
 echo ""
-print_step "macOS Quick Look casks:"
+print_step "macOS casks:"
 pick_from_list 'Install all of these casks?' "${casks[@]}"
 
 if [ ${#PICKED[@]} -eq 0 ]; then
