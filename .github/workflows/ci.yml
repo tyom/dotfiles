@@ -12,7 +12,7 @@ jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Run tests in Docker
         run: make docker-test
@@ -20,7 +20,7 @@ jobs:
   minimal-test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Test setup without Homebrew
         run: make docker-test VARIANT=minimal
