@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 # Git branches with formatted output, sorted by commit date
-# Usage: gb [git-branch-args...]
+# Usage: gb [-r]
 
 set -e
 
@@ -24,47 +24,35 @@ truncate() {
   fi
 }
 
-# Get branches, pass through any arguments
-branches=$(git branch "$@" 2>/dev/null | cut -c 3- | grep -v ' -> ' | grep -v 'HEAD detached at') || exit 0
+refs=refs/heads
+[[ "${1:-}" == "-r" ]] && refs=refs/remotes
 
-if [[ -z "$branches" ]]; then
-  exit 0
-fi
+# One call for everything: sorted, subject last so embedded '|' can't break
+# fields, symref first to skip pointers like origin/HEAD
+sorted_data=$(git for-each-ref --sort=committerdate \
+  --format='%(symref)|%(refname:short)|%(objectname:short)|%(authorname)|%(committerdate:relative)|%(contents:subject)' \
+  "$refs" 2>/dev/null) || exit 0
+
+[[ -z "$sorted_data" ]] && exit 0
 
 current_branch=$(git rev-parse --abbrev-ref HEAD 2>/dev/null)
 
-# Collect branch info with timestamps for sorting
-declare -a branch_data=()
-
-while IFS= read -r branch; do
-  branch=$(echo "$branch" | xargs) # trim whitespace
-  [[ -z "$branch" ]] && continue
-
-  # Get commit info: timestamp, relative time, author, sha, message
-  info=$(git log --no-walk --pretty=format:"%ct|%cr|%an|%h|%s" "$branch" -- 2>/dev/null) || continue
-  [[ -z "$info" ]] && continue
-
-  branch_data+=("$info|$branch")
-done <<<"$branches"
-
-# Sort by timestamp (first field)
-sorted_data=$(printf '%s\n' "${branch_data[@]}" | sort -t'|' -k1 -n)
+# Branches whose tip is an ancestor of HEAD, one call instead of one per branch
+merged=$'\n'$(git for-each-ref --merged=HEAD --format='%(refname:short)' "$refs" 2>/dev/null)$'\n'
 
 # Calculate max branch name length
 max_branch_len=0
-while IFS='|' read -r _ _ _ _ _ branch; do
+while IFS='|' read -r symref branch _; do
+  [[ -n "$symref" ]] && continue
   [[ ${#branch} -gt $max_branch_len ]] && max_branch_len=${#branch}
 done <<<"$sorted_data"
 
 # Output
-while IFS='|' read -r timestamp timeago author sha message branch; do
-  [[ -z "$branch" ]] && continue
+while IFS='|' read -r symref branch sha author timeago message; do
+  [[ -z "$branch" || -n "$symref" ]] && continue
 
-  # Check if commit is in current HEAD
   is_present=""
-  if git merge-base --is-ancestor "$sha" HEAD 2>/dev/null; then
-    is_present="1"
-  fi
+  [[ "$merged" == *$'\n'"$branch"$'\n'* ]] && is_present="1"
 
   is_current=""
   [[ "$branch" == "$current_branch" ]] && is_current="1"

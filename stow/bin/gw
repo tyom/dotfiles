@@ -36,9 +36,10 @@ git show-ref --verify --quiet refs/heads/main || base=master
 this_wt=$(git rev-parse --show-toplevel 2>/dev/null)
 
 # Parse `git worktree list --porcelain` into "path|branch|sha|locked" records.
+# Full sha kept for exact matching against the batched git log below.
 records=$(git worktree list --porcelain 2>/dev/null | awk '
   /^worktree /  { path=substr($0,10) }
-  /^HEAD /      { sha=substr($0,6,7) }
+  /^HEAD /      { sha=substr($0,6) }
   /^branch /    { br=substr($0,8); sub(/^refs\/heads\//,"",br) }
   /^detached/   { br="(detached)" }
   /^locked/     { locked="🔒" }
@@ -46,18 +47,32 @@ records=$(git worktree list --porcelain 2>/dev/null | awk '
   END           { if(path){print path"|"br"|"sha"|"locked} }
 ')
 
+# Main repo directory: the primary worktree is always listed first.
+first_record=${records%%$'\n'*}
+repo_dir=${first_record%%|*}
+
+nl=$'\n'
+
+# One git log for all worktree HEADs: "sha|timestamp|relative|subject" lines.
+commit_info=$(git log --no-walk=unsorted --pretty=format:'%H|%ct|%cr|%s' \
+  $(printf '%s\n' "$records" | cut -d'|' -f3 | sort -u) 2>/dev/null) || commit_info=""
+
+# Branches merged into base, one call instead of one merge-base per worktree.
+merged_set="$nl$(git for-each-ref --merged="$base" --format='%(refname:short)' refs/heads 2>/dev/null)$nl"
+
 # Attach commit timestamp for sorting.
 declare -a rows=()
 while IFS='|' read -r path branch sha locked; do
   [[ -z "$path" ]] && continue
-  ts=$(git log --no-walk --pretty=format:"%ct|%cr|%s" "$sha" -- 2>/dev/null) || ts="0|?|"
-  rows+=("$ts|$path|$branch|$sha|$locked")
+  if [[ "$nl$commit_info" =~ "$nl$sha|"([^$nl]*) ]]; then
+    ts="${BASH_REMATCH[1]}"
+  else
+    ts="0|?|"
+  fi
+  rows+=("$ts|$path|$branch|${sha:0:7}|$locked")
 done <<<"$records"
 
 sorted=$(printf '%s\n' "${rows[@]}" | sort -t'|' -k1 -n)
-
-# Main repo directory (the primary worktree).
-repo_dir=$(git worktree list --porcelain 2>/dev/null | awk '/^worktree /{print substr($0,10); exit}')
 
 # Paths inside the repo dir show as ./relative; ones outside show the full tilde path.
 short_path() {
@@ -71,9 +86,9 @@ short_path() {
 
 # A branch is prunable when it's merged into base and isn't base or the current worktree.
 is_merged() {
-  local branch="$1" sha="$2" path="$3"
+  local branch="$1" path="$2"
   [[ "$branch" == "$base" || "$path" == "$this_wt" || "$branch" == "(detached)" ]] && return 1
-  git merge-base --is-ancestor "$sha" "$base" 2>/dev/null
+  [[ "$merged_set" == *"$nl$branch$nl"* ]]
 }
 
 cmd_list() {
@@ -93,7 +108,7 @@ cmd_list() {
     [[ -z "$path" ]] && continue
 
     merged=""
-    is_merged "$branch" "$sha" "$path" && merged="1"
+    is_merged "$branch" "$path" && merged="1"
     is_current=""
     [[ "$path" == "$this_wt" ]] && is_current="1"
 
@@ -139,7 +154,7 @@ cmd_prune() {
   local path branch sha lock
   while IFS='|' read -r _ _ _ path branch sha lock; do
     [[ -z "$path" ]] && continue
-    is_merged "$branch" "$sha" "$path" || continue
+    is_merged "$branch" "$path" || continue
     if [[ -n "$lock" ]]; then
       locked+=("$path|$branch")
     else
@@ -202,9 +217,8 @@ cmd_switch() {
     return 1
   fi
   while IFS='|' read -r path branch sha _; do
-    # Match branch name, or a sha prefix (stored sha is 7 chars, so a longer
-    # target matches when it starts with the stored sha).
-    if [[ "$branch" == "$target" || "$sha" == "$target"* || "$target" == "$sha"* ]]; then
+    # Match branch name, or a sha prefix (stored sha is full length).
+    if [[ "$branch" == "$target" || "$sha" == "$target"* ]]; then
       printf '%s\n' "$path"
       return 0
     fi
