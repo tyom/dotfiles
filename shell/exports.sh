@@ -10,8 +10,9 @@ if [ -d "$HOME/.bun" ]; then
   export BUN_INSTALL="$HOME/.bun"
   export PATH="$BUN_INSTALL/bin:$PATH"
 
-  # bun completions
-  [ -s "$BUN_INSTALL/_bun" ] && source "$BUN_INSTALL/_bun"
+  # bun completions — via fpath, not source: sourcing _bun runs a second
+  # compinit before oh-my-zsh's, doubling completion-dump rebuilds
+  [ -s "$BUN_INSTALL/_bun" ] && fpath=("$BUN_INSTALL" $fpath)
 
 fi
 
