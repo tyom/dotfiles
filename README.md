@@ -31,6 +31,7 @@ How it behaves:
 
 - **Shell**: Zsh with Oh-My-Zsh and a custom theme displaying git status, Node version, and conda environment
 - **Git**: Useful aliases, global gitignore, and streamlined configuration
+- **Terminal**: Ghostty config (translucent blurred black, tabs titlebar, thickened 16pt text)
 - **Vim**: Pre-configured with vim-plug and curated plugins
 - **CLI Tools**: bat (syntax-highlighted cat), fzf (fuzzy finder), git-delta (better diffs), and more via Homebrew
 - **Dev Tools**: Volta and Node.js; Bun (optional)
@@ -91,6 +92,7 @@ dotfiles/
 ├── stow/              # Symlinked to ~/
 │   ├── .vimrc
 │   ├── .vimrc.bundles
+│   ├── .config/       # ~/.config entries (ghostty)
 │   └── bin/           # Shell scripts
 ├── git/               # Git config (included via ~/.gitconfig)
 ├── zsh/               # Zsh config + theme (sourced/symlinked)
@@ -208,11 +210,16 @@ setup.sh (orchestrator)
 
 GNU Stow creates these symlinks from `stow/` to your home directory:
 
-| Source                | Target             |
-| --------------------- | ------------------ |
-| `stow/.vimrc`         | `~/.vimrc`         |
-| `stow/.vimrc.bundles` | `~/.vimrc.bundles` |
-| `stow/bin/*`          | `~/bin/*`          |
+| Source                          | Target                        |
+| ------------------------------- | ----------------------------- |
+| `stow/.vimrc`                   | `~/.vimrc`                    |
+| `stow/.vimrc.bundles`           | `~/.vimrc.bundles`            |
+| `stow/.config/ghostty/config`   | `~/.config/ghostty/config`    |
+| `stow/bin/*`                    | `~/bin/*`                     |
+
+`stow.sh` creates `~/bin` and `~/.config/ghostty` before stowing. Stow replaces a
+whole directory with a single symlink when the target does not exist yet, so
+without those directories, `~/.config` itself would become a link into this repo.
 
 The zsh theme is symlinked separately by `zsh.sh`:
 

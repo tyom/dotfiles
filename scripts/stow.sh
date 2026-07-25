@@ -5,8 +5,11 @@
 
 source "$DOTFILES_DIR/shell/utils.sh"
 
-# Ensure required directories exist
-mkdir -p "$HOME/bin"
+# Pre-create every directory that stow/ contains. Stow folds a whole directory
+# into one symlink when the target doesn't exist yet, so without this, ~/.config
+# would become a link into this repo and every tool's config would land in the
+# working tree. One line per directory added under stow/.
+mkdir -p "$HOME/bin" "$HOME/.config/ghostty"
 
 # Use system stow on Linux (Homebrew stow has Perl dependency issues)
 if [[ "$(uname)" == "Linux" ]] && [[ -x /usr/bin/stow ]]; then

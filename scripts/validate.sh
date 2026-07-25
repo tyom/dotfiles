@@ -66,7 +66,25 @@ else
 fi
 check_symlink "$HOME/.vimrc" ".vimrc"
 check_symlink "$HOME/.vimrc.bundles" ".vimrc.bundles"
+check_symlink "$HOME/.config/ghostty/config" "ghostty config"
 check_symlink "$HOME/.oh-my-zsh/custom/themes/tyom.zsh-theme" "zsh theme"
+
+# Ghostty can check its own config, which catches typos in option names that it
+# would otherwise ignore in silence. The CLI lives inside the app bundle on macOS.
+echo ""
+print_info "Checking ghostty config..."
+
+GHOSTTY_BIN=$(command -v ghostty || echo "/Applications/Ghostty.app/Contents/MacOS/ghostty")
+if [ -x "$GHOSTTY_BIN" ]; then
+  if GHOSTTY_OUT=$("$GHOSTTY_BIN" +validate-config --config-file="$HOME/.config/ghostty/config" 2>&1); then
+    print_success "ghostty config is valid"
+  else
+    print_error "ghostty config is invalid: $GHOSTTY_OUT"
+    ERRORS=$((ERRORS + 1))
+  fi
+else
+  print_skip "ghostty not installed, skipping config validation"
+fi
 
 # Check Vim configuration
 echo ""

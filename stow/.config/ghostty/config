@@ -1,0 +1,19 @@
+# Ghostty terminal config. Run `ghostty +show-config --default` to see every
+# option and its default, or `ghostty +validate-config` after editing this file.
+
+# aesthetics
+background-opacity = 0.85
+background-blur=16
+background=#000000
+macos-titlebar-style = tabs
+title = " "
+macos-titlebar-proxy-icon = hidden
+
+window-padding-x = 12
+window-padding-y = 8
+
+# typography
+font-size=16
+font-thicken=true
+font-thicken-strength=1
+adjust-cell-height=1
