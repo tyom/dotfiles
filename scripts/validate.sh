@@ -67,11 +67,6 @@ fi
 check_symlink "$HOME/.vimrc" ".vimrc"
 check_symlink "$HOME/.vimrc.bundles" ".vimrc.bundles"
 check_symlink "$HOME/.config/ghostty/config.ghostty" "ghostty config"
-# On macOS this path wins over the XDG one, so it is the link that actually counts
-if [ "$(which_os)" == "macos" ]; then
-  check_symlink "$HOME/Library/Application Support/com.mitchellh.ghostty/config.ghostty" \
-    "ghostty config (macOS location)"
-fi
 check_symlink "$HOME/.oh-my-zsh/custom/themes/tyom.zsh-theme" "zsh theme"
 
 # Ghostty can check its own config, which catches typos in option names that it

@@ -132,6 +132,20 @@ The installer adds a single source line. Add machine-specific configuration dire
 
 Add machine-specific Vim configuration here.
 
+### Ghostty
+
+This repo provides `~/.config/ghostty/config.ghostty` as defaults. To change any
+of them, put your own value in the file Ghostty reads second, which overrides the
+same key:
+
+```
+~/Library/Application Support/com.mitchellh.ghostty/config.ghostty
+```
+
+Only the keys you set there are overridden, and the installer never writes to that
+file. Reload with <kbd>⌘⇧,</kbd>, and check a config edit with
+`ghostty +validate-config`.
+
 ## What Gets Installed
 
 ### Dev Tools
@@ -221,10 +235,12 @@ GNU Stow creates these symlinks from `stow/` to your home directory:
 whole directory with a single symlink when the target does not exist yet, so
 without those directories, `~/.config` itself would become a link into this repo.
 
-On macOS, Ghostty reads `~/Library/Application Support/com.mitchellh.ghostty/config.ghostty`
-and that location wins over `~/.config`, so `stow.sh` links it to the same file.
-An existing config there is left alone unless it is byte-identical to this repo's
-copy, in which case it is replaced with the link.
+The Ghostty config is a set of defaults, not a mandate. Ghostty reads the stowed
+`~/.config/ghostty/config.ghostty` first, then
+`~/Library/Application Support/com.mitchellh.ghostty/config.ghostty` on macOS if it
+exists, and each key in the second file overrides the same key in the first. So put
+your own settings in the macOS file and leave the rest to this repo. The installer
+never touches that file.
 
 The zsh theme is symlinked separately by `zsh.sh`:
 
