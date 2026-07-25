@@ -69,10 +69,10 @@ packages. At the end you get a summary and one line of validation results.
 curl -fsSL https://tyom.github.io/dotfiles/install.sh | bash -s -- -y
 
 # Somewhere other than ~/.dotfiles
-DOTFILES_DIR=~/my-dotfiles curl -fsSL https://tyom.github.io/dotfiles/install.sh | bash
+curl -fsSL https://tyom.github.io/dotfiles/install.sh | DOTFILES_DIR=~/my-dotfiles bash
 
 # From another branch
-DOTFILES_BRANCH=next curl -fsSL https://tyom.github.io/dotfiles/install.sh | bash
+curl -fsSL https://tyom.github.io/dotfiles/install.sh | DOTFILES_BRANCH=next bash
 ```
 
 ### From a clone
