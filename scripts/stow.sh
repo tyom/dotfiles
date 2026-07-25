@@ -40,12 +40,22 @@ while read -r file; do
   target="$HOME/$rel_path"
   [ -f "$target" ] && [ ! -L "$target" ] || continue
 
-  # Nothing to lose in an empty file, so take it without asking
-  if ! grep -q '[^[:space:]]' "$target"; then
+  # Nothing to lose in an empty file, so take it without asking. Status 1 is
+  # "no match", anything higher is a read error — never delete on those.
+  grep -q '[^[:space:]]' "$target" 2>/dev/null
+  case $? in
+  1)
     rm "$target"
     print_info "Removed empty $target"
     continue
-  fi
+    ;;
+  0) ;;
+  *)
+    print_warning "Cannot read, leaving it alone: $target"
+    skip_file "$target"
+    continue
+    ;;
+  esac
 
   # -e /dev/tty is true even with no controlling terminal, so open it instead
   if ! : 2>/dev/null </dev/tty; then

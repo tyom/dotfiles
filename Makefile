@@ -53,4 +53,4 @@ docker-test-remote-local: ## Test remote install using local HTTP server
 	docker build -f Dockerfile.remote-test -t $(IMAGE_NAME)-remote .
 	docker run --rm $(IMAGE_NAME)-remote remote-test-local
 
-.PHONY: help install uninstall agents brew docker-build docker-test docker-shell docker-setup docker-clean docker-test-remote docker-test-remote-local
+.PHONY: help install uninstall agents test-stow brew docker-build docker-test docker-shell docker-setup docker-clean docker-test-remote docker-test-remote-local
