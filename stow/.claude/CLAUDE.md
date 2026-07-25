@@ -1,7 +1,5 @@
 # Global Claude Code Instructions
 
-<!-- Generated from src/agents/. Edit that, then run `make agents`. -->
-
 ## Communication
 
 - Be concise. Use simple words. Do not use em dashes.

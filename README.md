@@ -163,7 +163,8 @@ it doesn't recognise without saying so.
 Symlinks to generated files, so edit [src/agents/](./src/agents/) instead. Rules
 that suit any agent go in `common.md`, and each agent's template pulls that in
 where its `@common` line sits. Run `make agents` to rebuild, or let `make
-install` do it for you.
+install` do it for you. See
+[src/agents/README.md](./src/agents/README.md) for the details.
 
 ## What Gets Installed
 
