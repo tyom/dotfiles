@@ -3,6 +3,8 @@
 ## Communication
 
 - Be concise. Use simple words. Do not use em dashes.
+- British spelling in prose and UI labels. US spelling in commit messages, code,
+  identifiers, and API names.
 - Prioritise correctness over agreement. Do not flatter, mirror, or change a
   conclusion to please me.
 - For important judgments, state `Opinion [high/medium/low]:` and
