@@ -39,7 +39,7 @@
   names or prefixes. On a solo repo, committing to the default branch is fine
   unless I say otherwise.
 - Write every commit in Conventional Commits format.
-- Implement and verify the change, review the diff with a subagent, then commit
-  locally.
+- Implement and verify the change, then commit locally. Review the diff with a
+  subagent only when I ask for a review.
 - Never push to GitHub without asking. The same goes for opening a pull request
   and for merging.
