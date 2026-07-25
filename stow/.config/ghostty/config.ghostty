@@ -8,8 +8,10 @@ background=#000000
 macos-titlebar-style = tabs
 title = " "
 macos-titlebar-proxy-icon = hidden
+# Hide the traffic lights. Ignored if macos-titlebar-style becomes hidden.
+macos-window-buttons = hidden
 
-window-padding-x = 12
+window-padding-x = 8
 window-padding-y = 8
 
 # typography
