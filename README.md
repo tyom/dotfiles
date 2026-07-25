@@ -160,6 +160,9 @@ it doesn't recognise without saying so.
 
 ### `~/.claude/CLAUDE.md` and `~/.codex/AGENTS.md`
 
+Off by default. These steer every agent session on the machine, so tick **Global
+agent instructions** in the installer menu to link them.
+
 Symlinks to generated files, so edit [src/agents/](./src/agents/) instead. Rules
 that suit any agent go in `common.md`, and each agent's template pulls that in
 where its `@common` line sits. Run `make agents` to rebuild, or let `make

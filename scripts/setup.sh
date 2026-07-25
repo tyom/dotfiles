@@ -16,6 +16,7 @@ echo ""
 
 options=(
   'dotfiles|Symlink dotfiles, set up zsh, git and vim|on'
+  'agents|Global agent instructions (Claude, Codex)|off'
   'node|Volta + default Node.js|on'
 )
 if [[ "${MINIMAL_SETUP:-}" != "true" ]]; then
@@ -90,6 +91,10 @@ fi
 if is_checked dotfiles; then
   print_step 'Setting up zsh' &&
     source "$DOTFILES_DIR/scripts/zsh.sh"
+
+  # These land in ~/.claude and ~/.codex and steer every agent session on the
+  # machine, so they are opt-in rather than part of the dotfiles bundle.
+  is_checked agents || STOW_SKIP_AGENTS=true
 
   print_step 'Symlinking dotfiles' &&
     source "$DOTFILES_DIR/scripts/stow.sh"
