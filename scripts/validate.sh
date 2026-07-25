@@ -120,13 +120,19 @@ else
   print_skip "fzf not installed, skipping FZF_BASE check"
 fi
 
-# Check if ~/bin is in PATH (where stow symlinks bin scripts)
-HOME_BIN_CHECK=$(zsh -c 'source ~/.zshrc 2>/dev/null; echo $PATH' | grep -c "$HOME/bin" || true)
-if [ "$HOME_BIN_CHECK" -gt 0 ]; then
-  print_success "$HOME/bin is in PATH"
-else
+# Check ~/bin is in PATH *ahead of* /usr/bin — appended entries never shadow
+# system tools, which silently defeats the point of bin scripts
+PATH_ENTRIES=$(zsh -c 'source ~/.zshrc 2>/dev/null; echo $PATH' | tr ':' '\n')
+HOME_BIN_POS=$(echo "$PATH_ENTRIES" | grep -n -x "$HOME/bin" | head -1 | cut -d: -f1)
+USR_BIN_POS=$(echo "$PATH_ENTRIES" | grep -n -x "/usr/bin" | head -1 | cut -d: -f1)
+if [ -z "$HOME_BIN_POS" ]; then
   print_error "$HOME/bin not in PATH"
   ERRORS=$((ERRORS + 1))
+elif [ -n "$USR_BIN_POS" ] && [ "$HOME_BIN_POS" -gt "$USR_BIN_POS" ]; then
+  print_error "$HOME/bin is in PATH but after /usr/bin (system tools shadow bin scripts)"
+  ERRORS=$((ERRORS + 1))
+else
+  print_success "$HOME/bin is in PATH, ahead of /usr/bin"
 fi
 
 # Check scmpuff_status function exists (used by gs alias)

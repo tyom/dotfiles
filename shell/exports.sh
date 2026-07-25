@@ -2,8 +2,8 @@
 
 export ZSH=$HOME/.oh-my-zsh
 
+# PATH entry is added by dirs_to_prepend below, which skips it if Volta is absent
 export VOLTA_HOME="$HOME/.volta"
-export PATH="$VOLTA_HOME/bin:$PATH"
 
 # Bun (if installed via curl)
 if [ -d "$HOME/.bun" ]; then
@@ -32,8 +32,7 @@ dirs_to_prepend=(
   "$VOLTA_HOME/bin"
   "/usr/local/sbin"
   "/usr/local/git/bin"
-  "$DOTFILES_DIR/bin"
-  "$HOME/bin"
+  "$HOME/bin" # stow links the repo's stow/bin scripts here
   "$HOME/.yarn/bin"
   "$HOME/.config/yarn/global/node_modules/.bin"
 )
@@ -43,16 +42,39 @@ if exists brew; then
   : "${HOMEBREW_PREFIX:=$(brew --prefix)}"
   dirs_to_prepend+=(
     "$HOMEBREW_PREFIX/opt/ruby/bin"
-    "$HOMEBREW_PREFIX/opt/coreutils/libexec/gnubin" # brew-installed GNU core utilities
-    "$HOMEBREW_PREFIX/share/npm/bin"                # npm-installed package bin
+    "$HOMEBREW_PREFIX/share/npm/bin" # npm-installed package bin
   )
 fi
 
-for dir in ${dirs_to_prepend[@]}; do
-  [ -d ${dir} ] && PATH+=":$dir"
+# Build the prefix in one pass, then prepend once: keeps array order as priority
+# order (first listed wins) and lets ~/bin shadow system tools, which is the point.
+prefix=""
+for dir in "${dirs_to_prepend[@]}"; do
+  [ -d "$dir" ] && prefix+="$dir:"
 done
+PATH="$prefix$PATH"
 
-unset dirs_to_prepend
+unset dirs_to_prepend prefix dir
+
+# ┌─ TOGGLE: GNU coreutils vs macOS BSD ────────────────────────────────────┐
+# │ true  → brew's gnubin wins: date, stat, readlink, cp, du, head… are GNU │
+# │         (GNU `date -d`/`stat -c`/`readlink -f` work; BSD flags break)   │
+# │ false → macOS BSD tools stay first. This is the default because         │
+# │         oh-my-zsh aliases `ls='ls -G'` on darwin, and under GNU ls      │
+# │         `-G` means --no-group: you lose colours and the group column.   │
+# │ Flip below, or per-shell: GNU_COREUTILS_FIRST=true exec zsh             │
+# │ Note: GNU sed is NOT here — that's the gnu-sed formula, `gsed`.         │
+# └─────────────────────────────────────────────────────────────────────────┘
+: "${GNU_COREUTILS_FIRST:=false}"
+GNUBIN="$HOMEBREW_PREFIX/opt/coreutils/libexec/gnubin"
+if [ -n "$HOMEBREW_PREFIX" ] && [ -d "$GNUBIN" ]; then
+  if [ "$GNU_COREUTILS_FIRST" = true ]; then
+    PATH="$GNUBIN:$PATH"
+  else
+    PATH="$PATH:$GNUBIN"
+  fi
+fi
+unset GNUBIN
 
 export PATH
 
