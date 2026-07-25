@@ -74,8 +74,11 @@ while read -r file; do
     print_success "Moved to $backup"
     ;;
   [qQ])
-    print_info "Stopped, nothing changed for $rel_path"
-    exit 0
+    # This script is sourced, so the status is setup.sh's status. Quitting
+    # part-way is not a successful install, and exit 0 here would skip the
+    # remaining steps while reporting success.
+    print_error "Stopped at $rel_path. Nothing was changed."
+    exit 1
     ;;
   *)
     skip_file "$target"
