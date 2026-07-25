@@ -36,9 +36,19 @@ skip_file() {
 }
 
 while read -r file; do
-  rel_path="${file#$STOW_DIR/}"
+  rel_path="${file#"$STOW_DIR"/}"
   target="$HOME/$rel_path"
-  [ -f "$target" ] && [ ! -L "$target" ] || continue
+
+  # A symlink is stow's own work. Anything else that isn't a regular file is a
+  # conflict the prompts below can't speak to, so hand it back to the user
+  # rather than letting it abort the package.
+  [ -L "$target" ] && continue
+  if [ -e "$target" ] && [ ! -f "$target" ]; then
+    print_warning "Not a regular file, leaving it alone: $target"
+    skip_file "$target"
+    continue
+  fi
+  [ -f "$target" ] || continue
 
   # Nothing to lose in an empty file, so take it without asking. Status 1 is
   # "no match", anything higher is a read error — never delete on those.
