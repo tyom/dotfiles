@@ -23,6 +23,9 @@ uninstall: ## Remove dotfiles symlinks
 agents: ## Rebuild agent instruction files from src/agents/
 	./scripts/build-agents.sh
 
+test-stow: ## Check stow conflict handling against a throwaway HOME
+	./scripts/test-stow.sh
+
 brew: ## Install Homebrew packages
 	./scripts/install/brew.sh
 	./scripts/install/brew-cask.sh
@@ -50,4 +53,4 @@ docker-test-remote-local: ## Test remote install using local HTTP server
 	docker build -f Dockerfile.remote-test -t $(IMAGE_NAME)-remote .
 	docker run --rm $(IMAGE_NAME)-remote remote-test-local
 
-.PHONY: help install uninstall agents brew docker-build docker-test docker-shell docker-setup docker-clean docker-test-remote docker-test-remote-local
+.PHONY: help install uninstall agents test-stow brew docker-build docker-test docker-shell docker-setup docker-clean docker-test-remote docker-test-remote-local
