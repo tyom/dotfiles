@@ -14,6 +14,18 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
+      # These scripts are only ever `source`d by setup.sh, so `exit` / `exit 0`
+      # in them ends the installer itself and still reports success. The Docker
+      # images pre-install zsh, so no test can reach that branch. `exit 1` is
+      # fine — it aborts loudly, which is the point.
+      - name: Sourced scripts must not exit with success
+        run: |
+          if grep -nE '^[[:space:]]*exit[[:space:]]*0?[[:space:]]*(#.*)?$' \
+            scripts/zsh.sh scripts/stow.sh scripts/git.sh scripts/install/vim.sh; then
+            echo "::error::bare 'exit' in a sourced script silently aborts setup.sh — use 'exit 1' or 'return'"
+            exit 1
+          fi
+
       - name: Run tests in Docker
         run: make docker-test
 

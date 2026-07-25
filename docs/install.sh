@@ -6,7 +6,7 @@
 #   curl -fsSL https://tyom.github.io/dotfiles/install.sh | bash
 #
 # Remote install to custom location:
-#   DOTFILES_DIR=~/Code/dotfiles curl -fsSL https://tyom.github.io/dotfiles/install.sh | bash
+#   curl -fsSL https://tyom.github.io/dotfiles/install.sh | DOTFILES_DIR=~/Code/dotfiles bash
 #
 # Non-interactive (skip prompts during setup):
 #   curl -fsSL https://tyom.github.io/dotfiles/install.sh | bash -s -- -y

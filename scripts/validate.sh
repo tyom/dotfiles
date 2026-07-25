@@ -12,16 +12,40 @@ ERRORS=0
 
 print_step "Validating dotfiles installation..."
 
-# Check symlinks exist
+# Check the target is a live symlink pointing into this repo.
+# The old test was `-L || -f`, which a regular file satisfies — so a stray copy,
+# or a link left dangling after the repo moved, reported as installed.
 check_symlink() {
   local target="$1"
   local desc="$2"
-  if [ -L "$target" ] || [ -f "$target" ]; then
-    print_success "$desc exists"
-  else
-    print_error "$desc missing: $target"
+  local resolved
+
+  if [ ! -L "$target" ]; then
+    if [ -e "$target" ]; then
+      print_error "$desc is a regular file, not a link into the repo: $target"
+    else
+      print_error "$desc missing: $target"
+    fi
     ERRORS=$((ERRORS + 1))
+    return
   fi
+
+  if [ ! -e "$target" ]; then
+    print_error "$desc is a dangling link: $target -> $(readlink "$target")"
+    ERRORS=$((ERRORS + 1))
+    return
+  fi
+
+  resolved=$(readlink -f "$target" 2>/dev/null || echo '')
+  case "$resolved" in
+  "$DOTFILES_DIR"/*)
+    print_success "$desc links into the repo"
+    ;;
+  *)
+    print_error "$desc points outside the repo: $target -> ${resolved:-unresolvable}"
+    ERRORS=$((ERRORS + 1))
+    ;;
+  esac
 }
 
 echo ""
@@ -42,7 +66,25 @@ else
 fi
 check_symlink "$HOME/.vimrc" ".vimrc"
 check_symlink "$HOME/.vimrc.bundles" ".vimrc.bundles"
+check_symlink "$HOME/.config/ghostty/config.ghostty" "ghostty config"
 check_symlink "$HOME/.oh-my-zsh/custom/themes/tyom.zsh-theme" "zsh theme"
+
+# Ghostty can check its own config, which catches typos in option names that it
+# would otherwise ignore in silence. The CLI lives inside the app bundle on macOS.
+echo ""
+print_info "Checking ghostty config..."
+
+GHOSTTY_BIN=$(command -v ghostty || echo "/Applications/Ghostty.app/Contents/MacOS/ghostty")
+if [ -x "$GHOSTTY_BIN" ]; then
+  if GHOSTTY_OUT=$("$GHOSTTY_BIN" +validate-config --config-file="$HOME/.config/ghostty/config.ghostty" 2>&1); then
+    print_success "ghostty config is valid"
+  else
+    print_error "ghostty config is invalid: $GHOSTTY_OUT"
+    ERRORS=$((ERRORS + 1))
+  fi
+else
+  print_skip "ghostty not installed, skipping config validation"
+fi
 
 # Check Vim configuration
 echo ""
@@ -120,13 +162,19 @@ else
   print_skip "fzf not installed, skipping FZF_BASE check"
 fi
 
-# Check if ~/bin is in PATH (where stow symlinks bin scripts)
-HOME_BIN_CHECK=$(zsh -c 'source ~/.zshrc 2>/dev/null; echo $PATH' | grep -c "$HOME/bin" || true)
-if [ "$HOME_BIN_CHECK" -gt 0 ]; then
-  print_success "$HOME/bin is in PATH"
-else
+# Check ~/bin is in PATH *ahead of* /usr/bin — appended entries never shadow
+# system tools, which silently defeats the point of bin scripts
+PATH_ENTRIES=$(zsh -c 'source ~/.zshrc 2>/dev/null; echo $PATH' | tr ':' '\n')
+HOME_BIN_POS=$(echo "$PATH_ENTRIES" | grep -n -x "$HOME/bin" | head -1 | cut -d: -f1)
+USR_BIN_POS=$(echo "$PATH_ENTRIES" | grep -n -x "/usr/bin" | head -1 | cut -d: -f1)
+if [ -z "$HOME_BIN_POS" ]; then
   print_error "$HOME/bin not in PATH"
   ERRORS=$((ERRORS + 1))
+elif [ -n "$USR_BIN_POS" ] && [ "$HOME_BIN_POS" -gt "$USR_BIN_POS" ]; then
+  print_error "$HOME/bin is in PATH but after /usr/bin (system tools shadow bin scripts)"
+  ERRORS=$((ERRORS + 1))
+else
+  print_success "$HOME/bin is in PATH, ahead of /usr/bin"
 fi
 
 # Check scmpuff_status function exists (used by gs alias)
@@ -274,7 +322,7 @@ if command -v brew >/dev/null 2>&1; then
   echo ""
   print_info "Checking Homebrew packages (optional)..."
 
-  for pkg in scmpuff bat git-delta; do
+  for pkg in scmpuff bat git-delta herdr; do
     if brew list "$pkg" &>/dev/null; then
       print_success "$pkg installed"
     else

@@ -21,8 +21,15 @@ if exists zsh; then
   print_info "zsh is already installed. Skipping."
 else
   install_zsh
-  print_success "zsh installed. Re-run this script to continue."
-  exit
+  # This file is sourced by setup.sh, so a bare `exit` here would end the whole
+  # installer with status 0 — skipping stow, git, vim and validation, while the
+  # wrapper still reports success. Nothing below needs zsh to be the *current*
+  # shell, so carry on; only stop, loudly, if the install actually failed.
+  if ! exists zsh; then
+    print_error "zsh install failed; cannot continue"
+    exit 1
+  fi
+  print_success "zsh installed"
 fi
 
 # Install Oh My Zsh if it isn't already present

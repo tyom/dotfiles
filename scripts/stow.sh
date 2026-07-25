@@ -5,8 +5,15 @@
 
 source "$DOTFILES_DIR/shell/utils.sh"
 
-# Ensure required directories exist
-mkdir -p "$HOME/bin"
+# The agent instruction files under stow/ are generated, so build them before
+# linking or an install can ship a stale copy.
+bash "$DOTFILES_DIR/scripts/build-agents.sh"
+
+# Pre-create every directory that stow/ contains. Stow folds a whole directory
+# into one symlink when the target doesn't exist yet, so without this, ~/.config
+# would become a link into this repo and every tool's config would land in the
+# working tree. One line per directory added under stow/.
+mkdir -p "$HOME/bin" "$HOME/.config/ghostty" "$HOME/.claude" "$HOME/.codex"
 
 # Use system stow on Linux (Homebrew stow has Perl dependency issues)
 if [[ "$(uname)" == "Linux" ]] && [[ -x /usr/bin/stow ]]; then
@@ -21,7 +28,8 @@ find "$STOW_DIR" -type f ! -name .DS_Store | while read -r file; do
   rel_path="${file#$STOW_DIR/}"
   target="$HOME/$rel_path"
   if [ -f "$target" ] && [ ! -L "$target" ]; then
-    print_warning "Existing file may conflict: $target"
+    # stow aborts every operation on a single conflict, not just this one
+    print_warning "Existing file will block ALL symlinks until moved: $target"
   fi
 done
 

@@ -1,24 +1,84 @@
-# Dotfiles
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/dotfiles-dark.svg">
+    <img src="docs/dotfiles.svg" alt="dotfiles" width="300">
+  </picture>
+</p>
 
-[![Smoke Test](https://github.com/tyom/dotfiles/actions/workflows/smoke-test.yml/badge.svg)](https://github.com/tyom/dotfiles/actions/workflows/smoke-test.yml)
-[![CI](https://github.com/tyom/dotfiles/actions/workflows/ci.yml/badge.svg)](https://github.com/tyom/dotfiles/actions/workflows/ci.yml)
+<p align="center">
+  <a href="https://github.com/tyom/dotfiles/actions/workflows/smoke-test.yml"><img src="https://github.com/tyom/dotfiles/actions/workflows/smoke-test.yml/badge.svg" alt="Smoke Test"></a>
+  <a href="https://github.com/tyom/dotfiles/actions/workflows/ci.yml"><img src="https://github.com/tyom/dotfiles/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+</p>
 
-Personal dotfiles for macOS and Linux, designed for a smooth developer experience. Includes Zsh, Git, Vim configuration, Homebrew CLI tools (bat, fzf, git-delta), and a Claude Code plugin.
+Personal dotfiles for macOS and Linux: Zsh with Oh My Zsh, Git config, Vim, a few
+CLI tools like bat and fzf, and a Claude Code plugin. One command installs the
+lot, then checks its own work.
+
+How it behaves:
+
+- Your `~/.zshrc` and `~/.gitconfig` are not overwritten. The installer adds one
+  line to each and leaves the rest alone. Everything else is a symlink into this
+  repo, made with [GNU Stow](https://www.gnu.org/software/stow/), so the file you
+  edit here is the file your shell reads. There is nothing to sync.
+- You choose what gets installed. Setup shows a checklist, and Homebrew packages,
+  macOS apps and the Claude Code plugin start unchecked.
+- You can run it again any time. Each step skips what it has already done, and
+  the last step runs over 30 checks, including that every symlink still points
+  into this repo. CI installs all of it on Linux, once with Homebrew and once
+  without.
 
 ## What's Included
 
-- **Shell**: Zsh with Oh-My-Zsh and a custom theme displaying git status, Node version, and conda environment
-- **Git**: Useful aliases, global gitignore, and streamlined configuration
-- **Vim**: Pre-configured with vim-plug and curated plugins
-- **CLI Tools**: bat (syntax-highlighted cat), fzf (fuzzy finder), git-delta (better diffs), and more via Homebrew
-- **Dev Tools**: Volta and Node.js; Bun (optional)
-- **Bin Scripts**: Handy commands like `gb` and `git-author`, plus standalone tools installed via Homebrew: [`ungit`](https://github.com/tyom/ungit) (clone GitHub repos/subdirs as files or text) and [`repo-intel`](https://github.com/tyom/repo-intel) (contributor stats dashboard for any git repo)
-- **Claude Code Plugin**: Custom commands for code review, explanation, and refactoring
-
-![Shell screenshot](https://tyom.github.io/dotfiles/shell.png)
-![Vim screenshot](https://tyom.github.io/dotfiles/vim.png)
+- **Shell**: Zsh and Oh My Zsh, with a prompt that shows git status, the Node
+  version in use, and the active conda environment
+- **Git**: short aliases (`git c`, `git co`, `git unstage`, `git who`), a global
+  ignore file, and a config you include rather than replace
+- **Terminal**: Ghostty set to a translucent black window, tabs in the titlebar,
+  no traffic lights, and 16pt thickened text
+- **Coding agents**: global instruction files for Claude Code and Codex, built
+  from one shared source, asking for plain language, opinions with a stated
+  confidence, and no pushing to GitHub without being asked
+- **Vim**: vim-plug plus gruvbox, airline, gitgutter and NERDTree
+- **CLI tools**: bat, fzf, git-delta, [herdr](https://herdr.dev/) for running
+  several coding agents in one terminal, and the rest of
+  [scripts/install/brew.sh](./scripts/install/brew.sh)
+- **Node**: Volta, and Node installed through it. Bun if you tick it.
+- **Scripts on your PATH**: `gb` lists branches by commit date, `gw` lists
+  worktrees and can switch to or prune them, plus `git-author`,
+  `git-branch-sizes`, `color-test` and two of my tools from
+  Homebrew: [`ungit`](https://github.com/tyom/ungit) reads a GitHub repo or
+  subdirectory as text, and [`repo-intel`](https://github.com/tyom/repo-intel)
+  builds a contributor dashboard for any git repo
+- **Claude Code plugin**: `/explain-code`, `/review-code` and `/refactor-code`
 
 ## Installation
+
+You do not need to clone anything. This gets the repo into `~/.dotfiles` and runs
+setup:
+
+```bash
+curl -fsSL https://tyom.github.io/dotfiles/install.sh | bash
+```
+
+Setup shows a checklist. Toggle items by number, press <kbd>Enter</kbd> to
+install, or <kbd>q</kbd> to quit. It takes a few minutes to download and set up
+packages. At the end you get a summary and one line of validation results.
+
+```bash
+# Install everything, no checklist (for CI or a fresh box)
+curl -fsSL https://tyom.github.io/dotfiles/install.sh | bash -s -- -y
+
+# Somewhere other than ~/.dotfiles
+curl -fsSL https://tyom.github.io/dotfiles/install.sh | DOTFILES_DIR=~/my-dotfiles bash
+
+# From another branch
+curl -fsSL https://tyom.github.io/dotfiles/install.sh | DOTFILES_BRANCH=next bash
+```
+
+### From a clone
+
+Clone first if you plan to edit anything. The installer notices it is already
+inside a repo and installs from there:
 
 ```bash
 git clone https://github.com/tyom/dotfiles.git ~/.dotfiles
@@ -26,28 +86,9 @@ cd ~/.dotfiles
 make install
 ```
 
-Installation takes a few minutes to download and configure packages. Setup can be run multiple times safely.
-
-Setup starts with a checklist of what to install — toggle items by number, press Enter to go (optional extras like Homebrew packages and the Claude Code plugin start unchecked). It ends with a summary of what was installed and a one-line validation result. For the full per-check validation output, use `make install VERBOSE=1` (or `./scripts/setup.sh --verbose`). Docker test targets always run verbose.
-
-### Remote Installation
-
-```bash
-curl -fsSL https://tyom.github.io/dotfiles/install.sh | bash
-```
-
-Options:
-
-```bash
-# Non-interactive (install everything, no checklist)
-curl -fsSL https://tyom.github.io/dotfiles/install.sh | bash -s -- -y
-
-# Install to a different directory
-DOTFILES_DIR=~/my-dotfiles curl -fsSL https://tyom.github.io/dotfiles/install.sh | bash
-
-# Install from a different branch
-DOTFILES_BRANCH=next curl -fsSL https://tyom.github.io/dotfiles/install.sh | bash
-```
+Add `VERBOSE=1` to see every validation check instead of the summary line
+(`make install VERBOSE=1`, or `./scripts/setup.sh --verbose`). Docker test targets
+always run verbose.
 
 ### Uninstall
 
@@ -59,15 +100,19 @@ make uninstall
 
 This repository uses [GNU Stow](https://www.gnu.org/software/stow/) for symlink management:
 
-```
+```text
 dotfiles/
 ├── stow/              # Symlinked to ~/
 │   ├── .vimrc
 │   ├── .vimrc.bundles
+│   ├── .config/       # ~/.config entries (ghostty)
+│   ├── .claude/       # Claude Code instructions (generated)
+│   ├── .codex/        # Codex instructions (generated)
 │   └── bin/           # Shell scripts
 ├── git/               # Git config (included via ~/.gitconfig)
 ├── zsh/               # Zsh config + theme (sourced/symlinked)
 ├── shell/             # Shell modules
+├── src/agents/        # Source for the agent instruction files
 ├── claude-plugin/     # Claude Code plugin
 └── scripts/           # Installation scripts
 ```
@@ -76,7 +121,9 @@ See [docs/STRUCTURE.md](./docs/STRUCTURE.md) for detailed documentation.
 
 ## Customisation
 
-Your local configuration files are preserved and extended. The dotfiles in this repository are read-only.
+The installer adds to your files, it does not replace them. Where a config
+supports including or sourcing another file, this repo puts itself there and
+leaves the rest of the file to you.
 
 ### `~/.gitconfig`
 
@@ -93,23 +140,39 @@ The installer adds an `[include]` directive to load the dotfiles config. Add you
 
 ### `~/.gitignore`
 
-A global `.gitignore` is copied during setup (if one doesn't exist). Edit it freely.
+Copied once during setup, if you don't already have one. It's a copy rather than
+a link, so later changes here do not reach it.
 
 ### `~/.zshrc`
 
-The installer adds a single source line. Add machine-specific configuration directly to your `.zshrc`.
+The installer appends one source line. Everything else in the file stays yours.
 
 ### `~/.vimrc.local`
 
-Add machine-specific Vim configuration here.
+Read by `.vimrc` if it exists. Put settings for one machine here.
+
+### `~/.config/ghostty/config.ghostty`
+
+A symlink to the copy in this repo, so it makes no difference which path you
+edit. Press <kbd>⌘⇧,</kbd> in Ghostty to load a change, and run
+`ghostty +validate-config` to catch a typo, since Ghostty ignores option names
+it doesn't recognise without saying so.
+
+### `~/.claude/CLAUDE.md` and `~/.codex/AGENTS.md`
+
+Symlinks to generated files, so edit [src/agents/](./src/agents/) instead. Rules
+that suit any agent go in `common.md`, and each agent's template pulls that in
+where its `@common` line sits. Run `make agents` to rebuild, or let `make
+install` do it for you. See
+[src/agents/README.md](./src/agents/README.md) for the details.
 
 ## What Gets Installed
 
 ### Dev Tools
 
-- **[Volta](https://volta.sh/)** - JavaScript tool manager
-- **[Node.js](https://nodejs.org/)** - Installed via Volta
-- **[Bun](https://bun.sh/)** (optional) - Fast JavaScript runtime and package manager
+- **[Volta](https://volta.sh/)** pins the Node version per project
+- **[Node.js](https://nodejs.org/)**, installed through Volta
+- **[Bun](https://bun.sh/)**, if you tick it in the checklist
 
 ### Homebrew Packages (optional)
 
@@ -124,14 +187,14 @@ See [scripts/install/brew.sh](./scripts/install/brew.sh) for the full list.
 <details>
 <summary><strong>Installation Flow</strong></summary>
 
-```
+```text
 install.sh (entry point)
 ├── If run from existing repo: use that location
 └── Otherwise: clone to ~/.dotfiles (or DOTFILES_DIR)
     └── Execute scripts/setup.sh
 
 setup.sh (orchestrator)
-├── 1. Confirm user wants to proceed
+├── 1. Show the install checklist (nothing selected = exit)
 ├── 2. Install Homebrew and packages (optional)
 ├── 3. Install Brew Cask / macOS apps (optional, macOS only)
 ├── 4. Install Bun (optional)
@@ -161,7 +224,7 @@ setup.sh (orchestrator)
 <details>
 <summary><strong>Zsh Configuration Chain</strong></summary>
 
-```
+```text
 ~/.zshrc
 └── exports DOTFILES_DIR and sources $DOTFILES_DIR/zsh/dotfiles.zsh
     ├── sources zsh/config.zsh
@@ -181,11 +244,19 @@ setup.sh (orchestrator)
 
 GNU Stow creates these symlinks from `stow/` to your home directory:
 
-| Source                | Target             |
-| --------------------- | ------------------ |
-| `stow/.vimrc`         | `~/.vimrc`         |
-| `stow/.vimrc.bundles` | `~/.vimrc.bundles` |
-| `stow/bin/*`          | `~/bin/*`          |
+| Source                          | Target                        |
+| ------------------------------- | ----------------------------- |
+| `stow/.vimrc`                   | `~/.vimrc`                    |
+| `stow/.vimrc.bundles`           | `~/.vimrc.bundles`            |
+| `stow/.config/ghostty/config.ghostty` | `~/.config/ghostty/config.ghostty` |
+| `stow/.claude/CLAUDE.md`        | `~/.claude/CLAUDE.md`         |
+| `stow/.codex/AGENTS.md`         | `~/.codex/AGENTS.md`          |
+| `stow/bin/*`                    | `~/bin/*`                     |
+
+`stow.sh` creates `~/bin`, `~/.config/ghostty`, `~/.claude` and `~/.codex` before
+stowing. Stow replaces a whole directory with a single symlink when the target
+does not exist yet, so without those directories, `~/.config` itself would become
+a link into this repo.
 
 The zsh theme is symlinked separately by `zsh.sh`:
 
@@ -200,7 +271,7 @@ Git configuration is handled separately (not via stow):
 
 ## Development
 
-Test dotfiles in a Docker sandbox:
+Install into a container instead of your machine:
 
 ```bash
 # Run setup and validation
@@ -218,7 +289,7 @@ make docker-clean
 
 ### Minimal Setup (No Homebrew/Bun)
 
-Test the fallback paths without Homebrew or Bun using the `VARIANT=minimal` flag:
+Add `VARIANT=minimal` to install without Homebrew or Bun:
 
 ```bash
 # Run minimal setup and validation
@@ -231,7 +302,8 @@ make docker-shell VARIANT=minimal
 make docker-setup VARIANT=minimal
 ```
 
-The minimal variant uses a bare Ubuntu image instead of the Homebrew base image, testing that the dotfiles install correctly when Homebrew and Bun are not available.
+That variant builds on `ubuntu:24.04` rather than `homebrew/brew`, so it covers
+the paths taken when `brew` and `bun` are missing. CI runs both.
 
 ### Testing Remote Install
 
@@ -274,7 +346,7 @@ The `claude-plugin/` directory contains a [Claude Code](https://docs.anthropic.c
 
 ### Agents
 
-- `code-quality-reviewer` - Proactively reviews code after completing features
+- `code-quality-reviewer` reads finished changes and reports quality and security problems
 
 ### Skills
 
