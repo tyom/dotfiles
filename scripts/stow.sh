@@ -45,8 +45,12 @@ while read -r file; do
   grep -q '[^[:space:]]' "$target" 2>/dev/null
   case $? in
   1)
-    rm "$target"
-    print_info "Removed empty $target"
+    if rm "$target" 2>/dev/null; then
+      print_info "Removed empty $target"
+    else
+      print_warning "Cannot remove, leaving it alone: $target"
+      skip_file "$target"
+    fi
     continue
     ;;
   0) ;;
