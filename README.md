@@ -29,14 +29,23 @@ How it behaves:
 
 ## What's Included
 
-- **Shell**: Zsh with Oh-My-Zsh and a custom theme displaying git status, Node version, and conda environment
-- **Git**: Useful aliases, global gitignore, and streamlined configuration
-- **Terminal**: Ghostty config (translucent blurred black, tabs titlebar, thickened 16pt text)
-- **Vim**: Pre-configured with vim-plug and curated plugins
-- **CLI Tools**: bat (syntax-highlighted cat), fzf (fuzzy finder), git-delta (better diffs), and more via Homebrew
-- **Dev Tools**: Volta and Node.js; Bun (optional)
-- **Bin Scripts**: Handy commands like `gb` and `git-author`, plus standalone tools installed via Homebrew: [`ungit`](https://github.com/tyom/ungit) (clone GitHub repos/subdirs as files or text) and [`repo-intel`](https://github.com/tyom/repo-intel) (contributor stats dashboard for any git repo)
-- **Claude Code Plugin**: Custom commands for code review, explanation, and refactoring
+- **Shell**: Zsh and Oh My Zsh, with a prompt that shows git status, the Node
+  version in use, and the active conda environment
+- **Git**: short aliases (`git c`, `git co`, `git unstage`, `git who`), a global
+  ignore file, and a config you include rather than replace
+- **Terminal**: Ghostty set to a translucent black window, tabs in the titlebar,
+  no traffic lights, and 16pt thickened text
+- **Vim**: vim-plug plus gruvbox, airline, gitgutter and NERDTree
+- **CLI tools**: bat, fzf and git-delta, and the rest of
+  [scripts/install/brew.sh](./scripts/install/brew.sh)
+- **Node**: Volta, and Node installed through it. Bun if you tick it.
+- **Scripts on your PATH**: `gb` lists branches by commit date, `gw` lists
+  worktrees and can switch to or prune them, plus `git-author`,
+  `git-branch-sizes`, `color-test` and two of my tools from
+  Homebrew: [`ungit`](https://github.com/tyom/ungit) reads a GitHub repo or
+  subdirectory as text, and [`repo-intel`](https://github.com/tyom/repo-intel)
+  builds a contributor dashboard for any git repo
+- **Claude Code plugin**: `/explain-code`, `/review-code` and `/refactor-code`
 
 ## Installation
 
@@ -105,7 +114,9 @@ See [docs/STRUCTURE.md](./docs/STRUCTURE.md) for detailed documentation.
 
 ## Customisation
 
-Your local configuration files are preserved and extended. The dotfiles in this repository are read-only.
+The installer adds to your files, it does not replace them. Where a config
+supports including or sourcing another file, this repo puts itself there and
+leaves the rest of the file to you.
 
 ### `~/.gitconfig`
 
@@ -122,29 +133,31 @@ The installer adds an `[include]` directive to load the dotfiles config. Add you
 
 ### `~/.gitignore`
 
-A global `.gitignore` is copied during setup (if one doesn't exist). Edit it freely.
+Copied once during setup, if you don't already have one. It's a copy rather than
+a link, so later changes here do not reach it.
 
 ### `~/.zshrc`
 
-The installer adds a single source line. Add machine-specific configuration directly to your `.zshrc`.
+The installer appends one source line. Everything else in the file stays yours.
 
 ### `~/.vimrc.local`
 
-Add machine-specific Vim configuration here.
+Read by `.vimrc` if it exists. Put settings for one machine here.
 
 ### `~/.config/ghostty/config.ghostty`
 
-Symlinked from this repo, so edit it from either side. Reload Ghostty with
-<kbd>⌘⇧,</kbd> to apply changes, and check your edit with
-`ghostty +validate-config`.
+A symlink to the copy in this repo, so it makes no difference which path you
+edit. Press <kbd>⌘⇧,</kbd> in Ghostty to load a change, and run
+`ghostty +validate-config` to catch a typo, since Ghostty ignores option names
+it doesn't recognise without saying so.
 
 ## What Gets Installed
 
 ### Dev Tools
 
-- **[Volta](https://volta.sh/)** - JavaScript tool manager
-- **[Node.js](https://nodejs.org/)** - Installed via Volta
-- **[Bun](https://bun.sh/)** (optional) - Fast JavaScript runtime and package manager
+- **[Volta](https://volta.sh/)** pins the Node version per project
+- **[Node.js](https://nodejs.org/)**, installed through Volta
+- **[Bun](https://bun.sh/)**, if you tick it in the checklist
 
 ### Homebrew Packages (optional)
 
@@ -240,7 +253,7 @@ Git configuration is handled separately (not via stow):
 
 ## Development
 
-Test dotfiles in a Docker sandbox:
+Install into a container instead of your machine:
 
 ```bash
 # Run setup and validation
@@ -258,7 +271,7 @@ make docker-clean
 
 ### Minimal Setup (No Homebrew/Bun)
 
-Test the fallback paths without Homebrew or Bun using the `VARIANT=minimal` flag:
+Add `VARIANT=minimal` to install without Homebrew or Bun:
 
 ```bash
 # Run minimal setup and validation
@@ -271,7 +284,8 @@ make docker-shell VARIANT=minimal
 make docker-setup VARIANT=minimal
 ```
 
-The minimal variant uses a bare Ubuntu image instead of the Homebrew base image, testing that the dotfiles install correctly when Homebrew and Bun are not available.
+That variant builds on `ubuntu:24.04` rather than `homebrew/brew`, so it covers
+the paths taken when `brew` and `bun` are missing. CI runs both.
 
 ### Testing Remote Install
 
@@ -314,7 +328,7 @@ The `claude-plugin/` directory contains a [Claude Code](https://docs.anthropic.c
 
 ### Agents
 
-- `code-quality-reviewer` - Proactively reviews code after completing features
+- `code-quality-reviewer` reads finished changes and reports quality and security problems
 
 ### Skills
 
