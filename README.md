@@ -35,6 +35,9 @@ How it behaves:
   ignore file, and a config you include rather than replace
 - **Terminal**: Ghostty set to a translucent black window, tabs in the titlebar,
   no traffic lights, and 16pt thickened text
+- **Coding agents**: global instruction files for Claude Code and Codex, built
+  from one shared source, asking for plain language, opinions with a stated
+  confidence, and no pushing to GitHub without being asked
 - **Vim**: vim-plug plus gruvbox, airline, gitgutter and NERDTree
 - **CLI tools**: bat, fzf, git-delta, [herdr](https://herdr.dev/) for running
   several coding agents in one terminal, and the rest of
@@ -103,10 +106,13 @@ dotfiles/
 │   ├── .vimrc
 │   ├── .vimrc.bundles
 │   ├── .config/       # ~/.config entries (ghostty)
+│   ├── .claude/       # Claude Code instructions (generated)
+│   ├── .codex/        # Codex instructions (generated)
 │   └── bin/           # Shell scripts
 ├── git/               # Git config (included via ~/.gitconfig)
 ├── zsh/               # Zsh config + theme (sourced/symlinked)
 ├── shell/             # Shell modules
+├── src/agents/        # Source for the agent instruction files
 ├── claude-plugin/     # Claude Code plugin
 └── scripts/           # Installation scripts
 ```
@@ -151,6 +157,13 @@ A symlink to the copy in this repo, so it makes no difference which path you
 edit. Press <kbd>⌘⇧,</kbd> in Ghostty to load a change, and run
 `ghostty +validate-config` to catch a typo, since Ghostty ignores option names
 it doesn't recognise without saying so.
+
+### `~/.claude/CLAUDE.md` and `~/.codex/AGENTS.md`
+
+Symlinks to generated files, so edit [src/agents/](./src/agents/) instead. Rules
+that suit any agent go in `common.md`, and each agent's template pulls that in
+where its `@common` line sits. Run `make agents` to rebuild, or let `make
+install` do it for you.
 
 ## What Gets Installed
 
@@ -235,11 +248,14 @@ GNU Stow creates these symlinks from `stow/` to your home directory:
 | `stow/.vimrc`                   | `~/.vimrc`                    |
 | `stow/.vimrc.bundles`           | `~/.vimrc.bundles`            |
 | `stow/.config/ghostty/config.ghostty` | `~/.config/ghostty/config.ghostty` |
+| `stow/.claude/CLAUDE.md`        | `~/.claude/CLAUDE.md`         |
+| `stow/.codex/AGENTS.md`         | `~/.codex/AGENTS.md`          |
 | `stow/bin/*`                    | `~/bin/*`                     |
 
-`stow.sh` creates `~/bin` and `~/.config/ghostty` before stowing. Stow replaces a
-whole directory with a single symlink when the target does not exist yet, so
-without those directories, `~/.config` itself would become a link into this repo.
+`stow.sh` creates `~/bin`, `~/.config/ghostty`, `~/.claude` and `~/.codex` before
+stowing. Stow replaces a whole directory with a single symlink when the target
+does not exist yet, so without those directories, `~/.config` itself would become
+a link into this repo.
 
 The zsh theme is symlinked separately by `zsh.sh`:
 

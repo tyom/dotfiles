@@ -5,11 +5,15 @@
 
 source "$DOTFILES_DIR/shell/utils.sh"
 
+# The agent instruction files under stow/ are generated, so build them before
+# linking or an install can ship a stale copy.
+bash "$DOTFILES_DIR/scripts/build-agents.sh"
+
 # Pre-create every directory that stow/ contains. Stow folds a whole directory
 # into one symlink when the target doesn't exist yet, so without this, ~/.config
 # would become a link into this repo and every tool's config would land in the
 # working tree. One line per directory added under stow/.
-mkdir -p "$HOME/bin" "$HOME/.config/ghostty"
+mkdir -p "$HOME/bin" "$HOME/.config/ghostty" "$HOME/.claude" "$HOME/.codex"
 
 # Use system stow on Linux (Homebrew stow has Perl dependency issues)
 if [[ "$(uname)" == "Linux" ]] && [[ -x /usr/bin/stow ]]; then
