@@ -87,7 +87,7 @@ done < <(find "$STOW_DIR" -type f ! -name .DS_Store)
 # Stow the entire stow/ directory
 STOW_OUTPUT=$($STOW_CMD -v --ignore='\.DS_Store' "${STOW_IGNORE[@]}" -d "$DOTFILES_DIR" -t "$HOME" stow 2>&1)
 STOW_EXIT=$?
-echo "$STOW_OUTPUT" | grep -v "^BUG" || true
+print_stow_output <<<"$STOW_OUTPUT"
 if [ $STOW_EXIT -ne 0 ]; then
   print_error "Stow failed. Check conflicts above and resolve manually."
   exit 1
