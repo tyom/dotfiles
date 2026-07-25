@@ -21,7 +21,8 @@ find "$STOW_DIR" -type f ! -name .DS_Store | while read -r file; do
   rel_path="${file#$STOW_DIR/}"
   target="$HOME/$rel_path"
   if [ -f "$target" ] && [ ! -L "$target" ]; then
-    print_warning "Existing file may conflict: $target"
+    # stow aborts every operation on a single conflict, not just this one
+    print_warning "Existing file will block ALL symlinks until moved: $target"
   fi
 done
 

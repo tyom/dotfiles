@@ -12,16 +12,40 @@ ERRORS=0
 
 print_step "Validating dotfiles installation..."
 
-# Check symlinks exist
+# Check the target is a live symlink pointing into this repo.
+# The old test was `-L || -f`, which a regular file satisfies — so a stray copy,
+# or a link left dangling after the repo moved, reported as installed.
 check_symlink() {
   local target="$1"
   local desc="$2"
-  if [ -L "$target" ] || [ -f "$target" ]; then
-    print_success "$desc exists"
-  else
-    print_error "$desc missing: $target"
+  local resolved
+
+  if [ ! -L "$target" ]; then
+    if [ -e "$target" ]; then
+      print_error "$desc is a regular file, not a link into the repo: $target"
+    else
+      print_error "$desc missing: $target"
+    fi
     ERRORS=$((ERRORS + 1))
+    return
   fi
+
+  if [ ! -e "$target" ]; then
+    print_error "$desc is a dangling link: $target -> $(readlink "$target")"
+    ERRORS=$((ERRORS + 1))
+    return
+  fi
+
+  resolved=$(readlink -f "$target" 2>/dev/null || echo '')
+  case "$resolved" in
+  "$DOTFILES_DIR"/*)
+    print_success "$desc links into the repo"
+    ;;
+  *)
+    print_error "$desc points outside the repo: $target -> ${resolved:-unresolvable}"
+    ERRORS=$((ERRORS + 1))
+    ;;
+  esac
 }
 
 echo ""
