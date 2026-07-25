@@ -23,6 +23,9 @@ uninstall: ## Remove dotfiles symlinks
 agents: ## Rebuild agent instruction files from src/agents/
 	./scripts/build-agents.sh
 
+test-stow: ## Check stow conflict handling against a throwaway HOME
+	./scripts/test-stow.sh
+
 brew: ## Install Homebrew packages
 	./scripts/install/brew.sh
 	./scripts/install/brew-cask.sh

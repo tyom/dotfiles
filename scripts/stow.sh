@@ -22,19 +22,70 @@ else
   STOW_CMD="stow"
 fi
 
-# Warn about conflicting files (we don't delete user files)
+# Resolve conflicting files before stowing. Stow aborts every symlink on a
+# single conflict, so one stray file blocks the whole install. Agent tools leave
+# an empty ~/.claude/CLAUDE.md or ~/.codex/AGENTS.md behind, which used to be
+# enough to stop it.
 STOW_DIR="$DOTFILES_DIR/stow"
-find "$STOW_DIR" -type f ! -name .DS_Store | while read -r file; do
+STOW_IGNORE=()
+
+# Exclude one file from this stow run. --ignore takes a Perl regex matched
+# against the basename, so the dots have to be escaped.
+skip_file() {
+  STOW_IGNORE+=(--ignore="$(basename "$1" | sed 's/\./\\./g')")
+}
+
+while read -r file; do
   rel_path="${file#$STOW_DIR/}"
   target="$HOME/$rel_path"
-  if [ -f "$target" ] && [ ! -L "$target" ]; then
-    # stow aborts every operation on a single conflict, not just this one
-    print_warning "Existing file will block ALL symlinks until moved: $target"
+  [ -f "$target" ] && [ ! -L "$target" ] || continue
+
+  # Nothing to lose in an empty file, so take it without asking
+  if ! grep -q '[^[:space:]]' "$target"; then
+    rm "$target"
+    print_info "Removed empty $target"
+    continue
   fi
-done
+
+  # -e /dev/tty is true even with no controlling terminal, so open it instead
+  if ! : 2>/dev/null </dev/tty; then
+    print_warning "Existing file, leaving it alone: $target"
+    skip_file "$target"
+    continue
+  fi
+
+  print_warning "$target exists and is not empty:"
+  head -15 "$target" | sed 's/^/   │ /'
+  total=$(wc -l <"$target")
+  [ "$total" -gt 15 ] && print_info "… $((total - 15)) more line(s)"
+  print_question "[o]verride (keeps a .bak), [s]kip, [q]uit? "
+  read -n 1 -r key </dev/tty || key=s
+  echo
+
+  case "$key" in
+  [oO])
+    backup="$target.bak"
+    n=1
+    while [ -e "$backup" ]; do
+      backup="$target.bak.$n"
+      n=$((n + 1))
+    done
+    mv "$target" "$backup"
+    print_success "Moved to $backup"
+    ;;
+  [qQ])
+    print_info "Stopped, nothing changed for $rel_path"
+    exit 0
+    ;;
+  *)
+    skip_file "$target"
+    print_skip "Skipped $rel_path"
+    ;;
+  esac
+done < <(find "$STOW_DIR" -type f ! -name .DS_Store)
 
 # Stow the entire stow/ directory
-STOW_OUTPUT=$($STOW_CMD -v --ignore='\.DS_Store' -d "$DOTFILES_DIR" -t "$HOME" stow 2>&1)
+STOW_OUTPUT=$($STOW_CMD -v --ignore='\.DS_Store' "${STOW_IGNORE[@]}" -d "$DOTFILES_DIR" -t "$HOME" stow 2>&1)
 STOW_EXIT=$?
 echo "$STOW_OUTPUT" | grep -v "^BUG" || true
 if [ $STOW_EXIT -ne 0 ]; then
