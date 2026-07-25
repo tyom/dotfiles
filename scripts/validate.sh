@@ -66,7 +66,12 @@ else
 fi
 check_symlink "$HOME/.vimrc" ".vimrc"
 check_symlink "$HOME/.vimrc.bundles" ".vimrc.bundles"
-check_symlink "$HOME/.config/ghostty/config" "ghostty config"
+check_symlink "$HOME/.config/ghostty/config.ghostty" "ghostty config"
+# On macOS this path wins over the XDG one, so it is the link that actually counts
+if [ "$(which_os)" == "macos" ]; then
+  check_symlink "$HOME/Library/Application Support/com.mitchellh.ghostty/config.ghostty" \
+    "ghostty config (macOS location)"
+fi
 check_symlink "$HOME/.oh-my-zsh/custom/themes/tyom.zsh-theme" "zsh theme"
 
 # Ghostty can check its own config, which catches typos in option names that it
@@ -76,7 +81,7 @@ print_info "Checking ghostty config..."
 
 GHOSTTY_BIN=$(command -v ghostty || echo "/Applications/Ghostty.app/Contents/MacOS/ghostty")
 if [ -x "$GHOSTTY_BIN" ]; then
-  if GHOSTTY_OUT=$("$GHOSTTY_BIN" +validate-config --config-file="$HOME/.config/ghostty/config" 2>&1); then
+  if GHOSTTY_OUT=$("$GHOSTTY_BIN" +validate-config --config-file="$HOME/.config/ghostty/config.ghostty" 2>&1); then
     print_success "ghostty config is valid"
   else
     print_error "ghostty config is invalid: $GHOSTTY_OUT"

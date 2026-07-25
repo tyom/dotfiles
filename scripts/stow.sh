@@ -39,3 +39,28 @@ if [ $STOW_EXIT -ne 0 ]; then
 fi
 
 print_success "Symlinks created via Stow"
+
+# Ghostty on macOS reads ~/Library/Application Support/com.mitchellh.ghostty/,
+# and that location takes precedence over the stowed XDG path, so the config
+# there has to be a link to this repo or it silently wins. Stow doesn't manage
+# that directory, so link it by hand, the way zsh.sh links the theme.
+if [[ "$(uname)" == "Darwin" ]]; then
+  GHOSTTY_REPO="$DOTFILES_DIR/stow/.config/ghostty/config.ghostty"
+  GHOSTTY_MAC="$HOME/Library/Application Support/com.mitchellh.ghostty/config.ghostty"
+  mkdir -p "$(dirname "$GHOSTTY_MAC")"
+
+  if [ -e "$GHOSTTY_MAC" ] && [ ! -L "$GHOSTTY_MAC" ]; then
+    if cmp -s "$GHOSTTY_REPO" "$GHOSTTY_MAC"; then
+      rm "$GHOSTTY_MAC"
+    else
+      print_warning "Ghostty config differs from this repo, leaving it alone:"
+      print_info "$GHOSTTY_MAC"
+      print_info "Move it aside and re-run to use the version in this repo"
+    fi
+  fi
+
+  if [ ! -e "$GHOSTTY_MAC" ] || [ -L "$GHOSTTY_MAC" ]; then
+    ln -sf "$GHOSTTY_REPO" "$GHOSTTY_MAC"
+    print_success "Ghostty config linked for macOS"
+  fi
+fi

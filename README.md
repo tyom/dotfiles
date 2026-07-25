@@ -214,12 +214,17 @@ GNU Stow creates these symlinks from `stow/` to your home directory:
 | ------------------------------- | ----------------------------- |
 | `stow/.vimrc`                   | `~/.vimrc`                    |
 | `stow/.vimrc.bundles`           | `~/.vimrc.bundles`            |
-| `stow/.config/ghostty/config`   | `~/.config/ghostty/config`    |
+| `stow/.config/ghostty/config.ghostty` | `~/.config/ghostty/config.ghostty` |
 | `stow/bin/*`                    | `~/bin/*`                     |
 
 `stow.sh` creates `~/bin` and `~/.config/ghostty` before stowing. Stow replaces a
 whole directory with a single symlink when the target does not exist yet, so
 without those directories, `~/.config` itself would become a link into this repo.
+
+On macOS, Ghostty reads `~/Library/Application Support/com.mitchellh.ghostty/config.ghostty`
+and that location wins over `~/.config`, so `stow.sh` links it to the same file.
+An existing config there is left alone unless it is byte-identical to this repo's
+copy, in which case it is replaced with the link.
 
 The zsh theme is symlinked separately by `zsh.sh`:
 
