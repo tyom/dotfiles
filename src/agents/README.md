@@ -3,7 +3,7 @@
 Claude Code and Codex read the same rules from different paths, so the shared
 part is written once here and assembled into both files.
 
-```
+```text
 common.md  ──┬─→  claude.tmpl.md  ──→  stow/.claude/CLAUDE.md  →  ~/.claude/CLAUDE.md
              └─→  codex.tmpl.md   ──→  stow/.codex/AGENTS.md   →  ~/.codex/AGENTS.md
 ```

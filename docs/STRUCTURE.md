@@ -6,7 +6,7 @@ This repository uses [GNU Stow](https://www.gnu.org/software/stow/) for symlink 
 
 The `stow/` directory mirrors `$HOME`. Everything in it gets symlinked:
 
-```
+```text
 stow/
 ├── .vimrc              → ~/.vimrc
 ├── .vimrc.bundles      → ~/.vimrc.bundles

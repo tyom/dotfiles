@@ -100,7 +100,7 @@ make uninstall
 
 This repository uses [GNU Stow](https://www.gnu.org/software/stow/) for symlink management:
 
-```
+```text
 dotfiles/
 ├── stow/              # Symlinked to ~/
 │   ├── .vimrc
@@ -187,7 +187,7 @@ See [scripts/install/brew.sh](./scripts/install/brew.sh) for the full list.
 <details>
 <summary><strong>Installation Flow</strong></summary>
 
-```
+```text
 install.sh (entry point)
 ├── If run from existing repo: use that location
 └── Otherwise: clone to ~/.dotfiles (or DOTFILES_DIR)
@@ -224,7 +224,7 @@ setup.sh (orchestrator)
 <details>
 <summary><strong>Zsh Configuration Chain</strong></summary>
 
-```
+```text
 ~/.zshrc
 └── exports DOTFILES_DIR and sources $DOTFILES_DIR/zsh/dotfiles.zsh
     ├── sources zsh/config.zsh
