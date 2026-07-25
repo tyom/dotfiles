@@ -1,9 +1,31 @@
-# Dotfiles
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/dotfiles-dark.svg">
+    <img src="docs/dotfiles.svg" alt="dotfiles" width="300">
+  </picture>
+</p>
 
-[![Smoke Test](https://github.com/tyom/dotfiles/actions/workflows/smoke-test.yml/badge.svg)](https://github.com/tyom/dotfiles/actions/workflows/smoke-test.yml)
-[![CI](https://github.com/tyom/dotfiles/actions/workflows/ci.yml/badge.svg)](https://github.com/tyom/dotfiles/actions/workflows/ci.yml)
+<p align="center">
+  <a href="https://github.com/tyom/dotfiles/actions/workflows/smoke-test.yml"><img src="https://github.com/tyom/dotfiles/actions/workflows/smoke-test.yml/badge.svg" alt="Smoke Test"></a>
+  <a href="https://github.com/tyom/dotfiles/actions/workflows/ci.yml"><img src="https://github.com/tyom/dotfiles/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+</p>
 
-Personal dotfiles for macOS and Linux, designed for a smooth developer experience. Includes Zsh, Git, Vim configuration, Homebrew CLI tools (bat, fzf, git-delta), and a Claude Code plugin.
+Personal dotfiles for macOS and Linux: Zsh with Oh My Zsh, Git config, Vim, a few
+CLI tools like bat and fzf, and a Claude Code plugin. One command installs the
+lot, then checks its own work.
+
+How it behaves:
+
+- Your `~/.zshrc` and `~/.gitconfig` are not overwritten. The installer adds one
+  line to each and leaves the rest alone. Everything else is a symlink into this
+  repo, made with [GNU Stow](https://www.gnu.org/software/stow/), so the file you
+  edit here is the file your shell reads. There is nothing to sync.
+- You choose what gets installed. Setup shows a checklist, and Homebrew packages,
+  macOS apps and the Claude Code plugin start unchecked.
+- You can run it again any time. Each step skips what it has already done, and
+  the last step runs over 30 checks, including that every symlink still points
+  into this repo. CI installs all of it on Linux, once with Homebrew and once
+  without.
 
 ## What's Included
 
@@ -15,10 +37,34 @@ Personal dotfiles for macOS and Linux, designed for a smooth developer experienc
 - **Bin Scripts**: Handy commands like `gb` and `git-author`, plus standalone tools installed via Homebrew: [`ungit`](https://github.com/tyom/ungit) (clone GitHub repos/subdirs as files or text) and [`repo-intel`](https://github.com/tyom/repo-intel) (contributor stats dashboard for any git repo)
 - **Claude Code Plugin**: Custom commands for code review, explanation, and refactoring
 
-![Shell screenshot](https://tyom.github.io/dotfiles/shell.png)
-![Vim screenshot](https://tyom.github.io/dotfiles/vim.png)
-
 ## Installation
+
+You do not need to clone anything. This gets the repo into `~/.dotfiles` and runs
+setup:
+
+```bash
+curl -fsSL https://tyom.github.io/dotfiles/install.sh | bash
+```
+
+Setup shows a checklist. Toggle items by number, press <kbd>Enter</kbd> to
+install, or <kbd>q</kbd> to quit. It takes a few minutes to download and set up
+packages. At the end you get a summary and one line of validation results.
+
+```bash
+# Install everything, no checklist (for CI or a fresh box)
+curl -fsSL https://tyom.github.io/dotfiles/install.sh | bash -s -- -y
+
+# Somewhere other than ~/.dotfiles
+DOTFILES_DIR=~/my-dotfiles curl -fsSL https://tyom.github.io/dotfiles/install.sh | bash
+
+# From another branch
+DOTFILES_BRANCH=next curl -fsSL https://tyom.github.io/dotfiles/install.sh | bash
+```
+
+### From a clone
+
+Clone first if you plan to edit anything. The installer notices it is already
+inside a repo and installs from there:
 
 ```bash
 git clone https://github.com/tyom/dotfiles.git ~/.dotfiles
@@ -26,28 +72,9 @@ cd ~/.dotfiles
 make install
 ```
 
-Installation takes a few minutes to download and configure packages. Setup can be run multiple times safely.
-
-Setup starts with a checklist of what to install — toggle items by number, press Enter to go (optional extras like Homebrew packages and the Claude Code plugin start unchecked). It ends with a summary of what was installed and a one-line validation result. For the full per-check validation output, use `make install VERBOSE=1` (or `./scripts/setup.sh --verbose`). Docker test targets always run verbose.
-
-### Remote Installation
-
-```bash
-curl -fsSL https://tyom.github.io/dotfiles/install.sh | bash
-```
-
-Options:
-
-```bash
-# Non-interactive (install everything, no checklist)
-curl -fsSL https://tyom.github.io/dotfiles/install.sh | bash -s -- -y
-
-# Install to a different directory
-DOTFILES_DIR=~/my-dotfiles curl -fsSL https://tyom.github.io/dotfiles/install.sh | bash
-
-# Install from a different branch
-DOTFILES_BRANCH=next curl -fsSL https://tyom.github.io/dotfiles/install.sh | bash
-```
+Add `VERBOSE=1` to see every validation check instead of the summary line
+(`make install VERBOSE=1`, or `./scripts/setup.sh --verbose`). Docker test targets
+always run verbose.
 
 ### Uninstall
 
@@ -131,7 +158,7 @@ install.sh (entry point)
     └── Execute scripts/setup.sh
 
 setup.sh (orchestrator)
-├── 1. Confirm user wants to proceed
+├── 1. Show the install checklist (nothing selected = exit)
 ├── 2. Install Homebrew and packages (optional)
 ├── 3. Install Brew Cask / macOS apps (optional, macOS only)
 ├── 4. Install Bun (optional)
