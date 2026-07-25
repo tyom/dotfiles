@@ -322,7 +322,7 @@ if command -v brew >/dev/null 2>&1; then
   echo ""
   print_info "Checking Homebrew packages (optional)..."
 
-  for pkg in scmpuff bat git-delta; do
+  for pkg in scmpuff bat git-delta herdr; do
     if brew list "$pkg" &>/dev/null; then
       print_success "$pkg installed"
     else

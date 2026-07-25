@@ -11,6 +11,7 @@ packages=(
   'bat|cat(1) clone with syntax highlighting and Git integration'
   'fzf|Fuzzy finder for files, history, etc.'
   'git-delta|Syntax highlighter for git and diff output'
+  'herdr|Agent multiplexer that lives in your terminal'
   'scmpuff|Numbered shortcuts for common git commands'
   'tree|Display directories as trees'
   'wget|Internet file retriever'

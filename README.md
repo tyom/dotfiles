@@ -36,7 +36,8 @@ How it behaves:
 - **Terminal**: Ghostty set to a translucent black window, tabs in the titlebar,
   no traffic lights, and 16pt thickened text
 - **Vim**: vim-plug plus gruvbox, airline, gitgutter and NERDTree
-- **CLI tools**: bat, fzf and git-delta, and the rest of
+- **CLI tools**: bat, fzf, git-delta, [herdr](https://herdr.dev/) for running
+  several coding agents in one terminal, and the rest of
   [scripts/install/brew.sh](./scripts/install/brew.sh)
 - **Node**: Volta, and Node installed through it. Bun if you tick it.
 - **Scripts on your PATH**: `gb` lists branches by commit date, `gw` lists
