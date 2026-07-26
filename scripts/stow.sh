@@ -35,6 +35,14 @@ skip_file() {
   STOW_IGNORE+=(--ignore="$(basename "$1" | sed 's/\./\\./g')")
 }
 
+# setup.sh sets this when the agent instructions weren't selected. Unset means a
+# direct run of this script, which links everything as before.
+if [ "${STOW_SKIP_AGENTS:-false}" = true ]; then
+  skip_file CLAUDE.md
+  skip_file AGENTS.md
+  print_skip 'Agent instructions not selected, leaving ~/.claude and ~/.codex alone'
+fi
+
 while read -r file; do
   rel_path="${file#"$STOW_DIR"/}"
   target="$HOME/$rel_path"
