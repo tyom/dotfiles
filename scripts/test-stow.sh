@@ -52,4 +52,10 @@ assert "CLAUDE.md is not linked when opted out" "$(kind "$FAKE_HOME3/.claude/CLA
 assert "AGENTS.md is not linked when opted out" "$(kind "$FAKE_HOME3/.codex/AGENTS.md")" missing
 assert "everything else still links" "$(kind "$FAKE_HOME3/.vimrc")" symlink
 
+# Opting out afterwards leaves links that are already there. Stow skips the
+# file, it doesn't unlink it, so this is a skip and not an uninstall.
+STOW_SKIP_AGENTS=true HOME="$FAKE_HOME" bash "$DOTFILES_DIR/scripts/stow.sh" >/dev/null 2>&1
+assert "opting out keeps an existing CLAUDE.md link" "$(kind "$FAKE_HOME/.claude/CLAUDE.md")" symlink
+assert "opting out keeps an existing AGENTS.md link" "$(kind "$FAKE_HOME/.codex/AGENTS.md")" symlink
+
 exit $FAILED
