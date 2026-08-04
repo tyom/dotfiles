@@ -17,25 +17,23 @@ fi
 # numbers the chart has always printed, without carrying 240 literals.
 levels=(00 5f 87 af d7 ff)
 
-hex() {
-  local n=$1 i grey
-  if ((n < 232)); then
-    i=$((n - 16))
-    printf '%s/%s/%s' "${levels[i / 36]}" "${levels[i / 6 % 6]}" "${levels[i % 6]}"
-  else
-    grey=$((8 + 10 * (n - 232)))
-    printf '%02x/%02x/%02x' "$grey" "$grey" "$grey"
-  fi
-}
-
 # ponytail: dropped the original -r and -s flags and the diagonal column shuffle
 # they fed. Index order is the same chart. Add them back if a shuffled one helps.
 cols=1
 [[ "$1" == -w ]] && cols=6
 
 echo
+# printf -v, not $(hex n): a subshell per colour is 240 forks and ~90% of the
+# runtime of a script that otherwise finishes instantly.
 for n in {16..255}; do
-  printf '\e[38;5;%dm  %3d: %s' "$n" "$n" "$(hex "$n")"
+  if ((n < 232)); then
+    i=$((n - 16))
+    printf -v rgb '%s/%s/%s' "${levels[i / 36]}" "${levels[i / 6 % 6]}" "${levels[i % 6]}"
+  else
+    grey=$((8 + 10 * (n - 232)))
+    printf -v rgb '%02x/%02x/%02x' "$grey" "$grey" "$grey"
+  fi
+  printf '\e[38;5;%dm  %3d: %s' "$n" "$n" "$rgb"
   (((n - 15) % cols == 0)) && echo
 done
 printf '\e[0m\n'

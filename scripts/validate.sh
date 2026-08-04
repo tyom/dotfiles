@@ -8,6 +8,11 @@ set -e
 DOTFILES_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 source "$DOTFILES_DIR/shell/utils.sh"
 
+# Symlink ownership is judged against the resolved path, the same way link.sh
+# judges it. DOTFILES_DIR stays logical: the git include check below matches the
+# path git.sh wrote, which is the unresolved one.
+REPO=$(cd "$DOTFILES_DIR" && pwd -P)
+
 ERRORS=0
 
 print_step "Validating dotfiles installation..."
@@ -18,7 +23,6 @@ print_step "Validating dotfiles installation..."
 check_symlink() {
   local target="$1"
   local desc="$2"
-  local resolved
 
   if [ ! -L "$target" ]; then
     if [ -e "$target" ]; then
@@ -36,16 +40,12 @@ check_symlink() {
     return
   fi
 
-  resolved=$(readlink -f "$target" 2>/dev/null || echo '')
-  case "$resolved" in
-  "$DOTFILES_DIR"/*)
+  if links_into "$REPO" "$target"; then
     print_success "$desc links into the repo"
-    ;;
-  *)
-    print_error "$desc points outside the repo: $target -> ${resolved:-unresolvable}"
+  else
+    print_error "$desc points outside the repo: $target -> $(readlink "$target")"
     ERRORS=$((ERRORS + 1))
-    ;;
-  esac
+  fi
 }
 
 echo ""

@@ -245,16 +245,9 @@ setup.sh (orchestrator)
 
 `link.sh` symlinks every file under `home/` to the matching path in your home
 directory, creating the parent directories as it goes. The two agent files are
-the exception: they are only linked when the `agents` option is selected.
-
-| Source                                | Target                             |
-| ------------------------------------- | ---------------------------------- |
-| `home/.vimrc`                         | `~/.vimrc`                         |
-| `home/.vimrc.bundles`                 | `~/.vimrc.bundles`                 |
-| `home/.config/ghostty/config.ghostty` | `~/.config/ghostty/config.ghostty` |
-| `home/.claude/CLAUDE.md`              | `~/.claude/CLAUDE.md`              |
-| `home/.codex/AGENTS.md`               | `~/.codex/AGENTS.md`               |
-| `home/bin/*`                          | `~/bin/*`                          |
+the exception: they are only linked when the `agents` option is selected. So
+`home/.config/ghostty/config.ghostty` lands at `~/.config/ghostty/config.ghostty`,
+and so on for the rest of the tree above.
 
 An existing file at a target is never overwritten silently: an empty one is taken
 over, and anything else prompts to override (keeping a `.bak`), skip or quit.

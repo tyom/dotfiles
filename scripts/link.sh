@@ -8,22 +8,25 @@
 source "$(dirname "${BASH_SOURCE[0]}")/vars.sh"
 source "$DOTFILES_DIR/shell/utils.sh"
 
-# The agent instruction files under home/ are generated, so build them before
-# linking or an install can ship a stale copy.
-bash "$DOTFILES_DIR/scripts/build-agents.sh" || {
-  # Sourced, so this is setup.sh's status. Linking a stale generated file is
-  # worse than stopping: the agent would silently follow the old rules.
-  print_error 'Could not build the agent instruction files'
-  exit 1
-}
-
-HOME_DIR="$DOTFILES_DIR/home"
+SRC_DIR="$DOTFILES_DIR/home"
 REPO=$(cd "$DOTFILES_DIR" && pwd -P)
 
 # setup.sh sets this when the agent instructions weren't selected. Unset means a
 # direct run of this script, which links everything.
-if [ "${SKIP_AGENTS:-false}" = true ]; then
+SKIP_AGENTS=${SKIP_AGENTS:-false}
+
+if [ "$SKIP_AGENTS" = true ]; then
   print_skip 'Agent instructions not selected, leaving ~/.claude and ~/.codex alone'
+else
+  # The agent instruction files under home/ are generated, so build them before
+  # linking or an install can ship a stale copy. Skipped above rather than built
+  # and ignored, so opting out leaves nothing behind in the working tree.
+  bash "$DOTFILES_DIR/scripts/build-agents.sh" || {
+    # Sourced, so this is setup.sh's status. Linking a stale generated file is
+    # worse than stopping: the agent would silently follow the old rules.
+    print_error 'Could not build the agent instruction files'
+    exit 1
+  }
 fi
 
 link() {
@@ -36,10 +39,10 @@ link() {
 }
 
 while read -r file; do
-  rel_path="${file#"$HOME_DIR"/}"
+  rel_path="${file#"$SRC_DIR"/}"
   target="$HOME/$rel_path"
 
-  if [ "${SKIP_AGENTS:-false}" = true ]; then
+  if [ "$SKIP_AGENTS" = true ]; then
     case "$rel_path" in .claude/CLAUDE.md | .codex/AGENTS.md) continue ;; esac
   fi
 
@@ -120,6 +123,6 @@ while read -r file; do
     print_skip "Skipped $rel_path"
     ;;
   esac
-done < <(find "$HOME_DIR" -type f ! -name .DS_Store)
+done < <(find "$SRC_DIR" -type f ! -name .DS_Store)
 
 print_success "Symlinks created"

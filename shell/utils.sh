@@ -98,18 +98,13 @@ function print_warning {
   printf "\e[0;33m ⚠ $1\e[0m\n"
 }
 
-# Absolute directory a live symlink lands in. Installs made with GNU Stow wrote
-# relative targets, so resolve against the link's own directory. Empty when the
-# link dangles.
-function link_dir {
-  (cd "$(dirname "$1")" && cd "$(dirname "$(readlink "$1")")" && pwd -P) 2>/dev/null
-}
-
-# True when live symlink $2 lands inside directory $1. Matching the prefix alone
-# would claim links into a sibling checkout such as <repo>-old.
+# True when live symlink $2 lands inside directory $1. Resolved against the
+# link's own directory, because installs made with GNU Stow wrote relative
+# targets. Comparing to the whole path, not just the prefix: a prefix match
+# would also claim links into a sibling checkout such as <repo>-old.
 function links_into {
   local dir
-  dir=$(link_dir "$2")
+  dir=$( (cd "$(dirname "$2")" && cd "$(dirname "$(readlink "$2")")" && pwd -P) 2>/dev/null)
   [[ "$dir" == "$1" || "$dir" == "$1"/* ]]
 }
 
