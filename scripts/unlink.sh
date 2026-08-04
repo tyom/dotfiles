@@ -3,7 +3,9 @@
 # Remove the symlinks that link.sh created
 # Only links that still point into this repo are touched
 
-source "$DOTFILES_DIR/scripts/vars.sh"
+# Relative to this file, not $DOTFILES_DIR: vars.sh is what sets that, and
+# `make uninstall` runs this script with nothing exported.
+source "$(dirname "${BASH_SOURCE[0]}")/vars.sh"
 source "$DOTFILES_DIR/shell/utils.sh"
 
 print_step "Removing dotfile symlinks..."

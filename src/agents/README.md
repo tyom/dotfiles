@@ -18,10 +18,11 @@ install cannot ship a stale file.
 
 Two things to keep in mind:
 
-- The files under `home/` are generated. Editing them, or editing the symlinks
-  in your home directory, loses the change on the next build. They carry no
-  "generated" banner because that banner would sit in every agent's context
-  window for no benefit.
+- `home/.claude/CLAUDE.md` and `home/.codex/AGENTS.md` are generated. Editing
+  them, or editing the symlinks in your home directory, loses the change on the
+  next build. Everything else under `home/` is a real source file. The generated
+  two carry no "generated" banner because that banner would sit in every agent's
+  context window for no benefit.
 - The templates are named `*.tmpl.md`, not `claude.md`, because macOS ignores
   filename case. A file here called `claude.md` is a `CLAUDE.md`, and Claude
   Code picks it up as real instructions for this repo.

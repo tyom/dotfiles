@@ -3,6 +3,9 @@
 # Create the dotfile symlinks
 # The home/ directory mirrors the home directory structure
 
+# vars.sh sets DOTFILES_DIR if it isn't already, so this works when run directly
+# as well as when setup.sh sources it. Relative path: $DOTFILES_DIR may be unset.
+source "$(dirname "${BASH_SOURCE[0]}")/vars.sh"
 source "$DOTFILES_DIR/shell/utils.sh"
 
 # The agent instruction files under home/ are generated, so build them before
