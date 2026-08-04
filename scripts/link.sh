@@ -66,11 +66,10 @@ while read -r file; do
     continue
   fi
 
-  # Nothing to lose in an empty file, so take it without asking. Status 1 is
-  # "no match", anything higher is a read error — never delete on those.
-  grep -q '[^[:space:]]' "$target" 2>/dev/null
-  case $? in
-  1)
+  # Nothing to lose in an empty file, so take it without asking. Anything with
+  # bytes in it goes to the prompt below, readable or not, so a file we cannot
+  # read is never deleted here.
+  if [ ! -s "$target" ]; then
     if rm "$target" 2>/dev/null; then
       print_info "Removed empty $target"
       link "$file" "$target"
@@ -78,13 +77,7 @@ while read -r file; do
       print_warning "Cannot remove, leaving it alone: $target"
     fi
     continue
-    ;;
-  0) ;;
-  *)
-    print_warning "Cannot read, leaving it alone: $target"
-    continue
-    ;;
-  esac
+  fi
 
   # -e /dev/tty is true even with no controlling terminal, so open it instead
   if ! : 2>/dev/null </dev/tty; then
