@@ -22,8 +22,8 @@ else
   # linking or an install can ship a stale copy. Skipped above rather than built
   # and ignored, so opting out leaves nothing behind in the working tree.
   bash "$DOTFILES_DIR/scripts/build-agents.sh" || {
-    # Sourced, so this is setup.sh's status. Linking a stale generated file is
-    # worse than stopping: the agent would silently follow the old rules.
+    # Linking a stale generated file is worse than stopping: the agent would
+    # silently follow the old rules.
     print_error 'Could not build the agent instruction files'
     exit 1
   }
@@ -113,9 +113,7 @@ while read -r file; do
     link "$file" "$target"
     ;;
   [qQ])
-    # This script is sourced, so the status is setup.sh's status. Quitting
-    # part-way is not a successful install, and exit 0 here would skip the
-    # remaining steps while reporting success.
+    # Quitting part-way is not a successful install: setup.sh stops on this.
     print_error "Stopped at $rel_path. Links made before it are left in place."
     exit 1
     ;;
