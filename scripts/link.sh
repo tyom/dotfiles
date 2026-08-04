@@ -7,7 +7,12 @@ source "$DOTFILES_DIR/shell/utils.sh"
 
 # The agent instruction files under home/ are generated, so build them before
 # linking or an install can ship a stale copy.
-bash "$DOTFILES_DIR/scripts/build-agents.sh"
+bash "$DOTFILES_DIR/scripts/build-agents.sh" || {
+  # Sourced, so this is setup.sh's status. Linking a stale generated file is
+  # worse than stopping: the agent would silently follow the old rules.
+  print_error 'Could not build the agent instruction files'
+  exit 1
+}
 
 HOME_DIR="$DOTFILES_DIR/home"
 REPO=$(cd "$DOTFILES_DIR" && pwd -P)
@@ -34,7 +39,7 @@ while read -r file; do
   if [ -L "$target" ]; then
     # Ours to refresh if it already points into this repo, or if it dangles
     # because the repo moved. A link the user made elsewhere still resolves.
-    if [ ! -e "$target" ] || [[ "$(link_dir "$target")" == "$REPO"* ]]; then
+    if [ ! -e "$target" ] || links_into "$REPO" "$target"; then
       link "$file" "$target"
     else
       print_warning "Links outside this repo, leaving it alone: $target"
@@ -92,11 +97,15 @@ while read -r file; do
   [oO])
     backup="$target.bak"
     n=1
-    while [ -e "$backup" ]; do
+    # -L too: a dangling .bak is still someone's backup, and -e misses it.
+    while [ -e "$backup" ] || [ -L "$backup" ]; do
       backup="$target.bak.$n"
       n=$((n + 1))
     done
-    mv "$target" "$backup"
+    if ! mv "$target" "$backup"; then
+      print_warning "Cannot back up, leaving it alone: $target"
+      continue
+    fi
     print_success "Moved to $backup"
     link "$file" "$target"
     ;;

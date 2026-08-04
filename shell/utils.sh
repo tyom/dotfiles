@@ -105,6 +105,14 @@ function link_dir {
   (cd "$(dirname "$1")" && cd "$(dirname "$(readlink "$1")")" && pwd -P) 2>/dev/null
 }
 
+# True when live symlink $2 lands inside directory $1. Matching the prefix alone
+# would claim links into a sibling checkout such as <repo>-old.
+function links_into {
+  local dir
+  dir=$(link_dir "$2")
+  [[ "$dir" == "$1" || "$dir" == "$1"/* ]]
+}
+
 function print_result {
   [ $1 -eq 0 ] &&
     print_success "$2" ||

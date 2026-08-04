@@ -35,7 +35,7 @@ set autoread
 set hidden
 
 " When vimrc is edited, reload it
-autocmd! bufwritepost vimrc source ~/.vimrc
+autocmd! bufwritepost .vimrc source ~/.vimrc
 
 " Show NERD Tree on Vim start
 " autocmd VimEnter * NERDTree
@@ -121,7 +121,6 @@ set listchars=tab:▸\ ,eol:¬
 nmap <leader>l :set list!<CR>
 
 set pastetoggle=<F5>
-set paste
 
 set ruler       "Always show current position
 
@@ -175,7 +174,7 @@ com! DiffSaved call s:DiffWithSaved()
 function! s:DiffWithSVNCheckedOut()
   let filetype=&ft
   diffthis
-  vnew | exe "%!svn cat " . expand("#:p:h")
+  vnew | exe "%!svn cat " . expand("#:p")
   diffthis
   exe "setlocal bt=nofile bh=wipe nobl noswf ro ft=" . filetype
 endfunction

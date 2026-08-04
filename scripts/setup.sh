@@ -101,8 +101,10 @@ if is_checked dotfiles; then
 
   # These land in ~/.claude and ~/.codex and steer every agent session on the
   # machine, so they are opt-in rather than part of the dotfiles bundle.
+  # Set both ways: an inherited SKIP_AGENTS=true would otherwise survive the
+  # option being selected.
   # shellcheck disable=SC2034 # read by link.sh, which is sourced just below
-  is_checked agents || SKIP_AGENTS=true
+  if is_checked agents; then SKIP_AGENTS=false; else SKIP_AGENTS=true; fi
 
   print_step 'Symlinking dotfiles' &&
     source "$DOTFILES_DIR/scripts/link.sh"

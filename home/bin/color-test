@@ -119,16 +119,13 @@ if $wide; then
             if $reverse; then
                 idx=$((row * cols + col))
             else
-                # Diagonal shifting effect from original
-                seed=$(( (row % 6) * -1 ))
-                new_row=$((row + seed + col))
-                new_col=$((col - seed - col + col))
-
-                # Simplified: just use row offset pattern
-                offset=$(( (row % 6) ))
-                new_row=$((row - offset + col))
-                if [[ $new_row -lt $rows ]]; then
-                    idx=$((new_row * cols + (col + offset) % cols))
+                # Diagonal shift from the original chart. It permutes a square
+                # block of $cols rows, so only apply it to whole blocks: a short
+                # trailing block would repeat some colours and drop others.
+                offset=$((row % cols))
+                base=$((row - offset))
+                if ((base + cols <= rows)); then
+                    idx=$(( (base + col) * cols + (col + offset) % cols ))
                 else
                     idx=$((row * cols + col))
                 fi

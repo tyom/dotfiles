@@ -3,7 +3,8 @@
 ## Home Directory
 
 The `home/` directory mirrors `$HOME`. Everything in it gets symlinked by
-`scripts/link.sh`:
+`scripts/link.sh`, except the agent files, which are only linked when the
+`agents` option is selected:
 
 ```text
 home/

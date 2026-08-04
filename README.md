@@ -244,7 +244,8 @@ setup.sh (orchestrator)
 <summary><strong>Symlinked Files</strong></summary>
 
 `link.sh` symlinks every file under `home/` to the matching path in your home
-directory, creating the parent directories as it goes:
+directory, creating the parent directories as it goes. The two agent files are
+the exception: they are only linked when the `agents` option is selected.
 
 | Source                                | Target                             |
 | ------------------------------------- | ---------------------------------- |

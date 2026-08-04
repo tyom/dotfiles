@@ -52,6 +52,7 @@ echo 'mine' >"$H2/.vimrc/keep"
 link "$H2"
 assert "a directory at a target stays put" "$(kind "$H2/.vimrc")" dir
 assert "its contents survive" "$(cat "$H2/.vimrc/keep")" mine
+assert "and nothing is linked inside it" "$(kind "$H2/.vimrc/.vimrc")" missing
 assert "a skipped conflict doesn't block the rest" "$(kind "$H2/.vimrc.bundles")" symlink
 
 # A link left dangling by an earlier install is refreshed rather than skipped
@@ -83,6 +84,7 @@ assert "opting out keeps an existing AGENTS.md link" "$(kind "$H1/.codex/AGENTS.
 HOME="$H4" bash "$DOTFILES_DIR/scripts/unlink.sh" >/dev/null 2>&1
 assert "unlink removes our links" "$(kind "$H4/.vimrc.bundles")" missing
 assert "unlink clears the directories it made" "$(kind "$H4/bin")" missing
+assert "including nested ones" "$(kind "$H4/.config")" missing
 assert "unlink leaves a foreign link alone" "$(cat "$H4/.vimrc")" 'not yours'
 
 exit $FAILED

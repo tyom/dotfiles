@@ -18,7 +18,7 @@ while read -r file; do
   [ -L "$target" ] || continue
   # A live link elsewhere is the user's own, so leave it. A dangling one is ours
   # from an install made before the repo moved.
-  [ -e "$target" ] && [[ "$(link_dir "$target")" != "$REPO"* ]] && continue
+  [ -e "$target" ] && ! links_into "$REPO" "$target" && continue
 
   rm "$target" && print_info "unlinked $rel_path"
 done < <(find "$HOME_DIR" -type f ! -name .DS_Store)
