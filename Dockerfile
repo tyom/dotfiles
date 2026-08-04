@@ -23,8 +23,9 @@ ENV HOME=/home/linuxbrew
 # fails the install, and brew skips what is already there so the retry is cheap.
 RUN brew update && \
   (brew trust tyom/tap 2>/dev/null || true) && \
-  PKGS="bat fzf git-delta herdr scmpuff tree wget tyom/tap/ungit tyom/tap/repo-intel" && \
+  PKGS="bat fzf git-delta herdr scmpuff tree wget tyom/tap/ungit" && \
   { brew install $PKGS || brew install $PKGS; } && \
+  { brew install tyom/tap/repo-intel || brew install tyom/tap/repo-intel || true; } && \
   brew cleanup && rm -rf "$(brew --cache)"
 
 # Copy dotfiles

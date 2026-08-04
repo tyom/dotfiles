@@ -24,8 +24,12 @@ if [ "${SKIP_AGENTS:-false}" = true ]; then
 fi
 
 link() {
-  mkdir -p "$(dirname "$2")"
-  ln -sfn "$1" "$2" && print_info "linked ${2#"$HOME"/}"
+  if mkdir -p "$(dirname "$2")" && ln -sfn "$1" "$2"; then
+    print_info "linked ${2#"$HOME"/}"
+  else
+    # Say so, or the run ends on "Symlinks created" with a link missing.
+    print_warning "Could not link $2"
+  fi
 }
 
 while read -r file; do

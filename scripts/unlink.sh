@@ -20,7 +20,11 @@ while read -r file; do
   # from an install made before the repo moved.
   [ -e "$target" ] && ! links_into "$REPO" "$target" && continue
 
-  rm "$target" && print_info "unlinked $rel_path"
+  if rm "$target"; then
+    print_info "unlinked $rel_path"
+  else
+    print_warning "Could not unlink $target"
+  fi
 done < <(find "$HOME_DIR" -type f ! -name .DS_Store)
 
 # rmdir only removes empty directories, so this clears out what the links left
