@@ -15,22 +15,20 @@ RUN apt-get update -qq && \
 USER linuxbrew
 ENV HOME=/home/linuxbrew
 
-# Warm the Homebrew downloads into a cached layer. setup.sh still runs its brew
-# step at test time, it just finds everything present, which takes the run from
-# ~4 minutes to seconds. This list mirrors scripts/install/brew.sh; if it drifts
-# the test installs the missing formula itself, so it gets slower, never wrong.
-# Retried once for the same reason brew.sh retries: a transient network drop
-# fails the install, and brew skips what is already there so the retry is cheap.
-RUN brew update && \
-  (brew trust tyom/tap 2>/dev/null || true) && \
-  PKGS="bat fzf git-delta herdr scmpuff tree wget tyom/tap/ungit" && \
-  { brew install $PKGS || brew install $PKGS; } && \
-  { brew install tyom/tap/repo-intel || brew install tyom/tap/repo-intel || true; } && \
-  brew cleanup && rm -rf "$(brew --cache)"
+# Warm the Homebrew packages into a cached layer by running the real install
+# script, so setup.sh's brew step finds everything present at test time and the
+# run takes seconds instead of ~4 minutes. Running the script rather than a copy
+# of its package list is the point: a copy drifts silently, and speed is the only
+# thing this layer delivers. Its three files are copied on their own so the layer
+# rebuilds when they change, not on every dotfile edit.
+COPY --chown=linuxbrew:linuxbrew scripts/vars.sh ${HOME}/.dotfiles/scripts/
+COPY --chown=linuxbrew:linuxbrew shell/utils.sh ${HOME}/.dotfiles/shell/
+COPY --chown=linuxbrew:linuxbrew scripts/install/brew.sh ${HOME}/.dotfiles/scripts/install/
+WORKDIR ${HOME}/.dotfiles
+RUN bash scripts/install/brew.sh && rm -rf "$(brew --cache)"
 
 # Copy dotfiles
 COPY --chown=linuxbrew:linuxbrew . ${HOME}/.dotfiles
-WORKDIR ${HOME}/.dotfiles
 
 # Make entrypoint executable
 RUN chmod +x scripts/docker-entrypoint.sh
