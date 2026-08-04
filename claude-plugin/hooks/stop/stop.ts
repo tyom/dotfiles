@@ -3,24 +3,11 @@
  * Stop Hook: lint, type check, format, then run tests.
  *
  * Everything is scoped to the files Claude edited this session, read from the
- * transcript once and categorised once.
- *
- *   - tsc:      project-wide (only sane mode for graph type checking),
- *               skipped unless TS/JS or tsconfig was edited.
- *   - eslint:   on edited JS/TS files; falls back to the full project when
- *               eslint config or package.json was edited.
- *   - prettier: on edited prettier-able files only, never mass-format.
- *   - tests:    the framework's related-tests mode, or the full suite when a
- *               build/test config changed.
+ * transcript once and categorised once. hooks/README.md has the per-tool scope
+ * table and the env vars; this file is the implementation of it.
  *
  * Lint errors block before the tests run — a project that doesn't type check
  * has nothing to learn from a two-minute test run.
- *
- * Env:
- *   LINT_ON_SAVE=false        → skip lint, type check and format
- *   LINT_FULL=true            → project-wide for every lint tool
- *   RUN_TESTS_ON_STOP=false   → skip tests
- *   RUN_TESTS_FULL_SUITE=true → always run the full suite
  */
 
 import { dirname, resolve, join, extname, relative, basename } from "path";
@@ -31,6 +18,19 @@ interface StopHookInput {
   stop_hook_active?: boolean;
   transcript_path?: string;
 }
+
+type Framework = "vitest" | "jest" | "mocha" | "bun";
+type PackageManager = "bun" | "pnpm" | "yarn" | "npm";
+
+// One list, three jobs: the project-root marker, the package-manager map, and
+// part of SKIP_BASENAMES below. Ordered — the first match names the manager.
+const LOCKFILES: [string, PackageManager][] = [
+  ["bun.lock", "bun"],
+  ["bun.lockb", "bun"],
+  ["pnpm-lock.yaml", "pnpm"],
+  ["yarn.lock", "yarn"],
+  ["package-lock.json", "npm"],
+];
 
 const TS_JS_EXTENSIONS = new Set([
   ".ts",
@@ -74,47 +74,35 @@ const SKIP_BASENAMES = new Set([
   ".editorconfig",
   ".prettierignore",
   ".npmignore",
-  "bun.lockb",
-  "bun.lock",
-  "package-lock.json",
-  "yarn.lock",
-  "pnpm-lock.yaml",
+  ...LOCKFILES.map(([name]) => name),
 ]);
 
 // Docs are worth formatting but carry no code, so they get prettier and nothing else.
 const DOC_EXTENSIONS = new Set([".md", ".mdx"]);
 
-const LOCKFILES = [
-  "bun.lock",
-  "bun.lockb",
-  "package-lock.json",
-  "yarn.lock",
-  "pnpm-lock.yaml",
-];
-
 const TSCONFIG_PATTERN = /(?:^|\/)tsconfig[^/]*\.json$/;
 const ESLINT_CONFIG_PATTERN =
   /(?:^|\/)(?:eslint\.config\.[cm]?[jt]sx?|\.eslintrc(?:\.[a-z]+)?)$/;
-// Anything that changes how the suite is built or run → run all of it.
+// Anything that changes how the suite is built or run → run all of it. Named
+// runners and bundlers only: a bare `[a-z]+\.config\.` also catches
+// tailwind/next/postcss/drizzle, so a one-line style tweak would cost a full
+// suite for the rest of the session. package.json and tsconfig are folded in at
+// the call site rather than spelled out here a second time.
 const TEST_CONFIG_PATTERN =
-  /(?:^|\/)(?:package\.json|tsconfig[^/]*\.json|[a-z]+\.config\.[cm]?[jt]sx?|\.(?:babelrc|mocharc)(?:\.[a-z]+)?)$/;
+  /(?:^|\/)(?:(?:vitest|jest|mocha|playwright|vite|babel|rollup|webpack|esbuild|tsup|swc)\.config\.[cm]?[jt]sx?|\.(?:babelrc|mocharc)(?:\.[a-z]+)?)$/;
 const TEST_FILE_PATTERN = /[._](?:test|spec)\.[jt]sx?$/;
 
-type Framework = "vitest" | "jest" | "mocha" | "bun";
-type PackageManager = "bun" | "pnpm" | "yarn" | "npm";
+// One budget for the whole run, sitting under the timeout in hooks.json. A hook
+// the harness kills never writes its decision, so failing tests would read as a
+// clean stop — each tool gets what is actually left, not its own fixed slice.
+const DEADLINE = Date.now() + 140_000;
+const budget = (cap: number) =>
+  Math.min(cap, Math.max(1000, DEADLINE - Date.now()));
 
 interface TestSetup {
   framework?: Framework;
   binPath?: string;
   fullSuiteCommand: string[];
-}
-
-async function readStdin(): Promise<string> {
-  const chunks: Buffer[] = [];
-  for await (const chunk of Bun.stdin.stream()) {
-    chunks.push(chunk as Buffer);
-  }
-  return Buffer.concat(chunks).toString("utf-8");
 }
 
 async function readJson(path: string): Promise<Record<string, any> | null> {
@@ -125,12 +113,8 @@ async function readJson(path: string): Promise<Record<string, any> | null> {
   }
 }
 
-async function hasLockfile(dir: string): Promise<boolean> {
-  for (const lock of LOCKFILES) {
-    if (await Bun.file(join(dir, lock)).exists()) return true;
-  }
-  return false;
-}
+const hasLockfile = (dir: string) =>
+  LOCKFILES.some(([name]) => existsSync(join(dir, name)));
 
 // Walk up to the workspace root — the directory whose package.json sits beside a
 // lockfile, a .git, or a `workspaces` field. That is where node_modules/.bin
@@ -142,8 +126,8 @@ async function findProjectRoot(start: string): Promise<string | null> {
 
   while (dir !== dirname(dir)) {
     const pkg = join(dir, "package.json");
-    const hasPkg = await Bun.file(pkg).exists();
-    const lock = await hasLockfile(dir);
+    const hasPkg = existsSync(pkg);
+    const lock = hasLockfile(dir);
 
     if (hasPkg || lock) {
       nearest ??= dir;
@@ -163,14 +147,12 @@ async function getEditedFiles(
   transcriptPath: string | undefined,
   projectRoot: string,
 ): Promise<string[]> {
-  if (!transcriptPath) return [];
-  const file = Bun.file(transcriptPath);
-  if (!(await file.exists())) return [];
+  if (!transcriptPath || !existsSync(transcriptPath)) return [];
 
   const editTools = new Set(["Edit", "Write", "MultiEdit", "NotebookEdit"]);
   const seen = new Set<string>();
 
-  for (const line of (await file.text()).split("\n")) {
+  for (const line of (await Bun.file(transcriptPath).text()).split("\n")) {
     if (!line.trim()) continue;
     let entry: unknown;
     try {
@@ -204,13 +186,10 @@ async function getEditedFiles(
     }
   }
 
-  const paths = [...seen];
-  const alive = await Promise.all(paths.map((p) => Bun.file(p).exists()));
-  return paths.filter((_, i) => alive[i]);
+  return [...seen].filter((p) => existsSync(p));
 }
 
 interface Categorized {
-  tsJsFiles: string[];
   prettierFiles: string[];
   tests: string[];
   sources: string[];
@@ -223,7 +202,6 @@ interface Categorized {
 
 function categorize(files: string[], projectRoot: string): Categorized {
   const c: Categorized = {
-    tsJsFiles: [],
     prettierFiles: [],
     tests: [],
     sources: [],
@@ -249,17 +227,18 @@ function categorize(files: string[], projectRoot: string): Categorized {
     c.hasCode = true;
     if (PRETTIER_EXTENSIONS.has(ext)) c.prettierFiles.push(abs);
 
-    if (base === "package.json") c.packageJsonChanged = true;
-    if (TSCONFIG_PATTERN.test(rel)) c.tsConfigChanged = true;
+    const isPackageJson = base === "package.json";
+    const isTsConfig = TSCONFIG_PATTERN.test(rel);
+    if (isPackageJson) c.packageJsonChanged = true;
+    if (isTsConfig) c.tsConfigChanged = true;
     if (ESLINT_CONFIG_PATTERN.test(rel)) c.eslintConfigChanged = true;
 
-    if (TEST_CONFIG_PATTERN.test(rel)) {
+    if (isPackageJson || isTsConfig || TEST_CONFIG_PATTERN.test(rel)) {
       c.testConfigChanged = true;
       continue;
     }
 
     if (TS_JS_EXTENSIONS.has(ext)) {
-      c.tsJsFiles.push(abs);
       (TEST_FILE_PATTERN.test(base) ? c.tests : c.sources).push(abs);
     }
   }
@@ -290,12 +269,9 @@ function runCommand(
   };
 }
 
-async function binExists(
-  projectRoot: string,
-  name: string,
-): Promise<string | null> {
+function binPath(projectRoot: string, name: string): string | null {
   const path = resolve(projectRoot, "node_modules", ".bin", name);
-  return (await Bun.file(path).exists()) ? path : null;
+  return existsSync(path) ? path : null;
 }
 
 // One glob per tool instead of a hand-kept list of every config filename.
@@ -314,22 +290,24 @@ async function lint(
   projectRoot: string,
   c: Categorized,
   forceFull: boolean,
-  errors: string[],
-  warnings: string[],
-): Promise<void> {
+): Promise<{ errors: string[]; warnings: string[] }> {
+  const errors: string[] = [];
+  const warnings: string[] = [];
+  const tsJsFiles = [...c.tests, ...c.sources];
+
   // ── TypeScript (project-wide; the only mode that makes sense for graph checks) ──
   if (
     forceFull ||
-    c.tsJsFiles.length > 0 ||
+    tsJsFiles.length > 0 ||
     c.tsConfigChanged ||
     c.packageJsonChanged
   ) {
-    const tsc = await binExists(projectRoot, "tsc");
-    if (tsc && (await Bun.file(join(projectRoot, "tsconfig.json")).exists())) {
+    const tsc = binPath(projectRoot, "tsc");
+    if (tsc && existsSync(join(projectRoot, "tsconfig.json"))) {
       const r = runCommand(
         [tsc, "--noEmit", "--skipLibCheck"],
         projectRoot,
-        30000,
+        budget(30_000),
       );
       if (!r.success && r.output)
         errors.push(`TypeScript errors:\n${r.output}`);
@@ -337,7 +315,7 @@ async function lint(
   }
 
   // ── ESLint (scoped to edited JS/TS unless config or package.json changed) ──
-  const eslint = await binExists(projectRoot, "eslint");
+  const eslint = binPath(projectRoot, "eslint");
   if (
     eslint &&
     (await hasConfig(projectRoot, "{eslint.config.*,.eslintrc*}"))
@@ -345,7 +323,7 @@ async function lint(
     const targets =
       forceFull || c.eslintConfigChanged || c.packageJsonChanged
         ? ["."]
-        : c.tsJsFiles.map((f) => relative(projectRoot, f));
+        : tsJsFiles.map((f) => relative(projectRoot, f));
 
     if (targets.length > 0) {
       const r = runCommand(
@@ -357,7 +335,7 @@ async function lint(
           ...targets,
         ],
         projectRoot,
-        30000,
+        budget(30_000),
       );
       if (r.output) {
         if (r.status === 1) errors.push(`ESLint errors:\n${r.output}`);
@@ -368,54 +346,46 @@ async function lint(
   }
 
   // ── Prettier (always scoped to edited files; never mass-format) ──
-  if (c.prettierFiles.length === 0) return;
-  const prettier = await binExists(projectRoot, "prettier");
-  if (!prettier) return;
-
+  const prettier =
+    c.prettierFiles.length > 0 ? binPath(projectRoot, "prettier") : null;
   const configured =
-    (await hasConfig(projectRoot, "{prettier.config.*,.prettierrc*}")) ||
-    !!(await readJson(join(projectRoot, "package.json")))?.prettier;
-  if (!configured) return;
+    !!prettier &&
+    ((await hasConfig(projectRoot, "{prettier.config.*,.prettierrc*}")) ||
+      !!(await readJson(join(projectRoot, "package.json")))?.prettier);
 
-  // --list-different alongside --write names only the files that changed, so one
-  // run replaces the old check-then-write pass over every file.
-  const r = runCommand(
-    [prettier, "--write", "--list-different", ...c.prettierFiles],
-    projectRoot,
-    30000,
-  );
-  if (!r.success) errors.push(`Prettier errors:\n${r.output}`);
-  else if (r.output) warnings.push(`Prettier: auto-formatted\n${r.output}`);
+  if (prettier && configured) {
+    // --list-different alongside --write names only the files that changed, so one
+    // run replaces the old check-then-write pass over every file.
+    const r = runCommand(
+      [prettier, "--write", "--list-different", ...c.prettierFiles],
+      projectRoot,
+      budget(30_000),
+    );
+    if (!r.success) errors.push(`Prettier errors:\n${r.output}`);
+    else if (r.output) warnings.push(`Prettier: auto-formatted\n${r.output}`);
+  }
+
+  return { errors, warnings };
 }
 
-async function detectPackageManager(dir: string): Promise<PackageManager> {
-  if (
-    (await Bun.file(join(dir, "bun.lockb")).exists()) ||
-    (await Bun.file(join(dir, "bun.lock")).exists())
-  ) {
-    return "bun";
-  }
-  if (await Bun.file(join(dir, "pnpm-lock.yaml")).exists()) return "pnpm";
-  if (await Bun.file(join(dir, "yarn.lock")).exists()) return "yarn";
-  return "npm";
+function detectPackageManager(dir: string): PackageManager {
+  return LOCKFILES.find(([name]) => existsSync(join(dir, name)))?.[1] ?? "npm";
 }
 
 async function detectTestSetup(dir: string): Promise<TestSetup | null> {
-  const pm = await detectPackageManager(dir);
+  const pm = detectPackageManager(dir);
   const pkg = await readJson(join(dir, "package.json"));
-  const deps: Record<string, string> = {
-    ...(pkg?.dependencies ?? {}),
-    ...(pkg?.devDependencies ?? {}),
-  };
 
   let framework: Framework | undefined;
-  let binPath: string | undefined;
+  let bin: string | undefined;
   for (const candidate of ["vitest", "jest", "mocha"] as const) {
-    if (!deps[candidate]) continue;
-    const found = await binExists(dir, candidate);
+    if (!pkg?.dependencies?.[candidate] && !pkg?.devDependencies?.[candidate]) {
+      continue;
+    }
+    const found = binPath(dir, candidate);
     if (found) {
       framework = candidate;
-      binPath = found;
+      bin = found;
       break;
     }
   }
@@ -430,9 +400,9 @@ async function detectTestSetup(dir: string): Promise<TestSetup | null> {
   if (hasTestScript) {
     fullSuiteCommand = pm === "bun" ? ["bun", "run", "test"] : [pm, "test"];
   } else if (framework === "vitest") {
-    fullSuiteCommand = [binPath!, "run"];
+    fullSuiteCommand = [bin!, "run"];
   } else if (framework) {
-    fullSuiteCommand = [binPath!];
+    fullSuiteCommand = [bin!];
   } else if (pm === "bun") {
     fullSuiteCommand = ["bun", "test"];
   } else {
@@ -441,7 +411,7 @@ async function detectTestSetup(dir: string): Promise<TestSetup | null> {
 
   return {
     framework: framework ?? (pm === "bun" ? "bun" : undefined),
-    binPath,
+    binPath: bin,
     fullSuiteCommand,
   };
 }
@@ -487,7 +457,7 @@ async function main() {
 
   let input: StopHookInput = {};
   try {
-    const stdin = await readStdin();
+    const stdin = await Bun.stdin.text();
     if (stdin.trim()) input = JSON.parse(stdin);
   } catch {
     // Continue with empty input
@@ -510,16 +480,14 @@ async function main() {
     process.exit(0);
   }
 
-  const errors: string[] = [];
-  const warnings: string[] = [];
+  const { errors, warnings } = lintEnabled
+    ? await lint(projectRoot, c, lintFull)
+    : { errors: [], warnings: [] };
 
-  if (lintEnabled) {
-    await lint(projectRoot, c, lintFull, errors, warnings);
-    if (errors.length > 0) {
-      block(
-        `Lint/type errors found. Please fix before stopping.\n\n${errors.join("\n\n")}`,
-      );
-    }
+  if (errors.length > 0) {
+    block(
+      `Lint/type errors found. Please fix before stopping.\n\n${errors.join("\n\n")}`,
+    );
   }
 
   if (testsEnabled && (testsFull || c.hasCode)) {
@@ -528,7 +496,7 @@ async function main() {
       const command = testsFull
         ? setup.fullSuiteCommand
         : buildTestCommand(setup, c, projectRoot);
-      const r = runCommand(command, projectRoot, 120000);
+      const r = runCommand(command, projectRoot, budget(120_000));
       if (!r.success) {
         block(
           `Tests failed. Please fix the failing tests before stopping.\n\n$ ${command.join(" ")}\n\n${r.output}`,
