@@ -24,3 +24,19 @@ jobs:
 
       - name: Test setup without Homebrew
         run: make docker-test VARIANT=minimal
+
+  # validate.sh deliberately no longer type checks the plugin ("CI's job"), and
+  # the Docker tests only exercise the installer — so this is the only thing that
+  # runs the hook's own tsc and test suite.
+  plugin:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: claude-plugin
+    steps:
+      - uses: actions/checkout@v5
+      - uses: oven-sh/setup-bun@v2
+
+      - run: bun install --frozen-lockfile
+      - run: bun run typecheck
+      - run: bun test
