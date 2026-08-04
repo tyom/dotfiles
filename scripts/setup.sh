@@ -88,7 +88,7 @@ if is_checked node; then
   fi
 fi
 
-# The agent files are stowed as part of the symlinking step, so on their own
+# The agent files are linked as part of the symlinking step, so on their own
 # there is nothing to run. Say so rather than reporting a silent success.
 if is_checked agents && ! is_checked dotfiles; then
   print_warning 'Agent instructions are linked by the dotfiles option, which is not selected'
@@ -101,11 +101,11 @@ if is_checked dotfiles; then
 
   # These land in ~/.claude and ~/.codex and steer every agent session on the
   # machine, so they are opt-in rather than part of the dotfiles bundle.
-  # shellcheck disable=SC2034 # read by stow.sh, which is sourced just below
-  is_checked agents || STOW_SKIP_AGENTS=true
+  # shellcheck disable=SC2034 # read by link.sh, which is sourced just below
+  is_checked agents || SKIP_AGENTS=true
 
   print_step 'Symlinking dotfiles' &&
-    source "$DOTFILES_DIR/scripts/stow.sh"
+    source "$DOTFILES_DIR/scripts/link.sh"
 
   print_step 'Setting up git' &&
     source "$DOTFILES_DIR/scripts/git.sh"

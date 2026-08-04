@@ -18,8 +18,8 @@ How it behaves:
 
 - Your `~/.zshrc` and `~/.gitconfig` are not overwritten. The installer adds one
   line to each and leaves the rest alone. Everything else is a symlink into this
-  repo, made with [GNU Stow](https://www.gnu.org/software/stow/), so the file you
-  edit here is the file your shell reads. There is nothing to sync.
+  repo, so the file you edit here is the file your shell reads. There is nothing
+  to sync.
 - You choose what gets installed. Setup shows a checklist, and Homebrew packages,
   macOS apps and the Claude Code plugin start unchecked.
 - You can run it again any time. Each step skips what it has already done, and
@@ -98,11 +98,9 @@ make uninstall
 
 ## Structure
 
-This repository uses [GNU Stow](https://www.gnu.org/software/stow/) for symlink management:
-
 ```text
 dotfiles/
-├── stow/              # Symlinked to ~/
+├── home/              # Symlinked to ~/
 │   ├── .vimrc
 │   ├── .vimrc.bundles
 │   ├── .config/       # ~/.config entries (ghostty)
@@ -208,8 +206,8 @@ setup.sh (orchestrator)
 │   ├── Install Oh My Zsh if missing
 │   ├── Add source line to ~/.zshrc (exports DOTFILES_DIR)
 │   └── Symlink custom theme
-├── 8. Create symlinks (scripts/stow.sh)
-│   └── Symlink stow/ contents to ~/
+├── 8. Create symlinks (scripts/link.sh)
+│   └── Symlink home/ contents to ~/
 ├── 9. Set up git (scripts/git.sh)
 │   ├── Add [include] to ~/.gitconfig
 │   └── Copy ~/.gitignore if missing
@@ -245,27 +243,27 @@ setup.sh (orchestrator)
 <details>
 <summary><strong>Symlinked Files</strong></summary>
 
-GNU Stow creates these symlinks from `stow/` to your home directory:
+`link.sh` symlinks every file under `home/` to the matching path in your home
+directory, creating the parent directories as it goes:
 
-| Source                          | Target                        |
-| ------------------------------- | ----------------------------- |
-| `stow/.vimrc`                   | `~/.vimrc`                    |
-| `stow/.vimrc.bundles`           | `~/.vimrc.bundles`            |
-| `stow/.config/ghostty/config.ghostty` | `~/.config/ghostty/config.ghostty` |
-| `stow/.claude/CLAUDE.md`        | `~/.claude/CLAUDE.md`         |
-| `stow/.codex/AGENTS.md`         | `~/.codex/AGENTS.md`          |
-| `stow/bin/*`                    | `~/bin/*`                     |
+| Source                                | Target                             |
+| ------------------------------------- | ---------------------------------- |
+| `home/.vimrc`                         | `~/.vimrc`                         |
+| `home/.vimrc.bundles`                 | `~/.vimrc.bundles`                 |
+| `home/.config/ghostty/config.ghostty` | `~/.config/ghostty/config.ghostty` |
+| `home/.claude/CLAUDE.md`              | `~/.claude/CLAUDE.md`              |
+| `home/.codex/AGENTS.md`               | `~/.codex/AGENTS.md`               |
+| `home/bin/*`                          | `~/bin/*`                          |
 
-`stow.sh` creates `~/bin`, `~/.config/ghostty`, `~/.claude` and `~/.codex` before
-stowing. Stow replaces a whole directory with a single symlink when the target
-does not exist yet, so without those directories, `~/.config` itself would become
-a link into this repo.
+An existing file at a target is never overwritten silently: an empty one is taken
+over, and anything else prompts to override (keeping a `.bak`), skip or quit.
+`make uninstall` removes only the links that still point into this repo.
 
 The zsh theme is symlinked separately by `zsh.sh`:
 
 - `zsh/tyom.zsh-theme` → `~/.oh-my-zsh/custom/themes/tyom.zsh-theme`
 
-Git configuration is handled separately (not via stow):
+Git configuration is handled separately (not symlinked):
 
 - `~/.gitconfig` - An `[include]` directive is added to load the dotfiles config
 - `~/.gitignore` - Copied during setup (if it doesn't exist) so you can customise it

@@ -4,8 +4,8 @@ Claude Code and Codex read the same rules from different paths, so the shared
 part is written once here and assembled into both files.
 
 ```text
-common.md  ──┬─→  claude.tmpl.md  ──→  stow/.claude/CLAUDE.md  →  ~/.claude/CLAUDE.md
-             └─→  codex.tmpl.md   ──→  stow/.codex/AGENTS.md   →  ~/.codex/AGENTS.md
+common.md  ──┬─→  claude.tmpl.md  ──→  home/.claude/CLAUDE.md  →  ~/.claude/CLAUDE.md
+             └─→  codex.tmpl.md   ──→  home/.codex/AGENTS.md   →  ~/.codex/AGENTS.md
 ```
 
 Each template is copied with its lone `@common` line replaced by the contents of
@@ -13,12 +13,12 @@ Each template is copied with its lone `@common` line replaced by the contents of
 in `common.md`. Anything true of one agent only goes in that agent's template,
 above or below the `@common` line depending on where it should land.
 
-Build with `make agents`. `scripts/stow.sh` also runs it before linking, so an
+Build with `make agents`. `scripts/link.sh` also runs it before linking, so an
 install cannot ship a stale file.
 
 Two things to keep in mind:
 
-- The files under `stow/` are generated. Editing them, or editing the symlinks
+- The files under `home/` are generated. Editing them, or editing the symlinks
   in your home directory, loses the change on the next build. They carry no
   "generated" banner because that banner would sit in every agent's context
   window for no benefit.

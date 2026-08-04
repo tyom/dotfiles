@@ -1,13 +1,12 @@
 # Repository Structure
 
-This repository uses [GNU Stow](https://www.gnu.org/software/stow/) for symlink management.
+## Home Directory
 
-## Stow Directory
-
-The `stow/` directory mirrors `$HOME`. Everything in it gets symlinked:
+The `home/` directory mirrors `$HOME`. Everything in it gets symlinked by
+`scripts/link.sh`:
 
 ```text
-stow/
+home/
 ├── .vimrc              → ~/.vimrc
 ├── .vimrc.bundles      → ~/.vimrc.bundles
 ├── .claude/CLAUDE.md   → ~/.claude/CLAUDE.md   (generated, see src/agents/)
@@ -24,10 +23,10 @@ stow/
 | `shell/`         | Shell modules sourced by `zsh/config.zsh`                      |
 | `claude-plugin/` | Claude Code plugin (registered directly, not symlinked)        |
 | `scripts/`       | Installation and setup scripts                                 |
-| `src/`           | Source for `stow/` files that need a build step (see each subdir's README) |
+| `src/`           | Source for `home/` files that need a build step (see each subdir's README) |
 | `src/agents/`    | Agent instructions: `common.md` plus a `*.tmpl.md` per agent, built by `make agents` |
 
 ## Adding New Dotfiles
 
-1. Add files to `stow/` mirroring home structure: `stow/.newconfig` → `~/.newconfig`
+1. Add files to `home/` mirroring home structure: `home/.newconfig` → `~/.newconfig`
 2. Run `make install`

@@ -21,7 +21,7 @@ jobs:
       - name: Sourced scripts must not exit with success
         run: |
           if grep -nE '^[[:space:]]*exit[[:space:]]*0?[[:space:]]*(#.*)?$' \
-            scripts/zsh.sh scripts/stow.sh scripts/git.sh scripts/install/vim.sh; then
+            scripts/zsh.sh scripts/link.sh scripts/git.sh scripts/install/vim.sh; then
             echo "::error::bare 'exit' in a sourced script silently aborts setup.sh — use 'exit 1' or 'return'"
             exit 1
           fi

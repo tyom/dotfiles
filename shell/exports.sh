@@ -32,7 +32,7 @@ dirs_to_prepend=(
   "$VOLTA_HOME/bin"
   "/usr/local/sbin"
   "/usr/local/git/bin"
-  "$HOME/bin" # stow links the repo's stow/bin scripts here
+  "$HOME/bin" # link.sh links the repo's home/bin scripts here
   "$HOME/.yarn/bin"
   "$HOME/.config/yarn/global/node_modules/.bin"
 )

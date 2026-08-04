@@ -98,24 +98,11 @@ function print_warning {
   printf "\e[0;33m ⚠ $1\e[0m\n"
 }
 
-# stow -v reports every link as a raw uncoloured line with a ../../.. target,
-# which reads as noise next to the rest of the installer output. Restyle each
-# one as a detail line and keep only the part worth reading.
-function print_stow_output {
-  local line
-  while IFS= read -r line; do
-    case "$line" in
-    BUG* | '') ;;
-    LINK:*)
-      line="${line#LINK: }"
-      print_info "linked ${line%% =>*}"
-      ;;
-    UNLINK:*) print_info "unlinked ${line#UNLINK: }" ;;
-    MKDIR:*) print_info "created ${line#MKDIR: }" ;;
-    RMDIR:*) print_info "removed ${line#RMDIR: }" ;;
-    *) print_info "$line" ;;
-    esac
-  done
+# Absolute directory a live symlink lands in. Installs made with GNU Stow wrote
+# relative targets, so resolve against the link's own directory. Empty when the
+# link dangles.
+function link_dir {
+  (cd "$(dirname "$1")" && cd "$(dirname "$(readlink "$1")")" && pwd -P) 2>/dev/null
 }
 
 function print_result {

@@ -1,6 +1,6 @@
 #compdef gw
 
-# Completion for gw (stow/bin/gw + gw wrapper in shell/functions.sh).
+# Completion for gw (home/bin/gw + gw wrapper in shell/functions.sh).
 if (( CURRENT == 2 )); then
   local -a subcmds
   subcmds=(

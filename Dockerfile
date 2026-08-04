@@ -6,7 +6,7 @@ ENV TERM=xterm-256color
 # Install additional packages via apt (run as root temporarily)
 USER root
 RUN apt-get update -qq && \
-  apt-get install -y stow vim locales zsh && \
+  apt-get install -y vim locales zsh && \
   apt-get clean && \
   rm -rf /var/lib/apt/lists/* && \
   localedef -i en_GB -f UTF-8 en_GB.UTF-8

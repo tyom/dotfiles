@@ -3,7 +3,7 @@
 # Build the agent instruction files from src/agents/.
 # Each agent template is copied with its `@common` line replaced by
 # src/agents/common.md, so shared rules are written once. The result lands in
-# stow/ because stow needs a real file to symlink.
+# home/ because the installer needs a real file to symlink.
 
 set -e
 
@@ -24,5 +24,5 @@ build() { # $1 = template, $2 = output
 
 # The templates are named *.tmpl.md so that an agent scanning this repo does not
 # mistake src/agents/claude.md for a CLAUDE.md of its own (macOS ignores case).
-build src/agents/claude.tmpl.md stow/.claude/CLAUDE.md
-build src/agents/codex.tmpl.md stow/.codex/AGENTS.md
+build src/agents/claude.tmpl.md home/.claude/CLAUDE.md
+build src/agents/codex.tmpl.md home/.codex/AGENTS.md
