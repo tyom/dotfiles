@@ -22,7 +22,7 @@ if exists zsh; then
 else
   install_zsh
   # This file is sourced by setup.sh, so a bare `exit` here would end the whole
-  # installer with status 0 — skipping stow, git, vim and validation, while the
+  # installer with status 0 — skipping linking, git, vim and validation, while the
   # wrapper still reports success. Nothing below needs zsh to be the *current*
   # shell, so carry on; only stop, loudly, if the install actually failed.
   if ! exists zsh; then

@@ -1,0 +1,9 @@
+# The build context is only ever the dotfiles themselves. Everything here is
+# either rebuilt inside the image or has no business in it.
+.git
+.venv
+**/node_modules
+**/__pycache__
+**/.DS_Store
+.idea
+*.log

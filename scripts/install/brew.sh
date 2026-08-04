@@ -24,7 +24,6 @@ packages=(
 
 if [ "$(which_os)" == "macos" ]; then
   packages+=(
-    'stow|GNU Stow for symlink management'
     'coreutils|GNU core utilities'
     'findutils|GNU find utilities'
     'tyom/tap/kcm|Keychain-based secrets manager'
