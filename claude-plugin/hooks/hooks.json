@@ -5,13 +5,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bun run ${CLAUDE_PLUGIN_ROOT}/hooks/stop/lint-and-typecheck.ts",
-            "timeout": 30
-          },
-          {
-            "type": "command",
-            "command": "bun run ${CLAUDE_PLUGIN_ROOT}/hooks/stop/run-tests.ts",
-            "timeout": 120
+            "command": "bun run ${CLAUDE_PLUGIN_ROOT}/hooks/stop/stop.ts",
+            "timeout": 150
           }
         ]
       }
