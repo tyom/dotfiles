@@ -115,7 +115,8 @@ dotfiles/
 └── scripts/           # Installation scripts
 ```
 
-See [docs/STRUCTURE.md](./docs/STRUCTURE.md) for detailed documentation.
+To add a dotfile, put it under `home/` at the path it should have in your home
+directory — `home/.newconfig` becomes `~/.newconfig` — and run `make install`.
 
 ## Customisation
 
