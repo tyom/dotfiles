@@ -34,15 +34,17 @@ IFS=$'\t' read -r MODEL USED_TOKENS USED_PCT DIR < <(jq -r '
 # Malformed input leaves these empty; fall back rather than feed awk blanks.
 : "${MODEL:=unknown}" "${USED_TOKENS:=0}" "${USED_PCT:=0}"
 
-# Git branch of the workspace dir, dimmed. Passed to awk as data, never as part
-# of a format string, so a branch name cannot corrupt the output.
+# Git branch of the workspace dir. Passed to awk as data, never as part of a
+# format string, so a branch name cannot corrupt the output.
 BRANCH=$(git -C "${DIR:-.}" branch --show-current 2>/dev/null)
-BRANCH_LABEL=""
-[ -n "$BRANCH" ] && BRANCH_LABEL=$(printf ' | \033[38;5;244m⎇ %s\033[0m' "$BRANCH")
 
 awk -v model="$MODEL" -v tokens="$USED_TOKENS" -v raw_pct="$USED_PCT" \
-  -v branch="$BRANCH_LABEL" '
+  -v branch="$BRANCH" '
 BEGIN {
+  # Dimmed, and built here rather than in a printf subshell — that was a fourth
+  # process on a line that renders several times a second.
+  if (branch != "") branch = " | \033[38;5;244m⎇ " branch "\033[0m"
+
   # Before the first response there is no usage yet — model and branch only. A
   # negative percentage is garbage rather than "nothing yet", so it still draws.
   if (raw_pct == 0) { printf "%s%s", model, branch; exit }

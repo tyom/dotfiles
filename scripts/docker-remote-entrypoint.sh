@@ -25,7 +25,7 @@ remote-test-local)
   (cd /tmp/docs && exec python3 -m http.server 8080) &>/dev/null &
   trap 'kill %1 2>/dev/null' EXIT
   # Poll rather than sleep a fixed amount: the server is usually up immediately.
-  for _ in $(seq 20); do
+  for _ in {1..20}; do
     curl -fsS --max-time 1 "$URL" >/dev/null 2>&1 && break
     sleep 0.25
   done
