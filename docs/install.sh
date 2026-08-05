@@ -11,6 +11,9 @@
 # Non-interactive (skip prompts during setup):
 #   curl -fsSL https://tyom.github.io/dotfiles/install.sh | bash -s -- -y
 #
+# Non-interactive, picking what to install:
+#   curl -fsSL https://tyom.github.io/dotfiles/install.sh | bash -s -- --select dotfiles,brew
+#
 # Local install (from existing repo):
 #   ./docs/install.sh
 #   # or: make install
@@ -19,18 +22,12 @@ set -e
 
 DOTFILES_REPO="https://github.com/tyom/dotfiles"
 DOTFILES_BRANCH="${DOTFILES_BRANCH:-master}"
-YES_OVERRIDE=false
 
-# Parse arguments
-while [[ $# -gt 0 ]]; do
-  case $1 in
-    -y|--yes) YES_OVERRIDE=true; shift ;;
-    *) shift ;;
-  esac
-done
-
-# Export for setup.sh to use
-export YES_OVERRIDE
+# Every option belongs to setup.sh, so they are forwarded verbatim rather than
+# re-parsed here. Parsing -y into an exported YES_OVERRIDE used to also overwrite
+# one the caller had exported, which is how a CI run asking for everything got
+# the interactive defaults instead.
+SETUP_ARGS=("$@")
 
 # Detect if running from within an existing dotfiles repo
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -73,4 +70,4 @@ fi
 
 # Run setup
 cd "$DOTFILES_DIR"
-./scripts/setup.sh
+./scripts/setup.sh "${SETUP_ARGS[@]}"

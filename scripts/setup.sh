@@ -3,10 +3,28 @@
 source scripts/vars.sh
 source shell/utils.sh
 
-# --verbose / -v: show full validation output instead of a one-line summary
+# The menu needs a tty, so -y and --select are how a script or CI picks what to
+# install. Both also work as environment variables (YES_OVERRIDE, SELECT_OVERRIDE).
 VERBOSE=false
-for arg in "$@"; do
-  [[ "$arg" == "--verbose" || "$arg" == "-v" ]] && VERBOSE=true
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+  -v | --verbose) VERBOSE=true ;;
+  -y | --yes) YES_OVERRIDE=true ;;
+  -s | --select)
+    SELECT_OVERRIDE="$2"
+    shift
+    ;;
+  --select=*) SELECT_OVERRIDE="${1#*=}" ;;
+  -h | --help)
+    echo "Usage: setup.sh [-y] [--select name,name] [--verbose]"
+    exit 0
+    ;;
+  *)
+    print_error "Unknown option: $1"
+    exit 1
+    ;;
+  esac
+  shift
 done
 
 SUMMARY=()

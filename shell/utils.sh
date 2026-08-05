@@ -1,6 +1,7 @@
 # Checklist menu. Entries are "name|description|on/off" (on = pre-checked).
 # Toggle by number, Enter confirms, q quits. Checked names land in CHECKED.
-# YES_OVERRIDE checks everything; no tty keeps the defaults.
+# YES_OVERRIDE checks everything, SELECT_OVERRIDE checks a named list, and with
+# no tty neither prompting nor drawing the menu is possible, so the defaults win.
 function multi_select {
   local title="$1" entry i n
   shift
@@ -13,13 +14,33 @@ function multi_select {
   done
   n=${#names[@]}
 
-  if $YES_OVERRIDE || [[ ! -e /dev/tty ]]; then
+  # -e /dev/tty is true even with no controlling terminal, so open it instead
+  # (same check as link.sh). A container started without -t has the device node
+  # but the open fails, and the menu then read that failure as a confirming
+  # keypress — which is how CI installs quietly fell back to the defaults.
+  local has_tty=true
+  : 2>/dev/null </dev/tty || has_tty=false
+
+  if $YES_OVERRIDE || [[ -n "$SELECT_OVERRIDE" ]] || ! $has_tty; then
     CHECKED=()
     for ((i = 0; i < n; i++)); do
-      if $YES_OVERRIDE || [[ "${states[i]}" == "on" ]]; then
+      if [[ -n "$SELECT_OVERRIDE" ]]; then
+        [[ ",$SELECT_OVERRIDE," == *",${names[i]},"* ]] && CHECKED+=("${names[i]}")
+      elif $YES_OVERRIDE || [[ "${states[i]}" == "on" ]]; then
         CHECKED+=("${names[i]}")
       fi
     done
+
+    # A typo would otherwise skip the thing it named without a word about it.
+    for entry in ${SELECT_OVERRIDE//,/ }; do
+      is_checked "$entry" || {
+        print_error "Unknown option '$entry'. Available: ${names[*]}"
+        exit 1
+      }
+    done
+
+    print_step "$title"
+    print_info "Selected: ${CHECKED[*]:-nothing}"
     return 0
   fi
 
