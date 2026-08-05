@@ -20,9 +20,6 @@ install: ## Install dotfiles on local machine (VERBOSE=1 for full validation out
 uninstall: ## Remove dotfiles symlinks
 	./scripts/unlink.sh
 
-agents: ## Rebuild agent instruction files from src/agents/
-	./scripts/build-agents.sh
-
 test-links: ## Check symlink conflict handling against a throwaway HOME
 	./scripts/test-link.sh
 
@@ -53,4 +50,4 @@ docker-test-remote-local: ## Test remote install using local HTTP server
 	docker build -f Dockerfile.remote-test -t $(IMAGE_NAME)-remote .
 	docker run --rm $(IMAGE_NAME)-remote remote-test-local
 
-.PHONY: help install uninstall agents test-links brew docker-build docker-test docker-shell docker-setup docker-clean docker-test-remote docker-test-remote-local
+.PHONY: help install uninstall test-links brew docker-build docker-test docker-shell docker-setup docker-clean docker-test-remote docker-test-remote-local

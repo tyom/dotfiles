@@ -35,9 +35,9 @@ How it behaves:
   ignore file, and a config you include rather than replace
 - **Terminal**: Ghostty set to a translucent black window, tabs in the titlebar,
   no traffic lights, and 16pt thickened text
-- **Coding agents**: global instruction files for Claude Code and Codex, built
-  from one shared source, asking for plain language, opinions with a stated
-  confidence, and no pushing to GitHub without being asked
+- **Coding agents**: one set of global instructions that Claude Code and Codex
+  both read, asking for plain language, opinions with a stated confidence, and no
+  pushing to GitHub without being asked
 - **Vim**: vim-plug plus gruvbox, airline, gitgutter and NERDTree
 - **CLI tools**: bat, fzf, git-delta, [herdr](https://herdr.dev/) for running
   several coding agents in one terminal, and the rest of
@@ -104,13 +104,12 @@ dotfiles/
 │   ├── .vimrc
 │   ├── .vimrc.bundles
 │   ├── .config/       # ~/.config entries (ghostty)
-│   ├── .claude/       # Claude Code instructions (generated)
-│   ├── .codex/        # Codex instructions (generated)
+│   ├── .claude/       # Claude Code instructions (imports the Codex file)
+│   ├── .codex/        # Agent instructions, shared by both
 │   └── bin/           # Shell scripts
 ├── git/               # Git config (included via ~/.gitconfig)
 ├── zsh/               # Zsh config + theme (sourced/symlinked)
 ├── shell/             # Shell modules
-├── src/agents/        # Source for the agent instruction files
 ├── claude-plugin/     # Claude Code plugin
 └── scripts/           # Installation scripts
 ```
@@ -162,11 +161,19 @@ it doesn't recognise without saying so.
 Off by default. These steer every agent session on the machine, so tick **Global
 agent instructions** in the installer menu to link them.
 
-Symlinks to generated files, so edit [src/agents/](./src/agents/) instead. Rules
-that suit any agent go in `common.md`, and each agent's template pulls that in
-where its `@common` line sits. Run `make agents` to rebuild, or let `make
-install` do it for you. See
-[src/agents/README.md](./src/agents/README.md) for the details.
+One file holds the rules. `~/.codex/AGENTS.md` is it, and `~/.claude/CLAUDE.md`
+is three lines that import it — [the pattern Claude Code documents][import] for a
+repo that already has an `AGENTS.md`. Codex reads its file directly, Claude reads
+it through the import, and there is nothing to build or keep in step.
+
+Write shared rules in `home/.codex/AGENTS.md`. Claude-only rules go under the
+import in `home/.claude/CLAUDE.md`, where Codex never sees them. Codex-only rules
+have nowhere private to go — Claude reads the whole file — so they go under
+`## Codex only` and name the agent in the bullet itself. Neither an import nor a
+heading is enforcement, and a scope written into the rule survives being read on
+its own. Run `/context` in a Claude session to confirm both files loaded.
+
+[import]: https://code.claude.com/docs/en/memory#agents-md
 
 ## What Gets Installed
 

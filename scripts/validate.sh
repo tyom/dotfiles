@@ -69,6 +69,30 @@ check_symlink "$HOME/.vimrc.bundles" ".vimrc.bundles"
 check_symlink "$HOME/.config/ghostty/config.ghostty" "ghostty config"
 check_symlink "$HOME/.oh-my-zsh/custom/themes/tyom.zsh-theme" "zsh theme"
 
+# The agent instructions are opt-in, so a missing CLAUDE.md is not a failure and
+# one the user wrote themselves is not ours to judge — hence the ownership test.
+# For ours, the import is the thing worth checking: Claude Code reads the shared
+# rules through it, and if it stops resolving there is no error anywhere, just a
+# session running on an instruction file with nothing in it.
+echo ""
+print_info "Checking agent instructions..."
+
+CLAUDE_MD="$HOME/.claude/CLAUDE.md"
+if [ -L "$CLAUDE_MD" ] && [ -e "$CLAUDE_MD" ] && links_into "$REPO" "$CLAUDE_MD"; then
+  IMPORT=$(grep -m1 '^@' "$CLAUDE_MD" || true)
+  if [ -z "$IMPORT" ]; then
+    print_error "CLAUDE.md has no @import line, so it carries no shared rules"
+    ERRORS=$((ERRORS + 1))
+  elif [ -e "$HOME/.claude/${IMPORT#@}" ]; then
+    print_success "CLAUDE.md imports ${IMPORT#@}"
+  else
+    print_error "CLAUDE.md imports ${IMPORT#@}, which does not resolve"
+    ERRORS=$((ERRORS + 1))
+  fi
+else
+  print_skip "agent instructions not installed, skipping"
+fi
+
 # Ghostty can check its own config, which catches typos in option names that it
 # would otherwise ignore in silence. The CLI lives inside the app bundle on macOS.
 echo ""

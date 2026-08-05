@@ -1,4 +1,4 @@
-# Global Codex Instructions
+# Global agent instructions
 
 ## Communication
 
@@ -59,7 +59,7 @@
 - Review the diff with a subagent only when I ask for a review.
 - Never push, open a pull request, or merge without asking.
 
-## Codex
+## Codex only
 
-- "Thread" means a Codex chat. Use the thread tools when I ask to create, read,
-  or message one.
+- Codex: "Thread" means a Codex chat. Use the thread tools when I ask to create,
+  read, or message one.
