@@ -8,11 +8,17 @@ on:
 env:
   FORCE_COLOR: 3
 
+# Nothing here writes to the repo, and the jobs run untrusted PR code in Docker.
+permissions:
+  contents: read
+
 jobs:
   test:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
 
       - name: Run tests in Docker
         run: make docker-test
@@ -21,6 +27,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
 
       - name: Test setup without Homebrew
         run: make docker-test VARIANT=minimal
@@ -35,6 +43,8 @@ jobs:
         working-directory: claude-plugin
     steps:
       - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
       - uses: oven-sh/setup-bun@v2
 
       - run: bun install --frozen-lockfile

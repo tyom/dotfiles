@@ -5,12 +5,12 @@
 One hook, `stop/stop.ts`, runs before Claude stops. It reads the session
 transcript once for the files Claude edited, then works only on those:
 
-| Tool     | Scope                                                                                               |
-| -------- | --------------------------------------------------------------------------------------------------- |
-| tsc      | Project-wide, skipped unless TS/JS or a tsconfig was edited                                         |
-| eslint   | Edited JS/TS files; the whole project if eslint config or package.json changed                      |
-| prettier | Edited prettier-able files only, never a mass format                                                |
-| tests    | The framework's related-tests mode (vitest, jest); the full suite if a build or test config changed |
+| Tool     | Scope                                                                                                                                                                          |
+| -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| tsc      | Project-wide, skipped unless TS/JS, a tsconfig or package.json was edited                                                                                                      |
+| eslint   | Edited JS/TS files; the whole project if eslint config or package.json changed                                                                                                 |
+| prettier | Edited prettier-able files only, never a mass format                                                                                                                           |
+| tests    | Related-tests mode (vitest, jest); bun has none, so it takes the edited paths only when all of them are test files; full suite otherwise, or if a build or test config changed |
 
 Nothing runs when the session only touched docs, lockfiles or other files that
 cannot change whether the code works. Lint errors block before the tests run — a

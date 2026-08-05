@@ -78,6 +78,10 @@ function runHook(dir: string, files: string[]): string {
       JSON.stringify({ transcript_path: transcript(dir, files) }),
     ),
   });
+  // The tests that assert silence would otherwise pass on a crashed hook.
+  if (proc.exitCode !== 0) {
+    throw new Error(`hook exited ${proc.exitCode}\n${proc.stderr.toString()}`);
+  }
   return proc.stdout.toString().trim();
 }
 

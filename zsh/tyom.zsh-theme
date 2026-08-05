@@ -17,11 +17,11 @@ function _user_host {
 # made in place (`volta install node`) shows on the next cd rather than at once,
 # which is the whole trade: a prompt that isn't 130ms slower every time.
 function _set_node_version {
-  if (( $+commands[node] )); then
-    _NODE_VERSION="%F{238}node $(node -v) ∘ npm $(npm -v)%f"
-  else
-    _NODE_VERSION=""
-  fi
+  _NODE_VERSION=""
+  (( $+commands[node] )) || return
+  _NODE_VERSION="%F{238}node $(node -v)"
+  (( $+commands[npm] )) && _NODE_VERSION+=" ∘ npm $(npm -v)"
+  _NODE_VERSION+="%f"
 }
 autoload -Uz add-zsh-hook
 add-zsh-hook chpwd _set_node_version

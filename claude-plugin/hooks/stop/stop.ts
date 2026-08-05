@@ -261,6 +261,9 @@ function runCommand(
     cwd,
     encoding: "utf-8",
     timeout: timeoutMs,
+    // The default (a few MB) is under what a verbose suite prints, and going over
+    // it is an ENOBUFS error — a passing run would read as a failure and block.
+    maxBuffer: 64 * 1024 * 1024,
     env: { ...process.env, FORCE_COLOR: "0", CI: "true" },
   });
 
@@ -434,7 +437,8 @@ function buildTestCommand(
   const rel = c.codeFiles.map((f) => relative(projectRoot, f));
 
   if (setup.framework === "vitest" && setup.binPath) {
-    return [setup.binPath, "related", ...rel, "--run"];
+    // Nothing related to the edit is not a failure; without this vitest exits 1.
+    return [setup.binPath, "related", ...rel, "--run", "--passWithNoTests"];
   }
   if (setup.framework === "jest" && setup.binPath) {
     return [setup.binPath, "--findRelatedTests", "--passWithNoTests", ...rel];
@@ -515,4 +519,9 @@ async function main() {
   process.exit(0);
 }
 
-main();
+// A hook that throws is still a hook that ran: fail open rather than surface a
+// stack trace and a non-zero exit for something the session cannot act on.
+main().catch((e) => {
+  console.error(`stop hook: ${e}`);
+  process.exit(0);
+});

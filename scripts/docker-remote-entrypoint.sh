@@ -12,7 +12,9 @@
 # Either way install.sh clones dotfiles from GitHub, so the local mode tests
 # install.sh itself, not the rest of the working tree.
 
-set -e
+# pipefail matters below: bash exits 0 on empty input, so without it a 404 from
+# curl would still print "completed successfully".
+set -eo pipefail
 
 export YES_OVERRIDE=true
 
