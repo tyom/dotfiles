@@ -115,14 +115,6 @@ function gwa {
     || git worktree add -b "$branch" "$toplevel/.worktrees/$branch"
 }
 
-function gwl {
-  git worktree list
-}
-
-function gwp {
-  git worktree prune
-}
-
 function gwd {
   local branch="$1"
   if [ -z "$branch" ]; then

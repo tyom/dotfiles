@@ -1,34 +1,27 @@
 # Hooks
 
-Claude Code hooks that run automatically during various events.
+## Stop: lint, type check, format, test
 
-## Available Hooks
+One hook, `stop/stop.ts`, runs before Claude stops. It reads the session
+transcript once for the files Claude edited, then works only on those:
 
-### PostToolUse: Lint and Typecheck
+| Tool     | Scope                                                                                                                                                                          |
+| -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| tsc      | Project-wide, skipped unless TS/JS, a tsconfig or package.json was edited                                                                                                      |
+| eslint   | Edited JS/TS files; the whole project if eslint config or package.json changed                                                                                                 |
+| prettier | Edited prettier-able files only, never a mass format                                                                                                                           |
+| tests    | Related-tests mode (vitest, jest); bun has none, so it takes the edited paths only when all of them are test files; full suite otherwise, or if a build or test config changed |
 
-**Trigger:** After `Edit`, `MultiEdit`, or `Write` operations on supported files.
+Nothing runs when the session only touched docs, lockfiles or other files that
+cannot change whether the code works. Lint errors block before the tests run — a
+project that does not type check has nothing to learn from a two-minute test run.
 
-**Actions:**
-
-- TypeScript type checking (if tsconfig.json present)
-- Prettier formatting (auto-fixes if needed)
-- ESLint linting
-
-**Supported file extensions:** `.ts`, `.tsx`, `.js`, `.jsx`, `.mjs`, `.mts`, `.md`, `.mdx`, `.json`, `.yaml`, `.yml`, `.css`, `.scss`, `.html`
-
-### Stop: Run Tests
-
-**Trigger:** Before Claude stops working.
-
-**Actions:**
-
-- Detects test runner (bun, npm, yarn, pnpm, vitest, jest, mocha)
-- Runs project tests
-- Blocks stopping if tests fail
+Each tool is skipped when the project has no config for it or no binary in
+`node_modules/.bin`, so the hook is a no-op in a project that does not use it.
 
 ## Configuration
 
-Both hooks can be disabled per-project using environment variables in `.claude/settings.local.json`:
+Set per-project in `.claude/settings.local.json`:
 
 ```json
 {
@@ -39,7 +32,14 @@ Both hooks can be disabled per-project using environment variables in `.claude/s
 }
 ```
 
-| Variable            | Default | Description                                             |
-| ------------------- | ------- | ------------------------------------------------------- |
-| `LINT_ON_SAVE`      | `true`  | Enable/disable lint, typecheck, and format on file save |
-| `RUN_TESTS_ON_STOP` | `true`  | Enable/disable running tests before stopping            |
+| Variable               | Default | Description                                    |
+| ---------------------- | ------- | ---------------------------------------------- |
+| `LINT_ON_SAVE`         | `true`  | Lint, type check and format                    |
+| `LINT_FULL`            | `false` | Ignore the edited-file scope, run project-wide |
+| `RUN_TESTS_ON_STOP`    | `true`  | Run tests                                      |
+| `RUN_TESTS_FULL_SUITE` | `false` | Ignore related-tests mode, always run the lot  |
+
+## Tests
+
+`bun test` from `claude-plugin/`. It drives the hook the way Claude Code does,
+transcript on stdin and decision on stdout, against a throwaway project.

@@ -1,52 +1,35 @@
 name: Smoke Test
 
+# This installs from the deployed URL, so it has to run after Pages is updated.
+# Chaining off the Repo Intel run that deploys it is what workflow_run is for —
+# it replaces a step that polled the Actions API every 15s for up to 10 minutes.
 on:
-  push:
-    branches: [master]
+  workflow_run:
+    workflows: [Repo Intel]
+    types: [completed]
   workflow_dispatch:
 
 env:
   FORCE_COLOR: 3
 
+permissions:
+  contents: read
+
 jobs:
   smoke-test:
+    # workflow_run fires whatever the conclusion, so a failed or cancelled deploy
+    # would otherwise smoke test the previous contents of the site.
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
     steps:
+      # The commit that was deployed, not whatever master points at now: two
+      # pushes in quick succession would otherwise test a mismatched Makefile.
       - uses: actions/checkout@v5
-
-      # Pages now deploys via the "Repo Intel" workflow (Actions source), not
-      # the legacy Jekyll builder — so wait on that run for this commit rather
-      # than polling the legacy pages/builds API.
-      - name: Wait for Repo Intel Pages deployment
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          echo "Waiting for the Repo Intel Pages deploy of ${{ github.sha }}..."
-          for i in {1..40}; do
-            run=$(gh api \
-              "repos/${{ github.repository }}/actions/runs?head_sha=${{ github.sha }}&per_page=100" \
-              --jq '[.workflow_runs[] | select(.name == "Repo Intel")]
-                    | sort_by(.created_at) | last // empty')
-            if [ -z "$run" ]; then
-              echo "No Repo Intel run yet - waiting... ($i/40)"
-              sleep 15
-              continue
-            fi
-            status=$(echo "$run" | jq -r '.status')
-            conclusion=$(echo "$run" | jq -r '.conclusion // ""')
-            if [ "$status" = "completed" ]; then
-              if [ "$conclusion" = "success" ]; then
-                echo "Repo Intel Pages deploy completed successfully"
-                exit 0
-              fi
-              echo "Repo Intel run concluded '$conclusion' - aborting smoke test"
-              exit 1
-            fi
-            echo "Repo Intel status: $status - waiting... ($i/40)"
-            sleep 15
-          done
-          echo "Timed out waiting for the Repo Intel Pages deploy"
-          exit 1
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+          persist-credentials: false
 
       - name: Test remote install (with Homebrew)
         run: make docker-test-remote

@@ -95,25 +95,27 @@ if is_checked agents && ! is_checked dotfiles; then
   SUMMARY+=('agents: skipped, needs the dotfiles option')
 fi
 
+# These four are run, not sourced. None of them exports anything the steps after
+# it read, and sourcing meant a bare `exit` inside one ended the whole installer
+# reporting success — a trap that needed a comment in each script and a grep step
+# in CI to police. As subprocesses their status is just a status.
 if is_checked dotfiles; then
-  print_step 'Setting up zsh' &&
-    source "$DOTFILES_DIR/scripts/zsh.sh"
+  print_step 'Setting up zsh'
+  bash "$DOTFILES_DIR/scripts/zsh.sh" || exit 1
 
   # These land in ~/.claude and ~/.codex and steer every agent session on the
-  # machine, so they are opt-in rather than part of the dotfiles bundle.
-  # Set both ways: an inherited SKIP_AGENTS=true would otherwise survive the
-  # option being selected.
-  # shellcheck disable=SC2034 # read by link.sh, which is sourced just below
+  # machine, so they are opt-in rather than part of the dotfiles bundle. Passed
+  # explicitly so an inherited SKIP_AGENTS can't survive the option being ticked.
   if is_checked agents; then SKIP_AGENTS=false; else SKIP_AGENTS=true; fi
 
-  print_step 'Symlinking dotfiles' &&
-    source "$DOTFILES_DIR/scripts/link.sh"
+  print_step 'Symlinking dotfiles'
+  SKIP_AGENTS=$SKIP_AGENTS bash "$DOTFILES_DIR/scripts/link.sh" || exit 1
 
-  print_step 'Setting up git' &&
-    source "$DOTFILES_DIR/scripts/git.sh"
+  print_step 'Setting up git'
+  bash "$DOTFILES_DIR/scripts/git.sh" || exit 1
 
-  print_step 'Installing Vim plugins' &&
-    source "$DOTFILES_DIR/scripts/install/vim.sh"
+  print_step 'Installing Vim plugins'
+  bash "$DOTFILES_DIR/scripts/install/vim.sh" || exit 1
 fi
 
 if is_checked claude-plugin; then

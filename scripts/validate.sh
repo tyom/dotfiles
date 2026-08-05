@@ -129,7 +129,19 @@ else
   ERRORS=$((ERRORS + 1))
 fi
 
-DOTFILES_DIR_CHECK=$(zsh -c 'source ~/.zshrc 2>/dev/null; echo $DOTFILES_DIR')
+# Everything we need out of a real login shell, from one boot. Sourcing .zshrc
+# loads the whole of oh-my-zsh and costs ~0.6s, and doing that once per variable
+# was most of this script's runtime.
+ZSH_PROBE=$(zsh -c 'source ~/.zshrc 2>/dev/null
+  print -r -- "DOTFILES_DIR=$DOTFILES_DIR"
+  print -r -- "ZSH_THEME=$ZSH_THEME"
+  print -r -- "FZF_BASE=$FZF_BASE"
+  print -r -- "SCMPUFF=$(whence -w scmpuff_status 2>/dev/null)"
+  print -r -- "PATH=$PATH"' 2>/dev/null)
+
+probe() { printf '%s\n' "$ZSH_PROBE" | sed -n "s/^$1=//p" | head -1; }
+
+DOTFILES_DIR_CHECK=$(probe DOTFILES_DIR)
 if [ -n "$DOTFILES_DIR_CHECK" ] && [ -d "$DOTFILES_DIR_CHECK" ]; then
   print_success "DOTFILES_DIR exported: $DOTFILES_DIR_CHECK"
 else
@@ -141,7 +153,7 @@ fi
 echo ""
 print_info "Checking zsh theme and configuration..."
 
-ZSH_THEME_CHECK=$(zsh -c 'source ~/.zshrc 2>/dev/null; echo $ZSH_THEME')
+ZSH_THEME_CHECK=$(probe ZSH_THEME)
 if [ "$ZSH_THEME_CHECK" = "tyom" ]; then
   print_success "ZSH_THEME is set to 'tyom'"
 else
@@ -151,7 +163,7 @@ fi
 
 # Check if FZF_BASE is set (only if fzf is installed)
 if command -v fzf >/dev/null 2>&1; then
-  FZF_BASE_CHECK=$(zsh -c 'source ~/.zshrc 2>/dev/null; echo $FZF_BASE')
+  FZF_BASE_CHECK=$(probe FZF_BASE)
   if [ -n "$FZF_BASE_CHECK" ]; then
     print_success "FZF_BASE is set: $FZF_BASE_CHECK"
   else
@@ -164,7 +176,7 @@ fi
 
 # Check ~/bin is in PATH *ahead of* /usr/bin — appended entries never shadow
 # system tools, which silently defeats the point of bin scripts
-PATH_ENTRIES=$(zsh -c 'source ~/.zshrc 2>/dev/null; echo $PATH' | tr ':' '\n')
+PATH_ENTRIES=$(probe PATH | tr ':' '\n')
 HOME_BIN_POS=$(echo "$PATH_ENTRIES" | grep -n -x "$HOME/bin" | head -1 | cut -d: -f1)
 USR_BIN_POS=$(echo "$PATH_ENTRIES" | grep -n -x "/usr/bin" | head -1 | cut -d: -f1)
 if [ -z "$HOME_BIN_POS" ]; then
@@ -178,8 +190,7 @@ else
 fi
 
 # Check scmpuff_status function exists (used by gs alias)
-SCMPUFF_CHECK=$(zsh -c 'source ~/.zshrc 2>/dev/null; type scmpuff_status' 2>&1)
-if echo "$SCMPUFF_CHECK" | grep -q "function"; then
+if probe SCMPUFF | grep -q "function"; then
   print_success "scmpuff_status function available"
 else
   print_error "scmpuff_status function not available (gs alias will fail)"
@@ -270,48 +281,16 @@ fi
 echo ""
 print_info "Checking Claude Code plugin..."
 
+# Whether the plugin's own code compiles is CI's job, and installing its
+# dependencies is setup.sh's. All this needs to answer is whether the plugin is
+# present and wired up.
 PLUGIN_DIR="$DOTFILES_DIR/claude-plugin"
-if [ -d "$PLUGIN_DIR" ] && [ -f "$PLUGIN_DIR/package.json" ]; then
-  # Install dependencies if needed
-  if [ ! -d "$PLUGIN_DIR/node_modules" ]; then
-    print_info "Installing plugin dependencies..."
-    INSTALL_SUCCESS=false
-    if command -v bun >/dev/null 2>&1; then
-      if (cd "$PLUGIN_DIR" && bun install --frozen-lockfile 2>/dev/null || bun install); then
-        print_success "Dependencies installed with bun"
-        INSTALL_SUCCESS=true
-      else
-        print_error "Failed to install dependencies with bun"
-      fi
-    fi
-    if [ "$INSTALL_SUCCESS" = false ] && command -v npm >/dev/null 2>&1; then
-      if (cd "$PLUGIN_DIR" && npm install); then
-        print_success "Dependencies installed with npm"
-        INSTALL_SUCCESS=true
-      else
-        print_error "Failed to install dependencies with npm"
-      fi
-    fi
-  fi
-  # Type check the plugin if dependencies are installed
+if [ -f "$PLUGIN_DIR/hooks/hooks.json" ]; then
+  print_success "Claude Code plugin present"
   if [ -d "$PLUGIN_DIR/node_modules" ]; then
-    if command -v bun >/dev/null 2>&1; then
-      if (cd "$PLUGIN_DIR" && bun run tsc --noEmit 2>&1); then
-        print_success "Claude Code plugin type check passed"
-      else
-        print_error "Claude Code plugin type check failed"
-        ERRORS=$((ERRORS + 1))
-      fi
-    elif command -v npx >/dev/null 2>&1; then
-      if (cd "$PLUGIN_DIR" && npx tsc --noEmit 2>&1); then
-        print_success "Claude Code plugin type check passed"
-      else
-        print_error "Claude Code plugin type check failed"
-        ERRORS=$((ERRORS + 1))
-      fi
-    else
-      print_skip "No type checker available (bun/npx required)"
-    fi
+    print_success "Plugin dependencies installed"
+  else
+    print_warning "Plugin dependencies not installed (run: cd claude-plugin && bun install)"
   fi
 else
   print_skip "Claude Code plugin not found, skipping"

@@ -1,6 +1,7 @@
 #!/bin/bash
 
-source shell/utils.sh
+source "$(dirname "${BASH_SOURCE[0]}")/../vars.sh"
+source "$DOTFILES_DIR/shell/utils.sh"
 
 # Install vim-plug plugin manager. -sS keeps curl quiet but still reports a
 # failure, which the bare -f used to swallow into a silent broken install.

@@ -4,6 +4,7 @@
 # Adds an include line to user's ~/.gitconfig to load dotfiles config
 # Copies .gitignore if it doesn't exist
 
+source "$(dirname "${BASH_SOURCE[0]}")/vars.sh"
 source "$DOTFILES_DIR/shell/utils.sh"
 
 GITCONFIG_PATH="$DOTFILES_DIR/git/.gitconfig"

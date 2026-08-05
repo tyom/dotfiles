@@ -65,11 +65,6 @@ function is_checked {
   return 1
 }
 
-function execute {
-  $1 &>/dev/null
-  print_result $? "${2:-$1}"
-}
-
 function print_step {
   printf "\e[0;36m ▶ \e[0m$1\n"
 }
@@ -106,15 +101,6 @@ function links_into {
   local dir
   dir=$( (cd "$(dirname "$2")" && cd "$(dirname "$(readlink "$2")")" && pwd -P) 2>/dev/null)
   [[ "$dir" == "$1" || "$dir" == "$1"/* ]]
-}
-
-function print_result {
-  [ $1 -eq 0 ] &&
-    print_success "$2" ||
-    print_error "$2"
-
-  [ "$3" == "true" ] && [ $1 -ne 0 ] &&
-    exit
 }
 
 function which_os {

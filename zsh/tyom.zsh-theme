@@ -12,11 +12,20 @@ function _user_host {
   echo "%{$fg[green]%}%n%{$reset_color%} › %{$fg[yellow]%}%m%{$reset_color%}"
 }
 
-function _node_version {
-  if [ -x "$(command -v node)" ]; then
-    echo "%F{238}node $(node -v) ∘ npm $(npm -v)%f"
-  fi
+# `node -v` and `npm -v` cost ~130ms together, and RPROMPT ran both on every
+# render. Volta swaps versions when you cd, so recompute then instead. A change
+# made in place (`volta install node`) shows on the next cd rather than at once,
+# which is the whole trade: a prompt that isn't 130ms slower every time.
+function _set_node_version {
+  _NODE_VERSION=""
+  (( $+commands[node] )) || return
+  _NODE_VERSION="%F{238}node $(node -v)"
+  (( $+commands[npm] )) && _NODE_VERSION+=" ∘ npm $(npm -v)"
+  _NODE_VERSION+="%f"
 }
+autoload -Uz add-zsh-hook
+add-zsh-hook chpwd _set_node_version
+_set_node_version
 
 function _prompt_git_state {
   [[ -d ".git/rebase-apply" || -d ".git/rebase-merge" ]] && echo "%{$fg[yellow]%}(REBASING)%{$reset_color%}"
@@ -24,18 +33,20 @@ function _prompt_git_state {
   [ -f .git/BISECT_LOG ] && echo "%{$fg[yellow]%}(BISECTING)%{$reset_color%}"
 }
 
+# CONDA_ENV was a global set only while an env was active and never cleared, so
+# the prompt kept showing the last one after `conda deactivate`. Local, and
+# derived from CONDA_PREFIX each time.
 function _conda_env_name {
-  if [[ -n $CONDA_PREFIX ]]; then
-    CONDA_ENV="($CONDA_DEFAULT_ENV)"
-  fi
-  echo "%{$fg[cyan]%}$CONDA_ENV%{$reset_color%}"
+  local env=""
+  [[ -n $CONDA_PREFIX ]] && env="($CONDA_DEFAULT_ENV)"
+  echo "%{$fg[cyan]%}$env%{$reset_color%}"
 }
 
 PROMPT='
 $(_user_host) $(_conda_env_name) ${_current_dir}
 %{$fg[$CARETCOLOR]%}❯%{$reset_color%} '
 
-RPROMPT='$(_node_version) $(_prompt_git_state) $(git_prompt_info)$(git_prompt_status)'
+RPROMPT='${_NODE_VERSION} $(_prompt_git_state) $(git_prompt_info)$(git_prompt_status)'
 
 ZSH_THEME_GIT_PROMPT_PREFIX="%F{187}Ⴤ%f %F{115}"
 ZSH_THEME_GIT_PROMPT_SUFFIX="%{$reset_color%}"
@@ -48,59 +59,5 @@ ZSH_THEME_GIT_PROMPT_MODIFIED="%{$fg[yellow]%} ⋇%{$reset_color%}"
 ZSH_THEME_GIT_PROMPT_RENAMED="%{$fg[blue]%} ≈%{$reset_color%}"
 ZSH_THEME_GIT_PROMPT_UNMERGED="%{$fg[cyan]%} ⊘%{$reset_color%}"
 ZSH_THEME_GIT_PROMPT_UNTRACKED="%{$fg[white]%} ∪%{$reset_color%}"
-
-# STANDARD VARIABLES
-# ================
-# General
-# -------
-# %n - username
-# %m - hostname (truncated to the first period)
-# %M - hostname
-# %l - the current tty
-# %? - the return code of the last-run application
-# %# - the prompt based on user privileges (# for root and % for the rest)
-# %h or %! - current history event number
-# %L - the current value of $SHLVL
-#
-# Time
-# ----
-# %t or %@ - 12-hour am/pm format
-# %T - system time (HH:MM)
-# %* - system time (HH:MM:SS)
-#
-# Date
-# ----
-# %w - date in day-dd format
-# %W - date in mm/dd/yy format
-# %D - date in yy-mm-dd format
-# %{string} - date formatted using the strftime function (http://linux.die.net/man/3/strftime)
-#
-# Directories
-# -----------
-# %~ - current working directory ($HOME represented as ~)
-# %d or %/ - current working directory
-# %c or %. - trailing component of $PWD (for n trailing components put an integer n after %)
-# %C - like %c or %. but $HOME is represented as ~)
-#
-# Misc
-# ----
-# %h or %! - current history event number
-# %L - the current value of $SHLVL
-#
-# Formatting
-# ----------
-# %U[...]%u - begin and end underlined print
-# %B[...]%b - begin and end bold print
-# %{[...]%} - Begin and enter area that will not be printed. Useful for setting colors.
-#
-# Visual effects (wrap in %{...%} to make sure they are not printed e.g. %{%F{red}%}%~{%f%}
-# --------------
-# %B{...}%b - start/stop boldface mode
-# %E        - clear the end of line
-# %U{...}%u - start/stop underline mode
-# %S{...}%s - start/stop standout mode
-# %F{...}%f - start/stop foreground colour (keyword or colour code e.g. %F{red}%f or %F{196}%f
-# %K{...}%k - start/stop background colour
-# %{...%}   - literal escape sequence (doesn't change cursor position), can be nested
-#
-# More info: http://zsh.sourceforge.net/Doc/Release/Prompt-Expansion.html
+# Prompt escapes: %n user, %m host, %~ cwd, %F{n} colour.
+# Full list: https://zsh.sourceforge.io/Doc/Release/Prompt-Expansion.html

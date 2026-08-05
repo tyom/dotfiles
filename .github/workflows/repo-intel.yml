@@ -38,7 +38,7 @@ jobs:
           output: public
 
       - name: Preserve the legacy /docs assets at their existing URLs
-        run: cp docs/install.sh docs/dotfiles.svg docs/dotfiles-dark.svg docs/STRUCTURE.md public/
+        run: cp docs/install.sh docs/dotfiles.svg docs/dotfiles-dark.svg public/
 
       - uses: actions/upload-pages-artifact@v3
         with:

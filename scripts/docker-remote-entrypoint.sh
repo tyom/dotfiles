@@ -1,51 +1,44 @@
 #!/bin/bash
 
-# Docker entrypoint for remote install testing
-# Usage:
-#   docker run <image> remote-test       # Test deployed URL
-#   docker run <image> remote-test-local # Test via local HTTP server
+# Docker entrypoint for remote install testing. Both modes do the same thing —
+# pipe install.sh straight into bash, which is the path a real user takes and
+# the one that differs from running the file. Only the URL changes:
+#
+#   docker run <image> remote-test        the deployed script
+#   docker run <image> remote-test-local  the script in this checkout, served
+#                                         locally, so a change to install.sh can
+#                                         be tested before it ships
+#
+# Either way install.sh clones dotfiles from GitHub, so the local mode tests
+# install.sh itself, not the rest of the working tree.
 
-set -e
+# pipefail matters below: bash exits 0 on empty input, so without it a 404 from
+# curl would still print "completed successfully".
+set -eo pipefail
 
 export YES_OVERRIDE=true
 
 case "${1:-remote-test}" in
 remote-test)
-  echo "Testing remote install from deployed URL..."
-  echo "URL: https://tyom.github.io/dotfiles/install.sh"
-  echo ""
-  curl -fsSL https://tyom.github.io/dotfiles/install.sh | bash
-  echo ""
-  echo "Remote install test completed successfully!"
+  URL=https://tyom.github.io/dotfiles/install.sh
   ;;
 remote-test-local)
-  echo "Testing remote install via local HTTP server..."
-  echo ""
-
-  # Start HTTP server in background
-  cd /tmp/docs
-  python3 -m http.server 8080 &
-  SERVER_PID=$!
-
-  # Wait for server to be ready
-  for i in {1..10}; do
-    if curl -fsSL --max-time 1 http://localhost:8080/ >/dev/null 2>&1; then
-      break
-    fi
-    sleep 0.5
+  URL=http://localhost:8080/install.sh
+  (cd /tmp/docs && exec python3 -m http.server 8080) &>/dev/null &
+  trap 'kill %1 2>/dev/null' EXIT
+  # Poll rather than sleep a fixed amount: the server is usually up immediately.
+  for _ in {1..20}; do
+    curl -fsS --max-time 1 "$URL" >/dev/null 2>&1 && break
+    sleep 0.25
   done
-
-  # Test the install
-  echo "Fetching from http://localhost:8080/install.sh"
-  curl -fsSL http://localhost:8080/install.sh | bash
-
-  # Cleanup
-  kill $SERVER_PID 2>/dev/null || true
-
-  echo ""
-  echo "Local remote install test completed successfully!"
   ;;
 *)
   exec "$@"
   ;;
 esac
+
+echo "Installing from $URL"
+echo ""
+curl -fsSL "$URL" | bash
+echo ""
+echo "Remote install test completed successfully!"

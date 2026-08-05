@@ -8,23 +8,17 @@ on:
 env:
   FORCE_COLOR: 3
 
+# Nothing here writes to the repo, and the jobs run untrusted PR code in Docker.
+permissions:
+  contents: read
+
 jobs:
   test:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
-
-      # These scripts are only ever `source`d by setup.sh, so `exit` / `exit 0`
-      # in them ends the installer itself and still reports success. The Docker
-      # images pre-install zsh, so no test can reach that branch. `exit 1` is
-      # fine — it aborts loudly, which is the point.
-      - name: Sourced scripts must not exit with success
-        run: |
-          if grep -nE '^[[:space:]]*exit[[:space:]]*0?[[:space:]]*(#.*)?$' \
-            scripts/zsh.sh scripts/link.sh scripts/git.sh scripts/install/vim.sh; then
-            echo "::error::bare 'exit' in a sourced script silently aborts setup.sh — use 'exit 1' or 'return'"
-            exit 1
-          fi
+        with:
+          persist-credentials: false
 
       - name: Run tests in Docker
         run: make docker-test
@@ -33,6 +27,26 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
 
       - name: Test setup without Homebrew
         run: make docker-test VARIANT=minimal
+
+  # validate.sh deliberately no longer type checks the plugin ("CI's job"), and
+  # the Docker tests only exercise the installer — so this is the only thing that
+  # runs the hook's own tsc and test suite.
+  plugin:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: claude-plugin
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@v2
+
+      - run: bun install --frozen-lockfile
+      - run: bun run typecheck
+      - run: bun test
