@@ -191,8 +191,13 @@ async function getEditedFiles(
 
 interface Categorized {
   prettierFiles: string[];
-  tests: string[];
-  sources: string[];
+  // Every edited code file, and the targets for a related-tests run — not only
+  // the TS/JS ones. `vitest related` and `jest --findRelatedTests` resolve a
+  // stylesheet or a JSON fixture back to the tests that import it, so scoping
+  // by them beats falling through to the whole suite.
+  codeFiles: string[];
+  // The subset of codeFiles that are themselves test files.
+  testFiles: string[];
   tsConfigChanged: boolean;
   eslintConfigChanged: boolean;
   packageJsonChanged: boolean;
@@ -203,8 +208,8 @@ interface Categorized {
 function categorize(files: string[], projectRoot: string): Categorized {
   const c: Categorized = {
     prettierFiles: [],
-    tests: [],
-    sources: [],
+    codeFiles: [],
+    testFiles: [],
     tsConfigChanged: false,
     eslintConfigChanged: false,
     packageJsonChanged: false,
@@ -238,8 +243,9 @@ function categorize(files: string[], projectRoot: string): Categorized {
       continue;
     }
 
-    if (TS_JS_EXTENSIONS.has(ext)) {
-      (TEST_FILE_PATTERN.test(base) ? c.tests : c.sources).push(abs);
+    c.codeFiles.push(abs);
+    if (TS_JS_EXTENSIONS.has(ext) && TEST_FILE_PATTERN.test(base)) {
+      c.testFiles.push(abs);
     }
   }
 
@@ -293,7 +299,8 @@ async function lint(
 ): Promise<{ errors: string[]; warnings: string[] }> {
   const errors: string[] = [];
   const warnings: string[] = [];
-  const tsJsFiles = [...c.tests, ...c.sources];
+  // Lint only understands TS/JS, so it takes a narrower slice than the tests do.
+  const tsJsFiles = c.codeFiles.filter((f) => TS_JS_EXTENSIONS.has(extname(f)));
 
   // ── TypeScript (project-wide; the only mode that makes sense for graph checks) ──
   if (
@@ -421,11 +428,10 @@ function buildTestCommand(
   c: Categorized,
   projectRoot: string,
 ): string[] {
-  if (c.testConfigChanged) return setup.fullSuiteCommand;
-
-  const all = [...c.tests, ...c.sources];
-  if (all.length === 0) return setup.fullSuiteCommand;
-  const rel = all.map((f) => relative(projectRoot, f));
+  if (c.testConfigChanged || c.codeFiles.length === 0) {
+    return setup.fullSuiteCommand;
+  }
+  const rel = c.codeFiles.map((f) => relative(projectRoot, f));
 
   if (setup.framework === "vitest" && setup.binPath) {
     return [setup.binPath, "related", ...rel, "--run"];
@@ -437,10 +443,10 @@ function buildTestCommand(
   // when every edit was itself a test file.
   if (
     setup.framework === "bun" &&
-    c.sources.length === 0 &&
-    c.tests.length > 0
+    c.testFiles.length > 0 &&
+    c.testFiles.length === c.codeFiles.length
   ) {
-    return ["bun", "test", ...c.tests.map((f) => relative(projectRoot, f))];
+    return ["bun", "test", ...rel];
   }
   return setup.fullSuiteCommand;
 }

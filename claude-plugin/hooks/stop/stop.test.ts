@@ -6,22 +6,40 @@
 // pick a test command → block or stay quiet.
 
 import { test, expect } from "bun:test";
-import { mkdtempSync, writeFileSync, mkdirSync, realpathSync } from "fs";
+import {
+  mkdtempSync,
+  writeFileSync,
+  mkdirSync,
+  realpathSync,
+  chmodSync,
+} from "fs";
 import { tmpdir } from "os";
 import { join, dirname } from "path";
 
 const HOOK = join(import.meta.dir, "stop.ts");
 
+// realpath: on macOS $TMPDIR is a symlink, and the hook compares edited paths
+// against the resolved cwd it is launched in.
+function tmpProject(pkg: Record<string, unknown>): string {
+  const dir = realpathSync(mkdtempSync(join(tmpdir(), "stop-hook-")));
+  writeFileSync(join(dir, "package.json"), JSON.stringify(pkg));
+  writeFileSync(join(dir, "bun.lock"), "");
+  return dir;
+}
+
 // A project whose test script always fails, so a run that happens is visible.
 function fixture(): string {
-  // realpath: on macOS $TMPDIR is a symlink, and the hook compares edited paths
-  // against the resolved cwd it is launched in.
-  const dir = realpathSync(mkdtempSync(join(tmpdir(), "stop-hook-")));
-  writeFileSync(
-    join(dir, "package.json"),
-    JSON.stringify({ name: "fixture", scripts: { test: "exit 1" } }),
-  );
-  writeFileSync(join(dir, "bun.lock"), "");
+  return tmpProject({ name: "fixture", scripts: { test: "exit 1" } });
+}
+
+// A vitest project whose runner fails and reports its own argv, so the command
+// the hook chose shows up in the block reason.
+function vitestFixture(): string {
+  const dir = tmpProject({ name: "fixture", devDependencies: { vitest: "*" } });
+  const bin = join(dir, "node_modules", ".bin", "vitest");
+  mkdirSync(dirname(bin), { recursive: true });
+  writeFileSync(bin, '#!/bin/sh\necho "argv: $*"\nexit 1\n');
+  chmodSync(bin, 0o755);
   return dir;
 }
 
@@ -74,4 +92,19 @@ test("a docs-only edit runs nothing", () => {
 
 test("a lockfile-only edit runs nothing", () => {
   expect(runHook(fixture(), ["package-lock.json"])).toBe("");
+});
+
+// A stylesheet used to fall through to the whole suite, because only TS/JS was
+// collected as a related-tests target. vitest resolves a .css back to the tests
+// that import it, so it belongs in the scoped run.
+test("a stylesheet edit is scoped, not a full-suite run", () => {
+  const reason = JSON.parse(runHook(vitestFixture(), ["src/style.css"])).reason;
+  expect(reason).toContain("related src/style.css --run");
+});
+
+test("a test-config edit still runs the whole suite", () => {
+  const reason = JSON.parse(
+    runHook(vitestFixture(), ["src/a.ts", "vitest.config.ts"]),
+  ).reason;
+  expect(reason).toContain("argv: run");
 });
