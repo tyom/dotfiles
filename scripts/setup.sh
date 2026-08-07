@@ -10,11 +10,20 @@ while [[ $# -gt 0 ]]; do
   case "$1" in
   -v | --verbose) VERBOSE=true ;;
   -y | --yes) YES_OVERRIDE=true ;;
-  -s | --select)
-    SELECT_OVERRIDE="$2"
-    shift
+  -s | --select | --select=*)
+    if [[ "$1" == --select=* ]]; then
+      SELECT_OVERRIDE="${1#*=}"
+    else
+      SELECT_OVERRIDE="${2-}"
+      shift
+    fi
+    # multi_select treats an empty override as "not given" and quietly installs
+    # the defaults, so a mistyped --select must fail here instead.
+    [[ -n "$SELECT_OVERRIDE" ]] || {
+      print_error '--select needs a comma-separated list of options'
+      exit 1
+    }
     ;;
-  --select=*) SELECT_OVERRIDE="${1#*=}" ;;
   -h | --help)
     echo "Usage: setup.sh [-y] [--select name,name] [--verbose]"
     exit 0
