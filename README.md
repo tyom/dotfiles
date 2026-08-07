@@ -161,10 +161,11 @@ it doesn't recognise without saying so.
 Off by default. These steer every agent session on the machine, so tick **Global
 agent instructions** in the installer menu to link them.
 
-One file holds the rules. `~/.codex/AGENTS.md` is it, and `~/.claude/CLAUDE.md`
-is three lines that import it — [the pattern Claude Code documents][import] for a
-repo that already has an `AGENTS.md`. Codex reads its file directly, Claude reads
-it through the import, and there is nothing to build or keep in step.
+One file holds the rules: `~/.codex/AGENTS.md`. `~/.claude/CLAUDE.md` carries an
+explanatory comment and a single line importing it, which is [the pattern Claude
+Code documents][import] for a repo that already has an `AGENTS.md`. Codex reads
+its file directly, Claude reads it through the import, and there is nothing to
+build or keep in step.
 
 Write shared rules in `home/.codex/AGENTS.md`. Claude-only rules go under the
 import in `home/.claude/CLAUDE.md`, where Codex never sees them. Codex-only rules

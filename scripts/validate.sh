@@ -78,10 +78,11 @@ echo ""
 print_info "Checking agent instructions..."
 
 CLAUDE_MD="$HOME/.claude/CLAUDE.md"
+EXPECTED_IMPORT="@../.codex/AGENTS.md"
 if [ -L "$CLAUDE_MD" ] && [ -e "$CLAUDE_MD" ] && links_into "$REPO" "$CLAUDE_MD"; then
-  IMPORT=$(grep -m1 '^@' "$CLAUDE_MD" || true)
+  IMPORT=$(grep -Fxm1 "$EXPECTED_IMPORT" "$CLAUDE_MD" || true)
   if [ -z "$IMPORT" ]; then
-    print_error "CLAUDE.md has no @import line, so it carries no shared rules"
+    print_error "CLAUDE.md does not import $EXPECTED_IMPORT, so it carries no shared rules"
     ERRORS=$((ERRORS + 1))
   elif [ -e "$HOME/.claude/${IMPORT#@}" ]; then
     print_success "CLAUDE.md imports ${IMPORT#@}"
