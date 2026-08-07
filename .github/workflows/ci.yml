@@ -33,6 +33,18 @@ jobs:
       - name: Test setup without Homebrew
         run: make docker-test VARIANT=minimal
 
+  # The Docker tests install into a clean container, so they never meet a
+  # conflicting file at a link target. That branch is the one with prompts and
+  # backups in it, and test-link.sh is what covers it — nothing was running it.
+  link-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+
+      - run: make test-links
+
   # validate.sh deliberately no longer type checks the plugin ("CI's job"), and
   # the Docker tests only exercise the installer — so this is the only thing that
   # runs the hook's own tsc and test suite.

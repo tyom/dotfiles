@@ -17,16 +17,6 @@ SKIP_AGENTS=${SKIP_AGENTS:-false}
 
 if [ "$SKIP_AGENTS" = true ]; then
   print_skip 'Agent instructions not selected, leaving ~/.claude and ~/.codex alone'
-else
-  # The agent instruction files under home/ are generated, so build them before
-  # linking or an install can ship a stale copy. Skipped above rather than built
-  # and ignored, so opting out leaves nothing behind in the working tree.
-  bash "$DOTFILES_DIR/scripts/build-agents.sh" || {
-    # Linking a stale generated file is worse than stopping: the agent would
-    # silently follow the old rules.
-    print_error 'Could not build the agent instruction files'
-    exit 1
-  }
 fi
 
 link() {
