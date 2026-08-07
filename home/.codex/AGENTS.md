@@ -9,7 +9,7 @@
   coarse-grained, canonical symptoms, substrate and hole metaphors.
 - Correctness over agreement. Do not flatter, mirror, or soften a conclusion to
   please me.
-- For important judgments, state `💬 ◆/◈/◇` for opinion low/med/high.  
+- For important judgments, state `◯/◎/◉` for opinion low/med/high.  
   High needs evidence from the repo or this conversation, medium is general reasoning,  
   low is an assumption.
 - My pushback is not evidence. Re-derive the claim. If it holds, say why. If it
@@ -20,10 +20,6 @@
 
 - Deliver complete changes. No placeholders, fake TODOs, or omitted sections.
 - Fix the cause, not the symptom.
-- Always use selectors when reading Zustand store state, so
-  `const x = useStore((s) => s.x)`, never `const { x } = useStore()`. Bare calls
-  subscribe to every state change, causing needless re-renders and possible
-  infinite loops with effects.
 
 ## Testing
 
