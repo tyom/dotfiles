@@ -16,7 +16,10 @@
 # curl would still print "completed successfully".
 set -eo pipefail
 
-export YES_OVERRIDE=true
+# The container has no tty, so the checklist can't be answered interactively.
+# -y as a flag rather than an exported YES_OVERRIDE, so the flag path a user
+# without a tty takes is the one this smoke tests.
+SETUP_FLAGS="-y"
 
 case "${1:-remote-test}" in
 remote-test)
@@ -39,6 +42,6 @@ esac
 
 echo "Installing from $URL"
 echo ""
-curl -fsSL "$URL" | bash
+curl -fsSL "$URL" | bash -s -- $SETUP_FLAGS
 echo ""
 echo "Remote install test completed successfully!"

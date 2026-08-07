@@ -64,9 +64,15 @@ Setup shows a checklist. Toggle items by number, press <kbd>Enter</kbd> to
 install, or <kbd>q</kbd> to quit. It takes a few minutes to download and set up
 packages. At the end you get a summary and one line of validation results.
 
+Without a terminal the checklist cannot be answered, so pass the choice as a
+flag. With neither flag it installs the pre-ticked defaults (`dotfiles`, `node`).
+
 ```bash
 # Install everything, no checklist (for CI or a fresh box)
 curl -fsSL https://tyom.github.io/dotfiles/install.sh | bash -s -- -y
+
+# Or pick the items yourself: dotfiles, agents, node, brew, casks, bun, claude-plugin
+curl -fsSL https://tyom.github.io/dotfiles/install.sh | bash -s -- --select dotfiles,brew
 
 # Somewhere other than ~/.dotfiles
 curl -fsSL https://tyom.github.io/dotfiles/install.sh | DOTFILES_DIR=~/my-dotfiles bash
@@ -88,7 +94,8 @@ make install
 
 Add `VERBOSE=1` to see every validation check instead of the summary line
 (`make install VERBOSE=1`, or `./scripts/setup.sh --verbose`). Docker test targets
-always run verbose.
+always run verbose. `make install SELECT=dotfiles,brew` skips the checklist, the
+same as `./scripts/setup.sh --select dotfiles,brew`.
 
 ### Uninstall
 
