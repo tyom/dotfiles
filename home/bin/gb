@@ -27,10 +27,11 @@ truncate() {
 refs=refs/heads
 [[ "${1:-}" == "-r" ]] && refs=refs/remotes
 
-# One call for everything: sorted, subject last so embedded '|' can't break
-# fields, symref first to skip pointers like origin/HEAD
+# One call for everything: sorted, symref first to skip pointers like
+# origin/HEAD. Unit separator, a ref or an author name may contain a pipe
+sep=$'\037'
 sorted_data=$(git for-each-ref --sort=-committerdate \
-  --format='%(symref)|%(refname:short)|%(objectname:short=8)|%(authorname)|%(committerdate:relative)|%(committerdate:unix)|%(committerdate:format:%d %b %Y)|%(contents:subject)' \
+  --format="%(symref)$sep%(refname:short)$sep%(objectname:short=8)$sep%(authorname)$sep%(committerdate:relative)$sep%(committerdate:unix)$sep%(committerdate:format:%d %b %Y)$sep%(contents:subject)" \
   "$refs" 2>/dev/null) || exit 0
 
 [[ -z "$sorted_data" ]] && exit 0
@@ -42,7 +43,7 @@ merged=$'\n'$(git for-each-ref --merged=HEAD --format='%(refname:short)' "$refs"
 
 # Calculate max branch name length
 max_branch_len=0
-while IFS='|' read -r symref branch _; do
+while IFS="$sep" read -r symref branch _; do
   [[ -n "$symref" ]] && continue
   [[ ${#branch} -gt $max_branch_len ]] && max_branch_len=${#branch}
 done <<<"$sorted_data"
@@ -50,7 +51,7 @@ done <<<"$sorted_data"
 # Output
 now=$(date +%s)
 
-while IFS='|' read -r symref branch sha author timeago ts stamp message; do
+while IFS="$sep" read -r symref branch sha author timeago ts stamp message; do
   [[ -z "$branch" || -n "$symref" ]] && continue
 
   is_present=""
