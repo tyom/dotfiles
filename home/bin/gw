@@ -105,9 +105,9 @@ cmd_list() {
   done <<<"$sorted"
 
   cols=${COLUMNS:-$(tput cols 2>/dev/null || echo 100)}
-  # The subject line starts under the sha: marker(1) + space + the branch
-  # column, which carries a space each side, + space
-  indent_len=$((max_branch_len + 5))
+  # The author starts under the date, so ∟ sits one past the sha: marker(1) +
+  # space + the branch column, which carries a space each side, + space + sha(8)
+  indent_len=$((max_branch_len + 13))
   indent=$(printf "%${indent_len}s" '')
   now=$(date +%s)
 
@@ -153,9 +153,9 @@ cmd_list() {
       "$CYAN" "$(short_path "$path")" "$RESET" \
       "${locked:+ $locked}"
 
-    printf '%s%b%s%b → %b%s%b\n' "$indent" \
+    printf '%s∟ %b%s%b → %b%s%b\n' "$indent" \
       "$WHITE" "$(truncate "$author" 20)" "$RESET" \
-      "$LIGHT_GRAY" "$(truncate "$subject" $((cols - indent_len - 23)))" "$RESET"
+      "$LIGHT_GRAY" "$(truncate "$subject" $((cols - indent_len - 26)))" "$RESET"
   done <<<"$sorted"
 }
 
