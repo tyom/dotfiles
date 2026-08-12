@@ -59,26 +59,21 @@ else
   label=${root##*/}
 fi
 
-# -I drops binaries, the empty pattern matches every line of everything tracked
-list=$(mktemp)
-trap 'rm -f "$list"' EXIT
-git grep -I --name-only -z -e '' -- "$root" >"$list" || true
-files=$(tr -dc '\0' <"$list" | wc -c | tr -d ' ')
-((files)) || { echo "git-who: no tracked text files under $root" >&2; exit 1; }
-
-jobs=$(sysctl -n hw.ncpu 2>/dev/null || nproc 2>/dev/null || echo 4)
+jobs=$(getconf _NPROCESSORS_ONLN 2>/dev/null || echo 4)
 cols=${COLUMNS:-$(tput cols 2>/dev/null || echo 100)}
 esc=$'\033'
 lowsep=$'\001'
 unitsep=$'\037'
 
-printf 'git-who: blaming %s files…\n' "$files" >&2
+echo 'git-who: blaming HEAD…' >&2
 
-xargs -0 -P"$jobs" -n1 "$0" --blame-one <"$list" |
+# -I drops binaries, the empty pattern matches every line of everything tracked
+git grep -I --name-only -z -e '' -- "$root" |
+  xargs -0 -P"$jobs" -n1 "$0" --blame-one |
 
   # Fold per-file counts into every directory above the file, then keep each
   # directory's top few authors. Chunks go out as "<colour digit>Name 42%"
-  awk -F'\t' -v prefix="$prefix" -v maxdepth="$depth" -v top=5 \
+  awk -F'\t' -v prefix="$prefix" -v maxdepth="$depth" -v top=5 -v label="$label" \
       -v lowsep="$lowsep" -v unitsep="$unitsep" '
     function add(d, a, n,   key) {
       key = d SUBSEP a
@@ -87,11 +82,17 @@ xargs -0 -P"$jobs" -n1 "$0" --blame-one <"$list" |
       tot[d] += n
       if (!(d in depth)) { depth[d] = dd; dirs[++nd] = d }
     }
-    # First word plus the last initial: five names still fit on a line
-    function short(s,   w, k) {
-      k = split(s, w, " ")
-      if (k < 2) return substr(s, 1, 12)
-      return substr(w[1], 1, 12) " " substr(w[k], 1, 1) "."
+    # First word plus the last initial: five names still fit on a line. A
+    # single long word (a bot, a handle) is cut with an ellipsis to say so
+    function short(s,   parts, k) {
+      k = split(s, parts, " ")
+      if (k > 1) s = parts[1] " " substr(parts[k], 1, 1) "."
+      return length(s) > 14 ? substr(s, 1, 14) "…" : s
+    }
+    function human(x) {
+      if (x >= 1000000) return sprintf("%.1fM", x / 1000000)
+      if (x >= 1000) return sprintf("%.1fk", x / 1000)
+      return sprintf("%d", x)
     }
     {
       f = $1; a = $2; n = $3
@@ -118,9 +119,13 @@ xargs -0 -P"$jobs" -n1 "$0" --blame-one <"$list" |
       }
       for (j = 1; j <= nd; j++) {
         d = dirs[j]
+        seg = label
+        if (d != ".") { k = split(d, part, "/"); seg = part[k] }
+        lbl[j] = sprintf("%*s%s/", depth[d] * 2, "", seg)
+        if (length(lbl[j]) > w) w = length(lbl[j])
         na = split(alist[d], av, "\n")
         split("", used)
-        out = ""
+        out[j] = ""
         m = (na < top ? na : top)
         for (r = 1; r <= m; r++) {
           best = 0
@@ -129,55 +134,40 @@ xargs -0 -P"$jobs" -n1 "$0" --blame-one <"$list" |
                 (best == 0 || cnt[d SUBSEP av[i]] > cnt[d SUBSEP av[best]])) best = i
           used[best] = 1
           pct = 100 * cnt[d SUBSEP av[best]] / tot[d]
-          out = out "\t" (av[best] in colr ? colr[av[best]] : 9) short(av[best]) \
-                unitsep (pct < 1 ? "<1" : sprintf("%.0f", pct)) "%"
+          out[j] = out[j] "\t" (av[best] in colr ? colr[av[best]] : 9) short(av[best]) \
+                   unitsep (pct < 1 ? "<1" : sprintf("%.0f", pct)) "%"
         }
-        # Sort key with a low byte for the slash, else a sibling like "a-b"
-        # lands between "a" and "a/b" and the nesting reads wrong
-        key = d; gsub("/", lowsep, key)
-        printf "%s\t%s\t%d\t%d%s\n", key, d, depth[d], tot[d], out
+      }
+      # Names pad to the widest here, so the last stage can print as it reads.
+      # The sort key takes a low byte for the slash, else a sibling like "a-b"
+      # lands between "a" and "a/b" and the nesting reads wrong
+      for (j = 1; j <= nd; j++) {
+        key = dirs[j]; gsub("/", lowsep, key)
+        printf "%s\t%-*s\t%7s%s\n", key, w, lbl[j], human(tot[dirs[j]]), out[j]
       }
     }' |
 
   LC_ALL=C sort -t$'\t' -k1,1 |
 
-  # Indent by depth, pad the name column to the widest, then fit as many
-  # authors as the terminal has room for
-  awk -F'\t' -v cols="$cols" -v label="$label" -v esc="$esc" -v unitsep="$unitsep" '
-    function human(x) {
-      if (x >= 1000000) return sprintf("%.1fM", x / 1000000)
-      if (x >= 1000) return sprintf("%.1fk", x / 1000)
-      return sprintf("%d", x)
-    }
-    {
-      n++
-      total[n] = $4
-      seg = $2
-      if (seg == ".") seg = label
-      else { k = split($2, pp, "/"); seg = pp[k] }
-      lbl[n] = sprintf("%*s%s/", $3 * 2, "", seg)
-      if (length(lbl[n]) > w) w = length(lbl[n])
-      count[n] = NF - 4
-      for (i = 5; i <= NF; i++) chunk[n, i - 4] = $i
-    }
-    END {
+  # Colour the names and fit as many as the terminal has room for
+  awk -F'\t' -v cols="$cols" -v esc="$esc" -v unitsep="$unitsep" '
+    BEGIN {
       pal[0] = esc "[38;5;114m"; pal[1] = esc "[38;5;110m"
       pal[2] = esc "[38;5;180m"; pal[3] = esc "[38;5;175m"
       pal[4] = esc "[38;5;139m"; pal[5] = esc "[38;5;109m"
       grey = esc "[38;5;246m"; dim = esc "[90m"; reset = esc "[0m"
-      for (j = 1; j <= n; j++) {
-        printf "%s%-*s%s  %s%7s%s  ", reset, w, lbl[j], reset, dim, human(total[j]), reset
-        used = w + 2 + 7 + 2
-        for (i = 1; i <= count[j]; i++) {
-          c = substr(chunk[j, i], 1, 1) + 0
-          split(substr(chunk[j, i], 2), field, unitsep)
-          name = field[1]; pct = field[2]
-          width = length(name) + length(pct) + 1
-          if (i > 1 && used + width + 2 > cols) break
-          printf "%s%s%s%s %s%s%s", (i > 1 ? "  " : ""), \
-            (c in pal ? pal[c] : grey), name, reset, dim, pct, reset
-          used += width + 2
-        }
-        printf "\n"
+    }
+    {
+      printf "%s  %s%s%s  ", $2, dim, $3, reset
+      used = length($2) + length($3) + 4
+      for (i = 4; i <= NF; i++) {
+        c = substr($i, 1, 1) + 0
+        split(substr($i, 2), field, unitsep)
+        width = length(field[1]) + length(field[2]) + 1
+        if (i > 4 && used + width + 2 > cols) break
+        printf "%s%s%s%s %s%s%s", (i > 4 ? "  " : ""), \
+          (c in pal ? pal[c] : grey), field[1], reset, dim, field[2], reset
+        used += width + 2
       }
+      printf "\n"
     }' | less -RFX
