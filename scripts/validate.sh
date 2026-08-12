@@ -242,7 +242,7 @@ fi
 echo ""
 print_info "Checking bin scripts..."
 
-for script in color-test gb gl git-author; do
+for script in color-test gb gl gw git-who; do
   check_symlink "$HOME/bin/$script" "bin/$script"
 done
 
