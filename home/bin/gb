@@ -13,6 +13,7 @@ LIGHT_GRAY=$'\033[38;5;246m'
 GREEN=$'\033[32m'
 YELLOW=$'\033[33m'
 WHITE=$'\033[37m'
+BLOCK=$'\033[30;42m'
 
 truncate() {
   local str="$1"
@@ -60,14 +61,9 @@ while IFS="$sep" read -r symref branch sha author timeago ts stamp message; do
   is_current=""
   [[ "$branch" == "$current_branch" ]] && is_current="1"
 
-  # Determine marker
-  if [[ -n "$is_current" ]]; then
-    marker="${GREEN}▶︎${RESET}"
-  elif [[ -n "$is_present" ]]; then
-    marker="${GREEN}✓${RESET}"
-  else
-    marker=" "
-  fi
+  # Determine marker. The current branch needs none, its block says so
+  marker=" "
+  [[ -n "$is_present" && -z "$is_current" ]] && marker="${GREEN}✓${RESET}"
 
   # Determine SHA color
   if [[ -n "$is_present" && -n "$is_current" ]]; then
@@ -76,9 +72,12 @@ while IFS="$sep" read -r symref branch sha author timeago ts stamp message; do
     sha_color="$YELLOW"
   fi
 
-  # Current branch stands out in bold default foreground, matching its sha
+  # The current branch gets a block. Every name carries the same space each side
+  # so the block has room without shifting the columns
   branch_color="$GREEN"
-  [[ -n "$is_current" ]] && branch_color="$BRIGHT"
+  [[ -n "$is_current" ]] && branch_color="$BLOCK"
+  branch_field=$(printf '%s %s %s%*s' \
+    "$branch_color" "$branch" "$RESET" $((max_branch_len - ${#branch})) '')
 
   # Months read better than "1 year, 4 months", a date is better than either.
   # (days + 15) / 30 is how git itself rounds months, so the two agree
@@ -95,9 +94,9 @@ while IFS="$sep" read -r symref branch sha author timeago ts stamp message; do
   message_trunc=$(truncate "$message" 60)
 
   # Use %b to interpret escape sequences in format string
-  printf '%s %b%-*s%b  %b%s%b  %b%-15s%b  %b%s%b → %b%s%b\n' \
+  printf '%s %s %b%s%b  %b%-15s%b  %b%s%b → %b%s%b\n' \
     "$marker" \
-    "$branch_color" "$max_branch_len" "$branch" "$RESET" \
+    "$branch_field" \
     "$sha_color" "$sha" "$RESET" \
     "$GRAY" "$timeago_trunc" "$RESET" \
     "$WHITE" "$author_trunc" "$RESET" \
