@@ -30,7 +30,7 @@ git log --color=always --abbrev=8 --date=format:'%d %b %Y' \
     }
   ' |
   sed $'s/∟ \033\\[32mHEAD/∟ \033[30;42m HEAD \033[m/' |
-  less -R
+  less -RFX # -F skips the pager when it all fits, -X keeps that output on screen
 
 # Report git's own failures, less exiting first is not one of them
 status=${PIPESTATUS[0]}
