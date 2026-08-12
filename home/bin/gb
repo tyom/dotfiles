@@ -1,9 +1,26 @@
 #!/usr/bin/env bash
 
-# Git branches with formatted output, sorted by commit date
-# Usage: gb [-r]
+# Git branches with formatted output, newest first
 
 set -e
+
+usage() {
+  cat <<'USAGE'
+gb - list git branches, most recently committed to first
+
+Usage: gb [-r] [-s] [-h]
+
+Options:
+  -r  remote branches instead of local
+  -s  name and size only, largest first. Size is the disk taken by the objects
+      a branch holds that origin's default branch does not, so a branch with
+      nothing of its own is left blank
+  -h  show this help and exit
+
+The current branch is shown as a block, a tick marks the branches already
+merged into HEAD.
+USAGE
+}
 
 # Colors (using $'...' syntax for proper escape interpretation)
 RESET=$'\033[0m'
@@ -14,6 +31,20 @@ GREEN=$'\033[32m'
 YELLOW=$'\033[33m'
 WHITE=$'\033[37m'
 BLOCK=$'\033[30;42m'
+
+# Biggest first, then the byte count becomes KiB or MiB as git would write it.
+# A branch holding nothing the base lacks measures 0, and says more left blank
+by_size() {
+  [[ -z "$sizes" ]] && { cat; return; }
+  sort -rn | awk -F'\t' -v gray="$GRAY" -v reset="$RESET" '
+    BEGIN { split("B KiB MiB GiB TiB", unit, " ") }
+    {
+      sz = $1
+      for (i = 1; sz >= 1024 && i < 5; i++) sz /= 1024
+      size = $1 == 0 ? "" : (i == 1 ? sprintf("%d B", sz) : sprintf("%.2f %s", sz, unit[i]))
+      printf "%s%s%10s%s\n", $2, gray, size, reset
+    }'
+}
 
 truncate() {
   local str="$1"
@@ -26,7 +57,22 @@ truncate() {
 }
 
 refs=refs/heads
-[[ "${1:-}" == "-r" ]] && refs=refs/remotes
+sizes=""
+# Leading colon: getopts stays quiet so the unknown option reads as ours
+while getopts :rsh opt; do
+  case $opt in
+    r) refs=refs/remotes ;;
+    s) sizes=1 ;;
+    h) usage && exit 0 ;;
+    *) echo "gb: unknown option -$OPTARG" >&2 && usage >&2 && exit 2 ;;
+  esac
+done
+
+# What a branch is measured against: what origin calls default, else this branch
+if [[ -n "$sizes" ]]; then
+  base=$(git symbolic-ref -q --short refs/remotes/origin/HEAD 2>/dev/null) ||
+    base=$(git rev-parse --abbrev-ref HEAD 2>/dev/null)
+fi
 
 # One call for everything: sorted, symref first to skip pointers like
 # origin/HEAD. Unit separator, a ref or an author name may contain a pipe
@@ -88,6 +134,14 @@ while IFS="$sep" read -r symref branch sha author timeago ts stamp message; do
     timeago="$(((days + 15) / 30)) months ago"
   fi
 
+  # -s is a different question, so it gets its own line: the name and the size,
+  # nothing else. Raw bytes here, by_size sorts on them and formats them
+  if [[ -n "$sizes" ]]; then
+    bytes=$(git rev-list --disk-usage --objects "$branch" --not "$base" 2>/dev/null) || bytes=0
+    printf '%s\t%s %s\n' "$bytes" "$marker" "$branch_field"
+    continue
+  fi
+
   # Truncate fields
   timeago_trunc=$(truncate "$timeago" 15)
   author_trunc=$(truncate "$author" 20)
@@ -102,4 +156,4 @@ while IFS="$sep" read -r symref branch sha author timeago ts stamp message; do
     "$WHITE" "$author_trunc" "$RESET" \
     "$LIGHT_GRAY" "$message_trunc" "$RESET"
   # -F skips the pager when it all fits on one screen, -X keeps it on screen
-done <<<"$sorted_data" | less -RFX
+done <<<"$sorted_data" | by_size | less -RFX
