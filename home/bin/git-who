@@ -87,7 +87,7 @@ git grep -I --name-only -z -e '' -- "$root" |
     function short(s,   parts, k) {
       k = split(s, parts, " ")
       if (k > 1) s = parts[1] " " substr(parts[k], 1, 1) "."
-      return length(s) > 14 ? substr(s, 1, 14) "…" : s
+      return length(s) > 20 ? substr(s, 1, 20) "…" : s
     }
     function human(x) {
       if (x >= 1000000) return sprintf("%.1fM", x / 1000000)
