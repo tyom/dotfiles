@@ -1,13 +1,6 @@
 #!/usr/bin/env bash
 
-# Git worktrees mapped to branches, newest first.
-# The current worktree is shown as a block, ✓ = branch merged into base,
-# 🔒 = locked.
-# Usage:
-#   gw                 list worktrees
-#   gw prune           remove worktrees (and branches) for merged branches
-#   gw switch <branch> print the worktree path for a branch (the gw shell
-#                      function wraps this to actually cd there)
+# Git worktrees mapped to branches, newest first. See usage() for the commands
 
 set -e
 
@@ -27,14 +20,7 @@ BLOCK=$'\033[30;42m'
 sep=$'\037'
 nl=$'\n'
 
-truncate() {
-  local str="$1" max="$2"
-  if [[ ${#str} -gt $max ]]; then
-    printf '%s' "${str:0:$max}…"
-  else
-    printf '%s' "$str"
-  fi
-}
+truncate() { ((${#1} > $2)) && printf '%s…' "${1:0:$2}" || printf '%s' "$1"; }
 
 # Base branch to test "merged" against (main, else master).
 base=main
@@ -149,7 +135,7 @@ cmd_list() {
       "$marker" \
       "$branch_field" \
       "$sha_color" "$sha" "$RESET" \
-      "$GRAY" "$(truncate "$timeago" 15)" "$RESET" \
+      "$GRAY" "$timeago" "$RESET" \
       "$CYAN" "$(short_path "$path")" "$RESET" \
       "${locked:+ $locked}"
 

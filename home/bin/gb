@@ -46,15 +46,7 @@ by_size() {
     }'
 }
 
-truncate() {
-  local str="$1"
-  local max="$2"
-  if [[ ${#str} -gt $max ]]; then
-    printf '%s' "${str:0:$max}…"
-  else
-    printf '%s' "$str"
-  fi
-}
+truncate() { ((${#1} > $2)) && printf '%s…' "${1:0:$2}" || printf '%s' "$1"; }
 
 refs=refs/heads
 sizes=""
@@ -112,11 +104,8 @@ while IFS="$sep" read -r symref branch sha author timeago ts stamp message; do
   [[ -n "$is_present" && -z "$is_current" ]] && marker="${GREEN}✓${RESET}"
 
   # Determine SHA color
-  if [[ -n "$is_present" && -n "$is_current" ]]; then
-    sha_color="$BRIGHT"
-  else
-    sha_color="$YELLOW"
-  fi
+  sha_color="$YELLOW"
+  [[ -n "$is_current" ]] && sha_color="$BRIGHT"
 
   # The current branch gets a block. Every name carries the same space each side
   # so the block has room without shifting the columns
@@ -142,8 +131,7 @@ while IFS="$sep" read -r symref branch sha author timeago ts stamp message; do
     continue
   fi
 
-  # Truncate fields
-  timeago_trunc=$(truncate "$timeago" 15)
+  # Truncate fields. timeago needs none, %-15s already pads its longest form
   author_trunc=$(truncate "$author" 20)
   message_trunc=$(truncate "$message" 60)
 
@@ -152,7 +140,7 @@ while IFS="$sep" read -r symref branch sha author timeago ts stamp message; do
     "$marker" \
     "$branch_field" \
     "$sha_color" "$sha" "$RESET" \
-    "$GRAY" "$timeago_trunc" "$RESET" \
+    "$GRAY" "$timeago" "$RESET" \
     "$WHITE" "$author_trunc" "$RESET" \
     "$LIGHT_GRAY" "$message_trunc" "$RESET"
   # -F skips the pager when it all fits on one screen, -X keeps it on screen
