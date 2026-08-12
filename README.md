@@ -43,12 +43,13 @@ How it behaves:
   several coding agents in one terminal, and the rest of
   [scripts/install/brew.sh](./scripts/install/brew.sh)
 - **Node**: Volta, and Node installed through it. Bun if you tick it.
-- **Scripts on your PATH**: `gb` lists branches by commit date, `gw` lists
-  worktrees and can switch to or prune them, plus `git-author`,
-  `git-branch-sizes`, `color-test` and two of my tools from
-  Homebrew: [`ungit`](https://github.com/tyom/ungit) reads a GitHub repo or
-  subdirectory as text, and [`repo-intel`](https://github.com/tyom/repo-intel)
-  builds a contributor dashboard for any git repo
+- **Scripts on your PATH**: `gl` prints the git log one commit per line with
+  refs underneath, `gb` lists branches by commit date, or by the disk they hold
+  with `-s`, `gw` lists worktrees and can switch to or prune them, plus
+  `git-author`, `color-test` and two of my tools from Homebrew:
+  [`ungit`](https://github.com/tyom/ungit) reads a GitHub repo or subdirectory
+  as text, and [`repo-intel`](https://github.com/tyom/repo-intel) builds a
+  contributor dashboard for any git repo
 - **Claude Code plugin**: `/explain-code`, `/review-code` and `/refactor-code`
 
 ## Installation

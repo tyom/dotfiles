@@ -1,9 +1,26 @@
 #!/usr/bin/env bash
 
-# Git branches with formatted output, sorted by commit date
-# Usage: gb [-r]
+# Git branches with formatted output, newest first
 
 set -e
+
+usage() {
+  cat <<'USAGE'
+gb - list git branches, most recently committed to first
+
+Usage: gb [-r] [-s] [-h]
+
+Options:
+  -r  remote branches instead of local
+  -s  name and size only, largest first. Size is the disk taken by the objects
+      a branch holds that origin's default branch does not, so a branch with
+      nothing of its own is left blank
+  -h  show this help and exit
+
+The current branch is shown as a block, a tick marks the branches already
+merged into HEAD.
+USAGE
+}
 
 # Colors (using $'...' syntax for proper escape interpretation)
 RESET=$'\033[0m'
@@ -13,24 +30,47 @@ LIGHT_GRAY=$'\033[38;5;246m'
 GREEN=$'\033[32m'
 YELLOW=$'\033[33m'
 WHITE=$'\033[37m'
+BLOCK=$'\033[30;42m'
 
-truncate() {
-  local str="$1"
-  local max="$2"
-  if [[ ${#str} -gt $max ]]; then
-    printf '%s' "${str:0:$max}…"
-  else
-    printf '%s' "$str"
-  fi
+# Biggest first, then the byte count becomes KiB or MiB as git would write it.
+# A branch holding nothing the base lacks measures 0, and says more left blank
+by_size() {
+  [[ -z "$sizes" ]] && { cat; return; }
+  sort -rn | awk -F'\t' -v gray="$GRAY" -v reset="$RESET" '
+    BEGIN { split("B KiB MiB GiB TiB", unit, " ") }
+    {
+      sz = $1
+      for (i = 1; sz >= 1024 && i < 5; i++) sz /= 1024
+      size = $1 == 0 ? "" : (i == 1 ? sprintf("%d B", sz) : sprintf("%.2f %s", sz, unit[i]))
+      printf "%s%s%10s%s\n", $2, gray, size, reset
+    }'
 }
 
-refs=refs/heads
-[[ "${1:-}" == "-r" ]] && refs=refs/remotes
+truncate() { ((${#1} > $2)) && printf '%s…' "${1:0:$2}" || printf '%s' "$1"; }
 
-# One call for everything: sorted, subject last so embedded '|' can't break
-# fields, symref first to skip pointers like origin/HEAD
-sorted_data=$(git for-each-ref --sort=committerdate \
-  --format='%(symref)|%(refname:short)|%(objectname:short)|%(authorname)|%(committerdate:relative)|%(contents:subject)' \
+refs=refs/heads
+sizes=""
+# Leading colon: getopts stays quiet so the unknown option reads as ours
+while getopts :rsh opt; do
+  case $opt in
+    r) refs=refs/remotes ;;
+    s) sizes=1 ;;
+    h) usage && exit 0 ;;
+    *) echo "gb: unknown option -$OPTARG" >&2 && usage >&2 && exit 2 ;;
+  esac
+done
+
+# What a branch is measured against: what origin calls default, else this branch
+if [[ -n "$sizes" ]]; then
+  base=$(git symbolic-ref -q --short refs/remotes/origin/HEAD 2>/dev/null) ||
+    base=$(git rev-parse --abbrev-ref HEAD 2>/dev/null)
+fi
+
+# One call for everything: sorted, symref first to skip pointers like
+# origin/HEAD. Unit separator, a ref or an author name may contain a pipe
+sep=$'\037'
+sorted_data=$(git for-each-ref --sort=-committerdate \
+  --format="%(symref)$sep%(refname:short)$sep%(objectname:short=8)$sep%(authorname)$sep%(committerdate:relative)$sep%(committerdate:unix)$sep%(committerdate:format:%d %b %Y)$sep%(contents:subject)" \
   "$refs" 2>/dev/null) || exit 0
 
 [[ -z "$sorted_data" ]] && exit 0
@@ -42,13 +82,15 @@ merged=$'\n'$(git for-each-ref --merged=HEAD --format='%(refname:short)' "$refs"
 
 # Calculate max branch name length
 max_branch_len=0
-while IFS='|' read -r symref branch _; do
+while IFS="$sep" read -r symref branch _; do
   [[ -n "$symref" ]] && continue
   [[ ${#branch} -gt $max_branch_len ]] && max_branch_len=${#branch}
 done <<<"$sorted_data"
 
 # Output
-while IFS='|' read -r symref branch sha author timeago message; do
+now=$(date +%s)
+
+while IFS="$sep" read -r symref branch sha author timeago ts stamp message; do
   [[ -z "$branch" || -n "$symref" ]] && continue
 
   is_present=""
@@ -57,33 +99,49 @@ while IFS='|' read -r symref branch sha author timeago message; do
   is_current=""
   [[ "$branch" == "$current_branch" ]] && is_current="1"
 
-  # Determine marker
-  if [[ -n "$is_current" ]]; then
-    marker="→"
-  elif [[ -n "$is_present" ]]; then
-    marker="${GREEN}✓${RESET}"
-  else
-    marker=" "
-  fi
+  # Determine marker. The current branch needs none, its block says so
+  marker=" "
+  [[ -n "$is_present" && -z "$is_current" ]] && marker="${GREEN}✓${RESET}"
 
   # Determine SHA color
-  if [[ -n "$is_present" && -n "$is_current" ]]; then
-    sha_color="$BRIGHT"
-  else
-    sha_color="$YELLOW"
+  sha_color="$YELLOW"
+  [[ -n "$is_current" ]] && sha_color="$BRIGHT"
+
+  # The current branch gets a block. Every name carries the same space each side
+  # so the block has room without shifting the columns
+  branch_color="$GREEN"
+  [[ -n "$is_current" ]] && branch_color="$BLOCK"
+  branch_field=$(printf '%s %s %s%*s' \
+    "$branch_color" "$branch" "$RESET" $((max_branch_len - ${#branch})) '')
+
+  # Months read better than "1 year, 4 months", a date is better than either.
+  # (days + 15) / 30 is how git itself rounds months, so the two agree
+  days=$(((now - ts) / 86400))
+  if ((days > 730)); then
+    timeago="$stamp"
+  elif ((days >= 30)); then
+    timeago="$(((days + 15) / 30)) months ago"
   fi
 
-  # Truncate fields
-  timeago_trunc=$(truncate "$timeago" 20)
+  # -s is a different question, so it gets its own line: the name and the size,
+  # nothing else. Raw bytes here, by_size sorts on them and formats them
+  if [[ -n "$sizes" ]]; then
+    bytes=$(git rev-list --disk-usage --objects "$branch" --not "$base" 2>/dev/null) || bytes=0
+    printf '%s\t%s %s\n' "$bytes" "$marker" "$branch_field"
+    continue
+  fi
+
+  # Truncate fields. timeago needs none, %-15s already pads its longest form
   author_trunc=$(truncate "$author" 20)
   message_trunc=$(truncate "$message" 60)
 
   # Use %b to interpret escape sequences in format string
-  printf '%b%-20s%b  %b%-20s%b  %s  %b%s%b  %b%-*s%b  %b%s%b\n' \
-    "$GRAY" "$timeago_trunc" "$RESET" \
-    "$WHITE" "$author_trunc" "$RESET" \
+  printf '%s %s %b%s%b  %b%-15s%b  %b%s%b → %b%s%b\n' \
     "$marker" \
+    "$branch_field" \
     "$sha_color" "$sha" "$RESET" \
-    "$GREEN" "$max_branch_len" "$branch" "$RESET" \
+    "$GRAY" "$timeago" "$RESET" \
+    "$WHITE" "$author_trunc" "$RESET" \
     "$LIGHT_GRAY" "$message_trunc" "$RESET"
-done <<<"$sorted_data"
+  # -F skips the pager when it all fits on one screen, -X keeps it on screen
+done <<<"$sorted_data" | by_size | less -RFX

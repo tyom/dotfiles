@@ -1,12 +1,6 @@
 #!/usr/bin/env bash
 
-# Git worktrees mapped to branches, sorted by commit date.
-# ✓ = branch merged into base, → = the current worktree, 🔒 = locked.
-# Usage:
-#   gw                 list worktrees
-#   gw prune           remove worktrees (and branches) for merged branches
-#   gw switch <branch> print the worktree path for a branch (the gw shell
-#                      function wraps this to actually cd there)
+# Git worktrees mapped to branches, newest first. See usage() for the commands
 
 set -e
 
@@ -19,15 +13,14 @@ YELLOW=$'\033[33m'
 DIM_GREEN=$'\033[2;32m'
 RED=$'\033[31m'
 CYAN=$'\033[36m'
+WHITE=$'\033[37m'
+BLOCK=$'\033[30;42m'
 
-truncate() {
-  local str="$1" max="$2"
-  if [[ ${#str} -gt $max ]]; then
-    printf '%s' "${str:0:$max}…"
-  else
-    printf '%s' "$str"
-  fi
-}
+# Unit separator: a branch name or a subject may contain a pipe
+sep=$'\037'
+nl=$'\n'
+
+truncate() { ((${#1} > $2)) && printf '%s…' "${1:0:$2}" || printf '%s' "$1"; }
 
 # Base branch to test "merged" against (main, else master).
 base=main
@@ -35,44 +28,44 @@ git show-ref --verify --quiet refs/heads/main || base=master
 
 this_wt=$(git rev-parse --show-toplevel 2>/dev/null)
 
-# Parse `git worktree list --porcelain` into "path|branch|sha|locked" records.
+# Parse `git worktree list --porcelain` into "path branch sha locked" records.
 # Full sha kept for exact matching against the batched git log below.
-records=$(git worktree list --porcelain 2>/dev/null | awk '
+records=$(git worktree list --porcelain 2>/dev/null | awk -v s="$sep" '
   /^worktree /  { path=substr($0,10) }
   /^HEAD /      { sha=substr($0,6) }
   /^branch /    { br=substr($0,8); sub(/^refs\/heads\//,"",br) }
   /^detached/   { br="(detached)" }
   /^locked/     { locked="🔒" }
-  /^$/          { if(path){print path"|"br"|"sha"|"locked}; path="";br="";sha="";locked="" }
-  END           { if(path){print path"|"br"|"sha"|"locked} }
+  /^$/          { if(path){print path s br s sha s locked}; path="";br="";sha="";locked="" }
+  END           { if(path){print path s br s sha s locked} }
 ')
 
 # Main repo directory: the primary worktree is always listed first.
 first_record=${records%%$'\n'*}
-repo_dir=${first_record%%|*}
+repo_dir=${first_record%%"$sep"*}
 
-nl=$'\n'
-
-# One git log for all worktree HEADs: "sha|timestamp|relative|subject" lines.
-commit_info=$(git log --no-walk=unsorted --pretty=format:'%H|%ct|%cr|%s' \
-  $(printf '%s\n' "$records" | cut -d'|' -f3 | sort -u) 2>/dev/null) || commit_info=""
+# One git log for all worktree HEADs, subject last so it can hold anything.
+commit_info=$(git log --no-walk=unsorted --date=format:'%d %b %Y' \
+  --pretty=format:"%H$sep%ct$sep%cr$sep%cd$sep%an$sep%s" \
+  $(printf '%s\n' "$records" | cut -d"$sep" -f3 | sort -u) 2>/dev/null) || commit_info=""
 
 # Branches merged into base, one call instead of one merge-base per worktree.
 merged_set="$nl$(git for-each-ref --merged="$base" --format='%(refname:short)' refs/heads 2>/dev/null)$nl"
 
 # Attach commit timestamp for sorting.
 declare -a rows=()
-while IFS='|' read -r path branch sha locked; do
+while IFS="$sep" read -r path branch sha locked; do
   [[ -z "$path" ]] && continue
-  if [[ "$nl$commit_info" =~ "$nl$sha|"([^$nl]*) ]]; then
-    ts="${BASH_REMATCH[1]}"
+  if [[ "$nl$commit_info" =~ "$nl$sha$sep"([^$nl]*) ]]; then
+    found="${BASH_REMATCH[1]}"
   else
-    ts="0|?|"
+    found="0$sep?$sep?$sep$sep"
   fi
-  rows+=("$ts|$path|$branch|${sha:0:7}|$locked")
+  IFS="$sep" read -r ts relative stamp author subject <<<"$found"
+  rows+=("$ts$sep$relative$sep$stamp$sep$path$sep$branch$sep${sha:0:8}$sep$locked$sep$author$sep$subject")
 done <<<"$records"
 
-sorted=$(printf '%s\n' "${rows[@]}" | sort -t'|' -k1 -n)
+sorted=$(printf '%s\n' "${rows[@]}" | sort -t"$sep" -k1 -rn)
 
 # Paths inside the repo dir show as ./relative; ones outside show the full tilde path.
 short_path() {
@@ -92,19 +85,21 @@ is_merged() {
 }
 
 cmd_list() {
-  local max_branch_len=0 sp cols indent
-  while IFS='|' read -r _ _ _ path branch _ _; do
-    [[ -z "$path" ]] && continue
+  local max_branch_len=0 cols indent indent_len now
+  while IFS="$sep" read -r _ _ _ _ branch _; do
     [[ ${#branch} -gt $max_branch_len ]] && max_branch_len=${#branch}
   done <<<"$sorted"
 
   cols=${COLUMNS:-$(tput cols 2>/dev/null || echo 100)}
-  # Message line is indented to the branch column:
-  # lock(3) + timeago(14) + 2 + marker(1) + 2 + sha(7) + 2.
-  indent=$(printf '%31s' '')
+  # The author starts under the date, so ∟ sits one past the sha: marker(1) +
+  # space + the branch column, which carries a space each side, + space + sha(8)
+  indent_len=$((max_branch_len + 13))
+  indent=$(printf "%${indent_len}s" '')
+  now=$(date +%s)
 
-  local timeago message path branch sha locked merged is_current marker sha_color branch_color
-  while IFS='|' read -r _ timeago message path branch sha locked; do
+  local ts relative stamp path branch sha locked author subject
+  local merged is_current marker sha_color branch_color branch_field days timeago
+  while IFS="$sep" read -r ts relative stamp path branch sha locked author subject; do
     [[ -z "$path" ]] && continue
 
     merged=""
@@ -112,33 +107,41 @@ cmd_list() {
     is_current=""
     [[ "$path" == "$this_wt" ]] && is_current="1"
 
-    if [[ -n "$is_current" ]]; then
-      marker="→"
-    elif [[ -n "$merged" ]]; then
-      marker="${GREEN}✓${RESET}"
-    else
-      marker=" "
-    fi
+    # The current worktree needs no marker, its block says so
+    marker=" "
+    [[ -n "$merged" ]] && marker="${GREEN}✓${RESET}"
 
     sha_color="$YELLOW"
     [[ -n "$is_current" ]] && sha_color="$BRIGHT"
 
+    # Every name carries the same space each side so the block has room
     branch_color="$GREEN"
     [[ "$branch" == "(detached)" ]] && branch_color="$DIM_GREEN"
+    [[ -n "$is_current" ]] && branch_color="$BLOCK"
+    branch_field=$(printf '%s %s %s%*s' \
+      "$branch_color" "$branch" "$RESET" $((max_branch_len - ${#branch})) '')
 
-    # Leading lock column: 🔒 renders ~2 cols; pad absent locks to match, +1 separator.
-    [[ -n "$locked" ]] && lockmark="🔒" || lockmark="  "
+    # Months read better than "1 year, 4 months", a date is better than either.
+    # (days + 15) / 30 is how git itself rounds months, so the two agree
+    timeago="$relative"
+    days=$(((now - ts) / 86400))
+    if ((days > 730)); then
+      timeago="$stamp"
+    elif ((days >= 30)); then
+      timeago="$(((days + 15) / 30)) months ago"
+    fi
 
-    printf '%s %b%-14s%b  %s  %b%s%b  %b%-*s%b  %b%s%b\n' \
-      "$lockmark" \
-      "$GRAY" "$(truncate "$timeago" 14)" "$RESET" \
+    printf '%s %s %b%s%b  %b%-15s%b  %b%s%b%s\n' \
       "$marker" \
+      "$branch_field" \
       "$sha_color" "$sha" "$RESET" \
-      "$branch_color" "$max_branch_len" "$branch" "$RESET" \
-      "$CYAN" "$(short_path "$path")" "$RESET"
+      "$GRAY" "$timeago" "$RESET" \
+      "$CYAN" "$(short_path "$path")" "$RESET" \
+      "${locked:+ $locked}"
 
-    printf '%s%b%s%b\n' "$indent" \
-      "$LIGHT_GRAY" "$(truncate "$message" $((cols - 31)))" "$RESET"
+    printf '%s∟ %b%s%b → %b%s%b\n' "$indent" \
+      "$WHITE" "$(truncate "$author" 20)" "$RESET" \
+      "$LIGHT_GRAY" "$(truncate "$subject" $((cols - indent_len - 26)))" "$RESET"
   done <<<"$sorted"
 }
 
@@ -151,14 +154,14 @@ remove_wt() {
 
 cmd_prune() {
   local -a unlocked=() locked=()
-  local path branch sha lock
-  while IFS='|' read -r _ _ _ path branch sha lock; do
+  local path branch lock
+  while IFS="$sep" read -r _ _ _ path branch _ lock _; do
     [[ -z "$path" ]] && continue
     is_merged "$branch" "$path" || continue
     if [[ -n "$lock" ]]; then
-      locked+=("$path|$branch")
+      locked+=("$path$sep$branch")
     else
-      unlocked+=("$path|$branch")
+      unlocked+=("$path$sep$branch")
     fi
   done <<<"$sorted"
 
@@ -170,11 +173,11 @@ cmd_prune() {
   local entry p b
   echo "${BRIGHT}Merged worktrees to remove (branch will be deleted too):${RESET}"
   for entry in "${unlocked[@]}"; do
-    IFS='|' read -r p b <<<"$entry"
+    IFS="$sep" read -r p b <<<"$entry"
     printf '  %b%s%b  %b%s%b\n' "$GREEN" "$b" "$RESET" "$CYAN" "$(short_path "$p")" "$RESET"
   done
   for entry in "${locked[@]}"; do
-    IFS='|' read -r p b <<<"$entry"
+    IFS="$sep" read -r p b <<<"$entry"
     printf '  🔒 %b%s%b  %b%s%b\n' "$GREEN" "$b" "$RESET" "$CYAN" "$(short_path "$p")" "$RESET"
   done
   echo
@@ -200,7 +203,7 @@ cmd_prune() {
   fi
 
   for entry in "${targets[@]}"; do
-    IFS='|' read -r p b <<<"$entry"
+    IFS="$sep" read -r p b <<<"$entry"
     echo "Removing ${b} (${p})…"
     remove_wt "$p" "$b"
   done
@@ -216,7 +219,7 @@ cmd_switch() {
     echo "Usage: gw switch <branch|sha>" >&2
     return 1
   fi
-  while IFS='|' read -r path branch sha _; do
+  while IFS="$sep" read -r path branch sha _; do
     # Match branch name, or a sha prefix (stored sha is full length).
     if [[ "$branch" == "$target" || "$sha" == "$target"* ]]; then
       printf '%s\n' "$path"
@@ -229,10 +232,11 @@ cmd_switch() {
 
 usage() {
   cat <<EOF
-${BRIGHT}gw${RESET} — list git worktrees mapped to their branches, sorted by commit date.
+${BRIGHT}gw${RESET} — list git worktrees mapped to their branches, newest first.
 
 ${BRIGHT}Usage:${RESET}
-  gw            List worktrees. ${GREEN}✓${RESET} merged into ${base}, → current, 🔒 locked.
+  gw            List worktrees. The current one is a block, ${GREEN}✓${RESET} merged
+                into ${base}, 🔒 locked.
   gw prune      Remove worktrees (and delete branches) for merged branches.
                 Prompts before removing; if any are 🔒 locked, choose
                 [y] merged only, [a] all incl. locked, or [n] cancel.
