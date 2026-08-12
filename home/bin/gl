@@ -1,0 +1,33 @@
+#!/usr/bin/env bash
+
+# Git log, one line per commit, refs on a continuation line
+# Usage: gl [git log options]
+
+# %+ emits the ref line, prefix and all, only when the commit has refs. less
+# drops colour at every line break, so that line restarts its own colours, and
+# it eats the byte after a colour code, so no colour ever precedes ∟ or a dash.
+white='%x1b[37m'
+green='%x1b[32m'
+
+# The date column arrives between two %x1f markers as timestamp|stamp|relative,
+# git cannot pick between them itself
+git log --color=always --abbrev=8 --date=format:'%d %b %Y' \
+  --pretty=format:"%C(yellow)%h %C(59)%x1f%ct|%cd|%cr%x1f%C(white)%an → %C(245)%s%+(decorate:prefix=       ∟ $green,pointer=$white -> $green,separator=$white%x2C $green,suffix=$white ————————————————————)%C(auto)" \
+  "$@" |
+  awk -v now="$(date +%s)" '
+    # (days + 15) / 30 is how git itself rounds months, so the two agree
+    BEGIN { sep = sprintf("%c", 31) }
+    {
+      a = index($0, sep)
+      if (a) {
+        b = index(substr($0, a + 1), sep) + a
+        split(substr($0, a + 1, b - a - 1), f, "|")
+        days = int((now - f[1]) / 86400)
+        when = days > 730 ? f[2] : (days >= 30 ? int((days + 15) / 30) " months ago" : f[3])
+        $0 = substr($0, 1, a - 1) sprintf("%-15s", when) substr($0, b + 1)
+      }
+      print
+    }
+  ' |
+  sed $'s/∟ \033\\[32mHEAD/∟ \033[30;42m HEAD \033[m/' |
+  less -R

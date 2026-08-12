@@ -29,8 +29,8 @@ refs=refs/heads
 
 # One call for everything: sorted, subject last so embedded '|' can't break
 # fields, symref first to skip pointers like origin/HEAD
-sorted_data=$(git for-each-ref --sort=committerdate \
-  --format='%(symref)|%(refname:short)|%(objectname:short)|%(authorname)|%(committerdate:relative)|%(contents:subject)' \
+sorted_data=$(git for-each-ref --sort=-committerdate \
+  --format='%(symref)|%(refname:short)|%(objectname:short=8)|%(authorname)|%(committerdate:relative)|%(committerdate:unix)|%(committerdate:format:%d %b %Y)|%(contents:subject)' \
   "$refs" 2>/dev/null) || exit 0
 
 [[ -z "$sorted_data" ]] && exit 0
@@ -48,7 +48,9 @@ while IFS='|' read -r symref branch _; do
 done <<<"$sorted_data"
 
 # Output
-while IFS='|' read -r symref branch sha author timeago message; do
+now=$(date +%s)
+
+while IFS='|' read -r symref branch sha author timeago ts stamp message; do
   [[ -z "$branch" || -n "$symref" ]] && continue
 
   is_present=""
@@ -59,7 +61,7 @@ while IFS='|' read -r symref branch sha author timeago message; do
 
   # Determine marker
   if [[ -n "$is_current" ]]; then
-    marker="→"
+    marker="${GREEN}▶︎${RESET}"
   elif [[ -n "$is_present" ]]; then
     marker="${GREEN}✓${RESET}"
   else
@@ -73,17 +75,31 @@ while IFS='|' read -r symref branch sha author timeago message; do
     sha_color="$YELLOW"
   fi
 
+  # Current branch stands out in bold default foreground, matching its sha
+  branch_color="$GREEN"
+  [[ -n "$is_current" ]] && branch_color="$BRIGHT"
+
+  # Months read better than "1 year, 4 months", a date is better than either.
+  # (days + 15) / 30 is how git itself rounds months, so the two agree
+  days=$(((now - ts) / 86400))
+  if ((days > 730)); then
+    timeago="$stamp"
+  elif ((days >= 30)); then
+    timeago="$(((days + 15) / 30)) months ago"
+  fi
+
   # Truncate fields
-  timeago_trunc=$(truncate "$timeago" 20)
+  timeago_trunc=$(truncate "$timeago" 15)
   author_trunc=$(truncate "$author" 20)
   message_trunc=$(truncate "$message" 60)
 
   # Use %b to interpret escape sequences in format string
-  printf '%b%-20s%b  %b%-20s%b  %s  %b%s%b  %b%-*s%b  %b%s%b\n' \
+  printf '%s %b%-*s%b  %b%s%b  %b%-15s%b  %b%s%b → %b%s%b\n' \
+    "$marker" \
+    "$branch_color" "$max_branch_len" "$branch" "$RESET" \
+    "$sha_color" "$sha" "$RESET" \
     "$GRAY" "$timeago_trunc" "$RESET" \
     "$WHITE" "$author_trunc" "$RESET" \
-    "$marker" \
-    "$sha_color" "$sha" "$RESET" \
-    "$GREEN" "$max_branch_len" "$branch" "$RESET" \
     "$LIGHT_GRAY" "$message_trunc" "$RESET"
-done <<<"$sorted_data"
+  # -F skips the pager when it all fits on one screen, -X keeps it on screen
+done <<<"$sorted_data" | less -RFX
