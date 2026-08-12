@@ -7,8 +7,9 @@ set -e
 # Hidden mode: one file's blame folded into "file<TAB>author<TAB>lines".
 # xargs re-enters the script this way to blame files in parallel
 if [[ ${1:-} == --blame-one ]]; then
-  git blame --line-porcelain -w -M HEAD -- "$2" 2>/dev/null |
-    awk -v f="$2" '
+  file=${2#HEAD:} # git grep labels its matches with the rev it searched
+  git blame --line-porcelain -w -M HEAD -- "$file" 2>/dev/null |
+    awk -v f="$file" '
       /^author /  { c[substr($0, 8)]++ }
       END         { for (a in c) printf "%s\t%s\t%d\n", f, a, c[a] }'
   exit 0
@@ -44,20 +45,21 @@ shift $((OPTIND - 1))
 [[ $depth =~ ^[0-9]+$ ]] || { echo "git-who: -d wants a number" >&2; exit 2; }
 
 root=${1:-.}
-root=${root%/}
 [[ -d $root ]] || { echo "git-who: not a directory: $root" >&2; exit 2; }
 git rev-parse --verify -q HEAD >/dev/null ||
   { echo "git-who: no commits to blame" >&2; exit 1; }
 
-# Paths come back relative to the cwd, so the starting point is stripped off
-# the front and everything below it is measured from there
-if [[ $root == . ]]; then
-  prefix=""
-  label=${PWD##*/}
-else
-  prefix="$root/"
-  label=${root##*/}
-fi
+# Everything runs from the top of the checkout on repo-relative paths, so
+# "src", "./src" and /abs/path/src all name the same tree. The starting point
+# is stripped off the front and everything below it is measured from there
+top=$(git rev-parse --show-toplevel)
+[[ "$(cd "$root" && git rev-parse --show-toplevel 2>/dev/null)" == "$top" ]] ||
+  { echo "git-who: outside this checkout: $root" >&2; exit 2; }
+prefix=$(cd "$root" && git rev-parse --show-prefix)
+label=${prefix%/}
+label=${label##*/}
+label=${label:-${top##*/}}
+cd "$top"
 
 jobs=$(getconf _NPROCESSORS_ONLN 2>/dev/null || echo 4)
 cols=${COLUMNS:-$(tput cols 2>/dev/null || echo 100)}
@@ -67,8 +69,9 @@ unitsep=$'\037'
 
 echo 'git-who: blaming HEAD…' >&2
 
+# The snapshot blame reads, so a file deleted from the worktree still counts.
 # -I drops binaries, the empty pattern matches every line of everything tracked
-git grep -I --name-only -z -e '' -- "$root" |
+git grep -I --name-only -z -e '' HEAD -- "${prefix:-.}" |
   xargs -0 -P"$jobs" -n1 "$0" --blame-one |
 
   # Fold per-file counts into every directory above the file, then keep each
@@ -87,7 +90,7 @@ git grep -I --name-only -z -e '' -- "$root" |
     function short(s,   parts, k) {
       k = split(s, parts, " ")
       if (k > 1) s = parts[1] " " substr(parts[k], 1, 1) "."
-      return length(s) > 20 ? substr(s, 1, 20) "…" : s
+      return length(s) > 20 ? substr(s, 1, 19) "…" : s
     }
     function human(x) {
       if (x >= 1000000) return sprintf("%.1fM", x / 1000000)
