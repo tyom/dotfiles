@@ -45,8 +45,9 @@ How it behaves:
 - **Node**: Volta, and Node installed through it. Bun if you tick it.
 - **Scripts on your PATH**: `gl` prints the git log one commit per line with
   refs underneath, `gb` lists branches by commit date, or by the disk they hold
-  with `-s`, `gw` lists worktrees and can switch to or prune them, plus
-  `git-author`, `color-test` and two of my tools from Homebrew:
+  with `-s`, `gw` lists worktrees and can switch to or prune them, `git who`
+  blames the tree and shows each directory's top authors, plus
+  `color-test` and two of my tools from Homebrew:
   [`ungit`](https://github.com/tyom/ungit) reads a GitHub repo or subdirectory
   as text, and [`repo-intel`](https://github.com/tyom/repo-intel) builds a
   contributor dashboard for any git repo

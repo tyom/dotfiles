@@ -1,0 +1,183 @@
+#!/usr/bin/env bash
+
+# Who owns which part of the tree: blamed line counts per directory
+
+set -e
+
+# Hidden mode: one file's blame folded into "file<TAB>author<TAB>lines".
+# xargs re-enters the script this way to blame files in parallel
+if [[ ${1:-} == --blame-one ]]; then
+  git blame --line-porcelain -w -M HEAD -- "$2" 2>/dev/null |
+    awk -v f="$2" '
+      /^author /  { c[substr($0, 8)]++ }
+      END         { for (a in c) printf "%s\t%s\t%d\n", f, a, c[a] }'
+  exit 0
+fi
+
+usage() {
+  cat <<'USAGE'
+git-who - line ownership per directory, top contributors first
+
+Usage: git who [-d depth] [-h] [path]
+
+Options:
+  -d  how deep to descend, in directories below the starting point (default 2)
+  -h  show this help and exit
+
+Lines are counted with git blame over HEAD, ignoring whitespace-only changes,
+so the shares say who wrote the code that is there now, not who committed most.
+Binary files are skipped. Give a path to root the tree somewhere else.
+USAGE
+}
+
+depth=2
+# Leading colon: getopts stays quiet so the unknown option reads as ours
+while getopts :d:h opt; do
+  case $opt in
+    d) depth=$OPTARG ;;
+    h) usage && exit 0 ;;
+    *) echo "git-who: unknown option -$OPTARG" >&2 && usage >&2 && exit 2 ;;
+  esac
+done
+shift $((OPTIND - 1))
+
+[[ $depth =~ ^[0-9]+$ ]] || { echo "git-who: -d wants a number" >&2; exit 2; }
+
+root=${1:-.}
+root=${root%/}
+[[ -d $root ]] || { echo "git-who: not a directory: $root" >&2; exit 2; }
+git rev-parse --verify -q HEAD >/dev/null ||
+  { echo "git-who: no commits to blame" >&2; exit 1; }
+
+# Paths come back relative to the cwd, so the starting point is stripped off
+# the front and everything below it is measured from there
+if [[ $root == . ]]; then
+  prefix=""
+  label=${PWD##*/}
+else
+  prefix="$root/"
+  label=${root##*/}
+fi
+
+# -I drops binaries, the empty pattern matches every line of everything tracked
+list=$(mktemp)
+trap 'rm -f "$list"' EXIT
+git grep -I --name-only -z -e '' -- "$root" >"$list" || true
+files=$(tr -dc '\0' <"$list" | wc -c | tr -d ' ')
+((files)) || { echo "git-who: no tracked text files under $root" >&2; exit 1; }
+
+jobs=$(sysctl -n hw.ncpu 2>/dev/null || nproc 2>/dev/null || echo 4)
+cols=${COLUMNS:-$(tput cols 2>/dev/null || echo 100)}
+esc=$'\033'
+lowsep=$'\001'
+unitsep=$'\037'
+
+printf 'git-who: blaming %s files…\n' "$files" >&2
+
+xargs -0 -P"$jobs" -n1 "$0" --blame-one <"$list" |
+
+  # Fold per-file counts into every directory above the file, then keep each
+  # directory's top few authors. Chunks go out as "<colour digit>Name 42%"
+  awk -F'\t' -v prefix="$prefix" -v maxdepth="$depth" -v top=5 \
+      -v lowsep="$lowsep" -v unitsep="$unitsep" '
+    function add(d, a, n,   key) {
+      key = d SUBSEP a
+      if (!(key in cnt)) alist[d] = alist[d] (alist[d] == "" ? "" : "\n") a
+      cnt[key] += n
+      tot[d] += n
+      if (!(d in depth)) { depth[d] = dd; dirs[++nd] = d }
+    }
+    # First word plus the last initial: five names still fit on a line
+    function short(s,   w, k) {
+      k = split(s, w, " ")
+      if (k < 2) return substr(s, 1, 12)
+      return substr(w[1], 1, 12) " " substr(w[k], 1, 1) "."
+    }
+    {
+      f = $1; a = $2; n = $3
+      if (prefix != "" && substr(f, 1, length(prefix)) == prefix)
+        f = substr(f, length(prefix) + 1)
+      dd = 0; add(".", a, n)
+      k = split(f, part, "/")
+      p = ""
+      for (i = 1; i < k && i <= maxdepth; i++) {
+        p = (i == 1 ? part[1] : p "/" part[i])
+        dd = i; add(p, a, n)
+      }
+    }
+    END {
+      # A colour per author, handed out by their share of the whole tree, so
+      # the same name keeps the same colour on every row
+      ng = split(alist["."], ga, "\n")
+      for (r = 0; r < 6 && r < ng; r++) {
+        best = 0
+        for (i = 1; i <= ng; i++)
+          if (!(ga[i] in colr) &&
+              (best == 0 || cnt["." SUBSEP ga[i]] > cnt["." SUBSEP ga[best]])) best = i
+        if (best) colr[ga[best]] = r
+      }
+      for (j = 1; j <= nd; j++) {
+        d = dirs[j]
+        na = split(alist[d], av, "\n")
+        split("", used)
+        out = ""
+        m = (na < top ? na : top)
+        for (r = 1; r <= m; r++) {
+          best = 0
+          for (i = 1; i <= na; i++)
+            if (!(i in used) &&
+                (best == 0 || cnt[d SUBSEP av[i]] > cnt[d SUBSEP av[best]])) best = i
+          used[best] = 1
+          pct = 100 * cnt[d SUBSEP av[best]] / tot[d]
+          out = out "\t" (av[best] in colr ? colr[av[best]] : 9) short(av[best]) \
+                unitsep (pct < 1 ? "<1" : sprintf("%.0f", pct)) "%"
+        }
+        # Sort key with a low byte for the slash, else a sibling like "a-b"
+        # lands between "a" and "a/b" and the nesting reads wrong
+        key = d; gsub("/", lowsep, key)
+        printf "%s\t%s\t%d\t%d%s\n", key, d, depth[d], tot[d], out
+      }
+    }' |
+
+  LC_ALL=C sort -t$'\t' -k1,1 |
+
+  # Indent by depth, pad the name column to the widest, then fit as many
+  # authors as the terminal has room for
+  awk -F'\t' -v cols="$cols" -v label="$label" -v esc="$esc" -v unitsep="$unitsep" '
+    function human(x) {
+      if (x >= 1000000) return sprintf("%.1fM", x / 1000000)
+      if (x >= 1000) return sprintf("%.1fk", x / 1000)
+      return sprintf("%d", x)
+    }
+    {
+      n++
+      total[n] = $4
+      seg = $2
+      if (seg == ".") seg = label
+      else { k = split($2, pp, "/"); seg = pp[k] }
+      lbl[n] = sprintf("%*s%s/", $3 * 2, "", seg)
+      if (length(lbl[n]) > w) w = length(lbl[n])
+      count[n] = NF - 4
+      for (i = 5; i <= NF; i++) chunk[n, i - 4] = $i
+    }
+    END {
+      pal[0] = esc "[38;5;114m"; pal[1] = esc "[38;5;110m"
+      pal[2] = esc "[38;5;180m"; pal[3] = esc "[38;5;175m"
+      pal[4] = esc "[38;5;139m"; pal[5] = esc "[38;5;109m"
+      grey = esc "[38;5;246m"; dim = esc "[90m"; reset = esc "[0m"
+      for (j = 1; j <= n; j++) {
+        printf "%s%-*s%s  %s%7s%s  ", reset, w, lbl[j], reset, dim, human(total[j]), reset
+        used = w + 2 + 7 + 2
+        for (i = 1; i <= count[j]; i++) {
+          c = substr(chunk[j, i], 1, 1) + 0
+          split(substr(chunk[j, i], 2), field, unitsep)
+          name = field[1]; pct = field[2]
+          width = length(name) + length(pct) + 1
+          if (i > 1 && used + width + 2 > cols) break
+          printf "%s%s%s%s %s%s%s", (i > 1 ? "  " : ""), \
+            (c in pal ? pal[c] : grey), name, reset, dim, pct, reset
+          used += width + 2
+        }
+        printf "\n"
+      }
+    }' | less -RFX
