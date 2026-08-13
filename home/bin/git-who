@@ -125,6 +125,11 @@ root=${1:-.}
 git rev-parse --verify -q HEAD >/dev/null ||
   { echo "git-who: no commits to blame" >&2; exit 1; }
 
+# Held before the cd below, which would move the ground out from under a
+# relative $0: xargs re-enters the script by name from the top of the checkout
+self=$0
+[[ $self == /* ]] || self=$PWD/$self
+
 # Everything runs from the top of the checkout on repo-relative paths, so
 # "src", "./src" and /abs/path/src all name the same tree. The starting point
 # is stripped off the front and everything below it is measured from there
@@ -152,7 +157,7 @@ lowsep=$'\001'
 unitsep=$'\037'
 
 work=$(mktemp -d)
-trap 'rm -rf "$work"' EXIT
+trap 'rm -rf "$work" ${new:+"$new"}' EXIT
 : >"$work/miss"
 : >"$work/keep"
 : >"$work/blamed"
@@ -163,7 +168,14 @@ trap 'rm -rf "$work"' EXIT
 # format plus the .mailmap in force, the one thing that renames authors without
 # touching a blob: a different one starts the cache over
 cache="$(git rev-parse --git-common-dir)/git-who.cache"
-stamp="git-who 3 $(git rev-parse -q --verify HEAD:.mailmap || echo none)"
+# What blame actually reads is the .mailmap in the working tree, plus whatever
+# mailmap.file and mailmap.blob name, so all three are weighed rather than the
+# committed one. Cheaper to sum the lot than to work out which of them wins
+mailmap=$( { cat .mailmap || :
+             cat "$(git config mailmap.file || echo /dev/null)" || :
+             git cat-file blob "$(git config mailmap.blob || echo HEAD:.mailmap)" || :
+           } 2>/dev/null | cksum)
+stamp="git-who 3 $mailmap"
 
 # Only a regular file is ours to read or replace. Awk dies on the end of a
 # directory it opened, so hand it something that reads as empty instead
@@ -186,12 +198,24 @@ fi
 
 # Blobs for the tracked text files under the starting point. quotePath=false
 # keeps non-ASCII names raw, so the two listings agree and blame can find them.
-# git grep -I drops binaries, its empty pattern matches every line of every file
-git -c core.quotePath=false grep -I --name-only -e '' HEAD -- "${prefix:-.}" >"$work/text"
+# git grep -I drops binaries, its empty pattern matches every line of every file.
+# It says 1 for nothing matched, which a path holding no tracked text file is
+# entitled to say; anything else is a real failure
+git -c core.quotePath=false grep -I --name-only -e '' HEAD -- "${prefix:-.}" >"$work/text" ||
+  (($? == 1)) || { echo "git-who: git grep failed" >&2; exit 1; }
 git -c core.quotePath=false ls-tree -r -l HEAD -- "${prefix:-.}" |
   awk 'NR == FNR { text[substr($0, 6)] = 1; next }
        { path = substr($0, index($0, "\t") + 1)
-         if (path in text) print $3 "\t" $4 "\t" path }' \
+         if (!(path in text)) next
+         # A control character, a quote or a backslash in a name and git writes
+         # the path as C source whatever quotePath says, which blame will not
+         # take back. Rarer than the unquoter it would take to read, so it is
+         # said out loud and left out rather than counted wrong in silence
+         if (path ~ /^"/) { odd++; next }
+         print $3 "\t" $4 "\t" path }
+       END { if (odd)
+               printf "git-who: %d path%s git had to quote, left out\n",
+                      odd, (odd == 1 ? "" : "s") >"/dev/stderr" }' \
     "$work/text" - >"$work/files"
 
 # Split the files into what the cache already knows and what has to be blamed.
@@ -242,7 +266,7 @@ draw "$status"
 
 if [[ -s "$work/miss" ]]; then
   tr '\n' '\0' <"$work/miss" |
-    xargs -0 -P"$jobs" -n8 "$0" --blame-one |
+    xargs -0 -P"$jobs" -n8 "$self" --blame-one |
     # Each file's lines land together as its blame finishes, so counting the
     # paths as they go by counts the files
     awk -F'\t' -v total="$total" -v esc="$esc" -v status="$status" \
@@ -252,12 +276,22 @@ if [[ -s "$work/miss" ]]; then
         printf "\r%s[K%s (%d/%d blamed)", esc, status, ++n, total >"/dev/stderr"
       }
       { print }' >"$work/blamed"
+  # The last stage decides the status, so a broken middle would otherwise leave
+  # counts quietly short. Not fatal: what did come back is still worth showing
+  ((${PIPESTATUS[1]} == 0)) || echo 'git-who: some files could not be blamed' >&2
 fi
 
-# Written whole and moved into place, so a killed run leaves the old one intact
+# Written whole and moved into place, so a killed run leaves the old one intact.
+# Beside the cache rather than in the temporary directory, which is usually on
+# another filesystem, where the move would be a copy something can be killed
+# halfway through
 if [[ $cache != /dev/null ]]; then
-  { printf '%s\n' "$stamp"; sort -u "$work/keep" "$work/blamed"; } >"$work/new"
-  mv -f "$work/new" "$cache" 2>/dev/null || echo 'git-who: cache is not writable' >&2
+  new="$cache.$$"
+  # In a subshell so that a redirect the shell itself cannot open says nothing
+  # of its own, the one line below being the whole of what there is to say
+  ( { printf '%s\n' "$stamp"; sort -u "$work/keep" "$work/blamed"; } >"$new" ) 2>/dev/null &&
+    mv -f "$new" "$cache" 2>/dev/null ||
+    { rm -f "$new" 2>/dev/null; echo 'git-who: cache is not writable' >&2; }
 fi
 
 cut -f2- "$work/blamed" >>"$work/counts"
@@ -357,6 +391,9 @@ if [[ -n $slug ]]; then
   while IFS=$'\t' read -r name mail sha; do
     ask_github "$name" "$mail" "$sha" >"$work/gh.$n" &
     n=$((n + 1))   # in the parent: a background job expands its redirect in the child
+    # Sixteen at a time. --top sets how many people are asked about, and a big
+    # one would otherwise put a gh process a head in flight all at once
+    ((n % 16)) || wait
   done <"$work/whoto"
   # These are the only jobs in flight, so the ones still running are the
   # answers still out. A network wait is the one stretch worth saying anything
