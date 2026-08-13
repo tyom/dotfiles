@@ -99,10 +99,9 @@ const TEST_CONFIG_PATTERN =
   /(?:^|\/)(?:(?:vitest|jest|mocha|playwright|vite|babel|rollup|webpack|esbuild|tsup|swc)\.config\.[cm]?[jt]sx?|\.(?:babelrc|mocharc)(?:\.[a-z]+)?)$/;
 const TEST_FILE_PATTERN = /[._](?:test|spec)\.[jt]sx?$/;
 
-// Matched against a single directory listing rather than a glob, so there is no
-// pattern library to depend on. Anchored: `.eslintrc.json` counts, `my.eslintrc`
-// does not.
-const ESLINT_CONFIG_FILE = /^(?:eslint\.config\.|\.eslintrc)/;
+// Matched against a directory listing rather than a glob, so there is no pattern
+// library to depend on. eslint reuses ESLINT_CONFIG_PATTERN above: its `(?:^|\/)`
+// prefix matches a bare basename just as well as a path.
 const PRETTIER_CONFIG_FILE = /^(?:prettier\.config\.|\.prettierrc)/;
 
 // One budget for the whole run, sitting under the timeout in hooks.json. A hook
@@ -408,7 +407,7 @@ async function lint(projectRoot, c, forceFull) {
 
   // ── ESLint (scoped to edited JS/TS unless config or package.json changed) ──
   const eslint = binPath(projectRoot, "eslint");
-  if (eslint && (await hasConfig(projectRoot, ESLINT_CONFIG_FILE))) {
+  if (eslint && (await hasConfig(projectRoot, ESLINT_CONFIG_PATTERN))) {
     const targets =
       forceFull || c.eslintConfigChanged || c.packageJsonChanged
         ? ["."]
