@@ -39,6 +39,32 @@ Set per-project in `.claude/settings.local.json`:
 | `RUN_TESTS_ON_STOP`    | `true`  | Run tests                                      |
 | `RUN_TESTS_FULL_SUITE` | `false` | Ignore related-tests mode, always run the lot  |
 
+## Codex
+
+Codex fires `Stop` too, but it cannot get the hook from this plugin: its plugin
+format is separate, so the marketplace entry here is Claude Code's alone. Point
+`~/.codex/hooks.json` at the file instead, which also means Codex runs the repo
+copy rather than a snapshot:
+
+```json
+"Stop": [
+  {
+    "hooks": [
+      {
+        "command": "node '/path/to/dotfiles/claude-plugin/hooks/stop/stop.mjs'",
+        "timeout": 150,
+        "type": "command"
+      }
+    ]
+  }
+]
+```
+
+Codex asks to trust a new hook before it will run, and records the approval in
+`~/.codex/config.toml` under `[hooks.state]`. `[features] hooks = true` must be
+set. It is not wired up by `make install`: `~/.codex/hooks.json` is written by
+other tools too, so this repo does not own the file.
+
 ## Finding the edited files
 
 Claude Code passes a `transcript_path`, and the edits are read from it. Codex
