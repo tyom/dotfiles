@@ -44,7 +44,12 @@ Set per-project in `.claude/settings.local.json`:
 Codex fires `Stop` too, but it cannot get the hook from this plugin: its plugin
 format is separate, so the marketplace entry here is Claude Code's alone. Point
 `~/.codex/hooks.json` at the file instead, which also means Codex runs the repo
-copy rather than a snapshot:
+copy rather than a snapshot.
+
+The directory keeps its Claude Code name even though both agents run the hook,
+because `claude plugin install` copies this directory into a cache and a
+`hooks.json` command cannot reference anything outside it. The script has to live
+here, so Codex reaches in rather than the code moving somewhere neutral.
 
 ```json
 "Stop": [
