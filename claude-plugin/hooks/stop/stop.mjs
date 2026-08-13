@@ -223,6 +223,34 @@ async function getEditedFiles(transcriptPath, projectRoot) {
   return [...seen].filter((p) => existsSync(p));
 }
 
+// Codex fires Stop but sends no transcript_path, so there is no record of what
+// the agent touched. The working tree is the neutral answer: what changed since
+// HEAD, plus anything new that git is not ignoring. Wider than the transcript —
+// a file edited by hand counts too — which is why it is only the fallback.
+/**
+ * @param {string} projectRoot
+ * @returns {string[]}
+ */
+function gitChangedFiles(projectRoot) {
+  // --relative scopes the output to projectRoot and prints paths relative to it,
+  // which matters when the project is one package inside a larger repo. -z keeps
+  // paths intact when they contain spaces or non-ASCII.
+  const run = (/** @type {string[]} */ args) =>
+    runCommand(["git", "-C", projectRoot, ...args], projectRoot, budget(5_000));
+
+  // A repo with no commits has no HEAD to diff, and everything in it is
+  // untracked anyway, so a failure here is not worth reporting.
+  const tracked = run(["diff", "-z", "--name-only", "--relative", "HEAD"]);
+  const untracked = run(["ls-files", "-z", "--others", "--exclude-standard"]);
+
+  return [tracked, untracked]
+    .filter((r) => r.success)
+    .flatMap((r) => r.output.split("\0"))
+    .filter(Boolean)
+    .map((p) => resolve(projectRoot, p))
+    .filter((abs) => !abs.includes("/node_modules/") && existsSync(abs));
+}
+
 /**
  * @typedef {object} Categorized
  * @property {string[]} prettierFiles
@@ -560,8 +588,11 @@ async function main() {
   const lintFull = process.env.LINT_FULL === "true";
   const testsFull = process.env.RUN_TESTS_FULL_SUITE === "true";
 
+  // The transcript names what the agent touched, so it wins wherever it exists.
+  // Git only stands in when there is none, which is every Codex session.
+  const edited = await getEditedFiles(input.transcript_path, projectRoot);
   const c = categorize(
-    await getEditedFiles(input.transcript_path, projectRoot),
+    edited.length > 0 ? edited : gitChangedFiles(projectRoot),
     projectRoot
   );
 

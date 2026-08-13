@@ -39,6 +39,18 @@ Set per-project in `.claude/settings.local.json`:
 | `RUN_TESTS_ON_STOP`    | `true`  | Run tests                                      |
 | `RUN_TESTS_FULL_SUITE` | `false` | Ignore related-tests mode, always run the lot  |
 
+## Finding the edited files
+
+Claude Code passes a `transcript_path`, and the edits are read from it. Codex
+fires `Stop` with no transcript, so there the hook falls back to the git working
+tree: what changed since `HEAD`, plus anything untracked that git is not
+ignoring, scoped to the project root.
+
+The transcript wins wherever it exists. The fallback is wider by nature — a file
+you edited by hand counts as an edit — so a session started in a dirty repo can
+put pre-existing changes in scope. Outside a git repo it finds nothing and the
+hook does nothing.
+
 ## Runtime
 
 `stop.mjs` is plain JavaScript on `node:` builtins, so `node`, `deno` and `bun`

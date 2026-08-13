@@ -46,6 +46,27 @@ function vitestFixture() {
   return dir;
 }
 
+// A vitest project that is also a git repo with one commit, so the working tree
+// is clean until a test dirties it.
+function gitFixture() {
+  const dir = vitestFixture();
+  const git = (/** @type {string[]} */ args) =>
+    spawnSync("git", ["-C", dir, ...args], { encoding: "utf-8" });
+  git(["init", "-q"]);
+  git(["add", "-A"]);
+  git([
+    "-c",
+    "user.email=t@t",
+    "-c",
+    "user.name=t",
+    "commit",
+    "-qm",
+    "init",
+    "--no-gpg-sign",
+  ]);
+  return dir;
+}
+
 // One transcript line per edited file, in the shape the hook parses.
 /**
  * @param {string} dir
@@ -80,7 +101,7 @@ function transcript(dir, files) {
  * @param {string} dir
  * @param {string[]} files
  */
-function runHook(dir, files) {
+function runHook(dir, files, { withTranscript = true } = {}) {
   for (const f of files) {
     mkdirSync(dirname(join(dir, f)), { recursive: true });
     writeFileSync(join(dir, f), "");
@@ -88,7 +109,11 @@ function runHook(dir, files) {
   const proc = spawnSync(process.execPath, [HOOK], {
     cwd: dir,
     encoding: "utf-8",
-    input: JSON.stringify({ transcript_path: transcript(dir, files) }),
+    // No transcript is what Codex sends: it has no Claude Code transcript to
+    // point at, so the hook has to find the edits another way.
+    input: JSON.stringify(
+      withTranscript ? { transcript_path: transcript(dir, files) } : {},
+    ),
   });
   // The tests that assert silence would otherwise pass on a crashed hook.
   if (proc.status !== 0) {
@@ -123,6 +148,26 @@ test("a test-config edit still runs the whole suite", () => {
     runHook(vitestFixture(), ["src/a.ts", "vitest.config.ts"]),
   ).reason;
   assert.match(reason, /argv: run/);
+});
+
+// Codex fires Stop but sends no transcript_path, so without a second source of
+// edited files the hook would check nothing and report a clean stop.
+test("with no transcript, the git working tree names the edits", () => {
+  const reason = JSON.parse(
+    runHook(gitFixture(), ["src/thing.ts"], { withTranscript: false }),
+  ).reason;
+  assert.match(reason, /related src\/thing\.ts/);
+});
+
+// The transcript is the better signal where it exists: it names what the agent
+// touched, not what happens to be dirty. Git must not widen that.
+test("a transcript wins over an unrelated dirty file", () => {
+  const dir = gitFixture();
+  mkdirSync(join(dir, "src"), { recursive: true });
+  writeFileSync(join(dir, "src", "untouched.ts"), "export const x = 1\n");
+  const reason = JSON.parse(runHook(dir, ["src/thing.ts"])).reason;
+  assert.match(reason, /related src\/thing\.ts --run/);
+  assert.doesNotMatch(reason, /untouched\.ts/);
 });
 
 // The Bun build read the transcript through a Bun-only API. Under node that

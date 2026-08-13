@@ -11,7 +11,7 @@
     {
       "name": "dotfiles",
       "description": "Stop hook that lints, type checks, formats and tests what Claude edited",
-      "version": "2.0.0",
+      "version": "2.1.0",
       "author": {
         "name": "tyom"
       },
