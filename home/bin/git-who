@@ -4,14 +4,41 @@
 
 set -e
 
-# Hidden mode: one file's blame folded into "file<TAB>author<TAB>lines".
-# xargs re-enters the script this way to blame files in parallel
+# Hidden mode: "blob<TAB>size<TAB>file" folded into
+# "blob<TAB>file<TAB>author<TAB>mail<TAB>lines". xargs re-enters the script this
+# way to blame files in parallel, a batch at a time: re-entry is a bash start
+# and an awk start, about 8ms, which is a third of the cost of blaming a small
+# file. A batch amortises that without coarsening the parallelism much
 if [[ ${1:-} == --blame-one ]]; then
-  file=${2#HEAD:} # git grep labels its matches with the rev it searched
-  git blame --line-porcelain -w -M HEAD -- "$file" 2>/dev/null |
-    awk -v f="$file" '
-      /^author /  { c[substr($0, 8)]++ }
-      END         { for (a in c) printf "%s\t%s\t%d\n", f, a, c[a] }'
+  shift
+  for spec in "$@"; do
+    # The last field takes the rest, so a tab in a path survives the split
+    IFS=$'\t' read -r blob size file <<<"$spec"
+
+    # -M credits a line moved about a file to whoever wrote it first, which is
+    # worth having and cheap on source. On a large generated file it turns
+    # quadratic: 43s on a 6.9MB JSON against 2s without, holding up the whole run
+    moved=-M
+    if ((size > 256 * 1024)); then moved=; fi
+
+    # Plain --porcelain names a commit once and then refers back to it by sha,
+    # where --line-porcelain repeats the whole header for every line. Same
+    # answer, a fifth of the bytes on a big file, and the parsing is no harder
+    git blame --porcelain -w $moved HEAD -- "$file" 2>/dev/null |
+      awk -v b="$blob" -v f="$file" '
+        # A header opens with the sha and where the line sits, so the author
+        # read after it belongs to that sha, and later lines only cite it
+        /^[0-9a-f]+ [0-9]+ [0-9]+/ { s = $1; n[s]++; next }
+        /^author /      { who[s] = substr($0, 8) }
+        /^author-mail / { mail[s] = substr($0, 13) }
+        END {
+          for (s in n) c[who[s] SUBSEP mail[s]] += n[s]
+          for (k in c) {
+            split(k, w, SUBSEP)
+            printf "%s\t%s\t%s\t%s\t%d\n", b, f, w[1], w[2], c[k]
+          }
+        }'
+  done
   exit 0
 fi
 
@@ -19,30 +46,82 @@ usage() {
   cat <<'USAGE'
 git-who - line ownership per directory, top contributors first
 
-Usage: git who [-d depth] [-h] [path]
+Usage: git who [-d n] [-t [n]] [-i [name]] [-v] [-c] [-h] [path]
 
 Options:
-  -d  how deep to descend, in directories below the starting point (default 2)
-  -h  show this help and exit
+  -d, --depth n  how deep to descend, in directories below the starting point
+                 (default 2). Under --top it sets how finely directories are
+                 named, so -d 1 says modules/ where -d 3 says modules/ui/fields/
+  -t, --top [n]  turn it around: the top n authors (default 10), largest first,
+                 and for each the directories their lines sit in, with the share
+                 of their own work each one holds rather than their share of it
+  -i, --is [name]
+                 everything known about the contributors whose name or address
+                 starts with name: addresses, lines, commits, merges, the span
+                 they worked over and where their lines sit. Say no name and it
+                 reports the biggest contributors instead, as many as --top asks
+                 for and ten when it says nothing. The bar on the active line
+                 counts their commits over the life of the repo, first commit to
+                 last, whoever it is drawn for: · is a stretch they left alone
+                 and ▁▂▃▄▅▆▇█ is how busy the rest were, tall meaning their own
+                 busiest stretch rather than a fixed number. With gh installed
+                 and logged in to a GitHub remote it also says who they are
+                 there, and their pull requests and reviews
+  -v, --verbose  write names out in full, with the address most of an author's
+                 lines carry. Names are shortened to fit otherwise
+  -c, --clear    throw the cached counts away first, so the run blames the lot
+  -h, --help     show this help and exit
 
 Lines are counted with git blame over HEAD, ignoring whitespace-only changes,
 so the shares say who wrote the code that is there now, not who committed most.
 Binary files are skipped. Give a path to root the tree somewhere else.
+
+<root> is the files sitting at the top of the tree rather than in a directory
+under it, not the tree as a whole.
+
+Counts are cached per file in .git/git-who.cache, so a second run only blames
+what changed. The cache is rebuilt as it goes, -c only starts it over.
 USAGE
 }
 
+# Read by hand: getopts knows neither long options nor the count after -t,
+# which is optional. Attached forms (-d2, -t20) come along for a line each
+topn=
 depth=2
-# Leading colon: getopts stays quiet so the unknown option reads as ours
-while getopts :d:h opt; do
-  case $opt in
-    d) depth=$OPTARG ;;
-    h) usage && exit 0 ;;
-    *) echo "git-who: unknown option -$OPTARG" >&2 && usage >&2 && exit 2 ;;
+clear=
+verbose=
+detail=
+is=
+args=()
+while (($#)); do
+  case $1 in
+    -t | --top) topn=10
+                [[ ${2:-} =~ ^[0-9]+$ ]] && { topn=$2; shift; } ;;
+    --top=*)    topn=${1#*=} ;;
+    -t*)        topn=${1#-t} ;;
+    -d | --depth) [[ -n ${2:-} ]] ||
+                    { echo "git-who: -d wants a number" >&2; exit 2; }
+                  depth=$2; shift ;;
+    --depth=*)  depth=${1#*=} ;;
+    -d*)        depth=${1#-d} ;;
+    -i | --is) detail=1
+               [[ -n ${2:-} && ${2:0:1} != - ]] && { is=$2; shift; } ;;
+    --is=*)    detail=1; is=${1#*=} ;;
+    -c | --clear) clear=1 ;;
+    -v | --verbose) verbose=1 ;;
+    -h | --help) usage && exit 0 ;;
+    --)         shift; args+=("$@"); break ;;
+    -*)         echo "git-who: unknown option $1" >&2 && usage >&2 && exit 2 ;;
+    *)          args+=("$1") ;;
   esac
+  shift
 done
-shift $((OPTIND - 1))
+set -- "${args[@]}"
 
 [[ $depth =~ ^[0-9]+$ ]] || { echo "git-who: -d wants a number" >&2; exit 2; }
+[[ -z $topn || $topn =~ ^0*[1-9][0-9]*$ ]] ||
+  { echo "git-who: --top wants a count of one or more" >&2; exit 2; }
+topn=${topn:-0} # nothing to show is how the awk below reads "no --top"
 
 root=${1:-.}
 [[ -d $root ]] || { echo "git-who: not a directory: $root" >&2; exit 2; }
@@ -62,22 +141,324 @@ label=${label:-${top##*/}}
 cd "$top"
 
 jobs=$(getconf _NPROCESSORS_ONLN 2>/dev/null || echo 4)
-cols=${COLUMNS:-$(tput cols 2>/dev/null || echo 100)}
+# The terminal is asked directly: tput inside $( ) has a pipe on its stdout and
+# answers with terminfo's 80 whatever the window is really doing
+# A group so the shell keeps quiet when there is no terminal to ask, and out on
+# its own because bash 3.2 will not parse one inside ${x:-...}
+cols=$COLUMNS
+if [[ -z $cols ]]; then
+  cols=$({ stty size </dev/tty; } 2>/dev/null | cut -d' ' -f2)
+fi
+cols=${cols:-100}
 esc=$'\033'
 lowsep=$'\001'
 unitsep=$'\037'
 
-echo 'git-who: blaming HEAD…' >&2
+work=$(mktemp -d)
+mutter_pid=
+trap 'rm -rf "$work"; [[ -n $mutter_pid ]] && kill "$mutter_pid" 2>/dev/null' EXIT
+: >"$work/miss"
+: >"$work/keep"
+: >"$work/blamed"
 
-# The snapshot blame reads, so a file deleted from the worktree still counts.
-# -I drops binaries, the empty pattern matches every line of everything tracked
-git grep -I --name-only -z -e '' HEAD -- "${prefix:-.}" |
-  xargs -0 -P"$jobs" -n1 "$0" --blame-one |
+# Counts cache on the blob and the path together. Not the blob alone: the same
+# content at two paths has two histories, and blame answers for the history, so
+# a duplicated file credits whoever wrote it at that path. The stamp is the
+# format plus the .mailmap in force, the one thing that renames authors without
+# touching a blob: a different one starts the cache over
+cache="$(git rev-parse --git-common-dir)/git-who.cache"
+stamp="git-who 3 $(git rev-parse -q --verify HEAD:.mailmap || echo none)"
 
-  # Fold per-file counts into every directory above the file, then keep each
-  # directory's top few authors. Chunks go out as "<colour digit>Name 42%"
-  awk -F'\t' -v prefix="$prefix" -v maxdepth="$depth" -v top=5 -v label="$label" \
-      -v lowsep="$lowsep" -v unitsep="$unitsep" '
+# Only a regular file is ours to read or replace. Awk dies on the end of a
+# directory it opened, so hand it something that reads as empty instead
+if [[ -e $cache && ! -f $cache ]]; then
+  echo "git-who: $cache is not a regular file, running without a cache" >&2
+  cache=/dev/null
+elif [[ -n $clear ]]; then
+  # Only ever a file of ours, and the run below writes a fresh one
+  rm -f "$cache"
+fi
+
+# --is wants commits and merges, which blame cannot say. One pass over the log
+# answers for everyone at once. --full-history keeps merges a pathspec would
+# prune, and the mailmap names match the ones blame reports
+: >"$work/log"
+if [[ -n $detail ]]; then
+  git log --full-history --date=short \
+    --pretty=tformat:'%aN%x09%aE%x09%ad%x09%p%x09%H' -- "${prefix:-.}" >"$work/log" || true
+fi
+
+# Blobs for the tracked text files under the starting point. quotePath=false
+# keeps non-ASCII names raw, so the two listings agree and blame can find them.
+# git grep -I drops binaries, its empty pattern matches every line of every file
+git -c core.quotePath=false grep -I --name-only -e '' HEAD -- "${prefix:-.}" >"$work/text"
+git -c core.quotePath=false ls-tree -r -l HEAD -- "${prefix:-.}" |
+  awk 'NR == FNR { text[substr($0, 6)] = 1; next }
+       { path = substr($0, index($0, "\t") + 1)
+         if (path in text) print $3 "\t" $4 "\t" path }' \
+    "$work/text" - >"$work/files"
+
+# Split the files into what the cache already knows and what has to be blamed.
+# Every line is checked before it is trusted, so a truncated or scribbled-on
+# cache costs a re-blame rather than wrong numbers
+# A run over part of the tree can only add to the cache, see the awk END below
+awk -F'\t' -v cache="$cache" -v stamp="$stamp" -v keepall="$prefix" \
+    -v miss="$work/miss" -v keepfile="$work/keep" '
+  BEGIN {
+    if ((getline line < cache) > 0 && line == stamp)
+      while ((getline line < cache) > 0)
+        if (split(line, c, "\t") == 5 && c[1] ~ /^[0-9a-f]+$/ && length(c[1]) >= 40 &&
+            c[2] != "" && c[3] != "" && c[4] != "" && c[5] ~ /^[0-9]+$/)
+          rows[c[1] SUBSEP c[2]] = rows[c[1] SUBSEP c[2]] line "\n"
+        else bad++
+  }
+  {
+    path = substr($0, index($0, "\t") + 1)   # blob, then size, then the path
+    path = substr(path, index(path, "\t") + 1)
+    key = $1 SUBSEP path
+    if (!(key in rows)) { print $1 "\t" $2 "\t" path >miss; next }
+    used[key] = 1
+    n = split(rows[key], r, "\n")
+    for (i = 1; i < n; i++) {
+      split(r[i], c, "\t")
+      print path "\t" c[3] "\t" c[4] "\t" c[5]
+    }
+  }
+  END {
+    # A run over part of the tree has no idea which files the rest still needs,
+    # so it keeps them all. A whole-tree run drops what HEAD no longer holds
+    for (b in rows) if (keepall || b in used) printf "%s", rows[b] >keepfile
+    if (bad) printf "git-who: %d unreadable cache lines dropped\n", bad >"/dev/stderr"
+  }' "$work/files" >"$work/counts"
+
+files=$(wc -l <"$work/files" | tr -d ' ')
+total=$(wc -l <"$work/miss" | tr -d ' ')
+status=$(printf 'git-who: %d files cached, %d to blame' $((files - total)) "$total")
+
+# One line on a terminal, rewritten as the work moves along. Anywhere else it
+# is said once and left alone, so a log or a pipe reads straight through
+draw() {
+  [[ -t 2 ]] || return 0
+  printf '\r%s[K%s' "$esc" "$*" >&2
+}
+[[ -t 2 ]] || echo "$status" >&2
+draw "$status"
+
+if [[ -s "$work/miss" ]]; then
+  tr '\n' '\0' <"$work/miss" |
+    xargs -0 -P"$jobs" -n8 "$0" --blame-one |
+    # Each file's lines land together as its blame finishes, so counting the
+    # paths as they go by counts the files
+    awk -F'\t' -v total="$total" -v esc="$esc" -v status="$status" \
+        -v tty="$([[ -t 2 ]] && echo 1)" '
+      tty && !($2 in seen) {
+        seen[$2] = 1
+        printf "\r%s[K%s (%d/%d blamed)", esc, status, ++n, total >"/dev/stderr"
+      }
+      { print }' >"$work/blamed"
+fi
+
+# Blaming counts itself off. Everything after it — the cache, GitHub, the
+# folding — has nothing to report a number about, so a word every so often says
+# the work is still moving. The note file lets a slow stretch name itself
+: >"$work/phase"
+verbs=(contemplating tallying reckoning weighing sifting refining distilling squaring)
+mutter() {
+  local i=$((RANDOM % ${#verbs[@]})) note
+  while :; do
+    note=$(cat "$work/phase" 2>/dev/null) || note=
+    draw "$status (${note:+$note, }${verbs[$((i % ${#verbs[@]}))]}…)"
+    i=$((i + 1))
+    # Anywhere from 0.7 to 1.3 seconds, so it does not tick like a clock
+    tenths=$((7 + RANDOM % 7))
+    sleep "$((tenths / 10)).$((tenths % 10))"
+  done
+}
+if [[ -t 2 ]]; then
+  mutter &
+  mutter_pid=$!
+fi
+
+# Written whole and moved into place, so a killed run leaves the old one intact
+if [[ $cache != /dev/null ]]; then
+  { printf '%s\n' "$stamp"; sort -u "$work/keep" "$work/blamed"; } >"$work/new"
+  mv -f "$work/new" "$cache" 2>/dev/null || echo 'git-who: cache is not writable' >&2
+fi
+
+cut -f2- "$work/blamed" >>"$work/counts"
+
+# GitHub knows things git does not: who an address belongs to, what they have
+# reviewed here. Only for --is, only when gh is installed and looking at a
+# GitHub remote, and never fatal: the stats below stand on their own. Asking
+# for the repo is the whole test, since it fails when nobody is logged in, and
+# a separate gh auth status ahead of it is a second round trip for one answer
+: >"$work/gh"
+slug=
+if [[ -n $detail ]] && command -v gh >/dev/null 2>&1; then
+  slug=$(gh repo view --json nameWithOwner --jq .nameWithOwner 2>/dev/null) || slug=
+fi
+
+# Profile and counts in one request. Three REST calls took four seconds a head
+ghquery='query($login:String!, $q1:String!, $q2:String!, $q3:String!) {
+  user(login:$login) {
+    company location createdAt
+    followers { totalCount }
+    repositories(privacy: PUBLIC) { totalCount }
+  }
+  prs: search(query:$q1, type:ISSUE) { issueCount }
+  merged: search(query:$q2, type:ISSUE) { issueCount }
+  reviewed: search(query:$q3, type:ISSUE) { issueCount }
+}'
+
+ask_github() {
+  local name=$1 mail=$2 sha=$3 login=
+  # A noreply address already carries the login, which saves a call
+  case $mail in
+    *@users.noreply.github.com) login=${mail%@users.noreply.github.com}
+                                login=${login#*+} ;;
+  esac
+  [[ -n $login ]] ||
+    login=$(gh api --cache 1h "repos/$slug/commits/$sha" --jq '.author.login // empty' 2>/dev/null) ||
+    return 0
+  [[ -n $login ]] || return 0
+  local said
+  said=$(gh api graphql --cache 1h -f query="$ghquery" -F login="$login" \
+    -F q1="repo:$slug author:$login type:pr" \
+    -F q2="repo:$slug author:$login type:pr is:merged" \
+    -F q3="repo:$slug reviewed-by:$login type:pr" \
+    --jq '[.data.user.company // "", .data.user.location // "",
+           .data.user.followers.totalCount, .data.user.repositories.totalCount,
+           (.data.user.createdAt | .[0:7]), .data.prs.issueCount,
+           .data.merged.issueCount, .data.reviewed.issueCount] | @tsv' 2>/dev/null) || return 0
+  [[ -n $said ]] || return 0
+  printf '%s\t%s\t%s\n' "$name" "$login" "$said"
+}
+
+if [[ -n $slug ]]; then
+  echo 'asking github' >"$work/phase"
+  # Whoever the page is about, largest first, with one commit each to be
+  # identified by. The page below picks the same people by the same rule: a
+  # starts-with on the name or on any address, and as many of them as --top
+  # asks for. Capped either way, so a loose pattern cannot flood the API
+  awk -F'\t' -v pat="$is" -v shown="$topn" '
+    BEGIN { pat = tolower(pat); if (shown + 0 < 1) shown = 10 }
+    # One haystack a head, the name and every address on their own line, so a
+    # starts-with is a search for the pattern just after a newline. The
+    # porcelain brackets come off, else no address could ever match
+    NR == FNR {
+      lines[$2] += $4
+      bymail[$2 SUBSEP $3] += $4
+      if (!(($2 SUBSEP $3) in known)) {
+        known[$2 SUBSEP $3] = 1
+        if (!($2 in hay)) hay[$2] = "\n" tolower($2)
+        e = $3; gsub(/[<>]/, "", e)
+        hay[$2] = hay[$2] "\n" tolower(e)
+      }
+      next
+    }
+    !($1 in sha) { sha[$1] = $5 }
+    END {
+      # The address most of their lines carry, which is the one the page shows
+      for (k in bymail) {
+        split(k, p, SUBSEP)
+        best = (p[1] in mail ? p[1] SUBSEP mail[p[1]] : "")
+        if (best == "" || bymail[k] > bymail[best] ||
+            (bymail[k] == bymail[best] && p[2] < mail[p[1]])) mail[p[1]] = p[2]
+      }
+      for (r = 1; r <= shown; r++) {
+        best = ""
+        for (a in lines)
+          if (!(a in took) && (pat == "" || index(hay[a], "\n" pat)) &&
+              (best == "" || lines[a] > lines[best] ||
+               (lines[a] == lines[best] && a < best))) best = a
+        if (best == "") break
+        took[best] = 1
+        print best "\t" mail[best] "\t" sha[best]
+      }
+    }' "$work/counts" "$work/log" >"$work/whoto"
+
+  # One at a time is a second each, so they go together, a file apiece to land
+  # in. Waited on by name, since a bare wait would also wait on the spinner and
+  # that one never finishes
+  asked=()
+  while IFS=$'\t' read -r name mail sha; do
+    ask_github "$name" "$mail" "$sha" >"$work/gh.${#asked[@]}" &
+    asked+=($!)
+  done <"$work/whoto"
+  ((${#asked[@]})) && { wait "${asked[@]}" 2>/dev/null || true; }
+  cat "$work/gh."* >"$work/gh" 2>/dev/null || true
+  : >"$work/phase"
+fi
+
+# A sort has to sit between the folding and the colouring, so they cannot be
+# one awk. What both of them need is spliced into each instead: the palette,
+# which has to agree for the two views to read as one tool, and the width
+# count, whose continuation-byte test is too subtle to keep two copies of
+awk_common='
+    BEGIN {
+      pal[0] = esc "[38;5;114m"; pal[1] = esc "[38;5;110m"
+      pal[2] = esc "[38;5;180m"; pal[3] = esc "[38;5;175m"
+      pal[4] = esc "[38;5;139m"; pal[5] = esc "[38;5;109m"
+      grey = esc "[38;5;246m"; dim = esc "[90m"; reset = esc "[0m"
+      bright = esc "[1m"
+      utf8 = (length("é") == 1)
+    }
+    # This awk counts bytes, so an accented name measures wide and pads short.
+    # Continuation bytes are the ones not to count; a utf8-aware awk needs none
+    function dlen(s,   i, n, b) {
+      if (utf8) return length(s)
+      for (i = 1; i <= length(s); i++) {
+        b = substr(s, i, 1)
+        if (b < "\200" || b > "\277") n++
+      }
+      return n
+    }
+'
+
+# Fold per-file counts into every directory above the file, then keep each
+# directory's top few authors, or with --top each author's top few directories.
+# Chunks go out as "<colour digit>Name<US>42%<US>1.2k"
+awk -F'\t' -v prefix="$prefix" -v maxdepth="$depth" -v top=5 -v label="$label" \
+    -v topn="$topn" -v verbose="$verbose" -v lowsep="$lowsep" -v unitsep="$unitsep" \
+    -v ispat="$is" -v detail="$detail" -v logfile="$work/log" -v ghfile="$work/gh" \
+    -v esc="$esc" -v cols="$cols" "$awk_common"'
+    BEGIN {
+      level[0] = "·"; level[1] = "▁"; level[2] = "▂"; level[3] = "▃"; level[4] = "▄"
+      level[5] = "▅"; level[6] = "▆"; level[7] = "▇"; level[8] = "█"
+      while ((getline line < ghfile) > 0)
+        if (split(line, G, "\t") == 10) {
+          ghlogin[G[1]] = G[2]; ghfirm[G[1]] = G[3]
+          ghwhere[G[1]] = G[4]; ghfans[G[1]] = G[5]; ghrepos[G[1]] = G[6]
+          ghsince[G[1]] = G[7]; ghpr[G[1]] = G[8]; ghmerged[G[1]] = G[9]
+          ghrev[G[1]] = G[10]
+        }
+      # A merge is a commit with more than one parent, so a space in %p
+      while ((getline line < logfile) > 0) {
+        split(line, L, "\t")
+        commits[L[1]]++
+        if (index(L[4], " ")) merges[L[1]]++
+        if (!(L[1] in firstday) || L[3] < firstday[L[1]]) firstday[L[1]] = L[3]
+        if (!(L[1] in lastday) || L[3] > lastday[L[1]]) lastday[L[1]] = L[3]
+        mi = substr(L[3], 1, 4) * 12 + substr(L[3], 6, 2) - 1
+        month[L[1] SUBSEP mi]++
+        if (repomin == "" || mi < repomin) repomin = mi
+        if (repomax == "" || mi > repomax) repomax = mi
+      }
+    }
+    # Starts-with, on the name or on any address they have committed under
+    function matches(a, pat,   nm, mv, i, e) {
+      if (substr(tolower(a), 1, length(pat)) == pat) return 1
+      nm = split(maillist[a], mv, "\n")
+      for (i = 1; i <= nm; i++) {
+        e = mv[i]; gsub(/[<>]/, "", e)
+        if (substr(tolower(e), 1, length(pat)) == pat) return 1
+      }
+      return 0
+    }
+    function share(part, whole,   pct) {
+      pct = 100 * part / whole
+      return (pct < 1 ? "<1" : sprintf("%.0f", pct)) "%"
+    }
     function add(d, a, n,   key) {
       key = d SUBSEP a
       if (!(key in cnt)) alist[d] = alist[d] (alist[d] == "" ? "" : "\n") a
@@ -85,12 +466,52 @@ git grep -I --name-only -z -e '' HEAD -- "${prefix:-.}" |
       tot[d] += n
       if (!(d in depth)) { depth[d] = dd; dirs[++nd] = d }
     }
+    function pad(s, n) { return s sprintf("%*s", n - dlen(s), "") }
+    function clip(s,   i, n, b) {
+      if (dlen(s) <= 20) return s
+      if (utf8) return substr(s, 1, 19) "…"
+      for (i = 1; i <= length(s); i++) {
+        b = substr(s, i, 1)
+        if ((b < "\200" || b > "\277") && ++n == 20) return substr(s, 1, i - 1) "…"
+      }
+      return s
+    }
     # First word plus the last initial: five names still fit on a line. A
     # single long word (a bot, a handle) is cut with an ellipsis to say so
     function short(s,   parts, k) {
       k = split(s, parts, " ")
       if (k > 1) s = parts[1] " " substr(parts[k], 1, 1) "."
-      return length(s) > 20 ? substr(s, 1, 19) "…" : s
+      return clip(s)
+    }
+    # Whole thing with -v, first name and last initial otherwise. The address
+    # is the one most of their lines carry, so two addresses stay one person
+    function person(a) { return verbose ? a " " mail[a] : short(a) }
+    # More lines wins, and the name settles a tie, so the order holds whether
+    # the counts came from blame or from the cache
+    function bigger(arr, d, a, b) {
+      if (arr[d SUBSEP a] != arr[d SUBSEP b]) return arr[d SUBSEP a] > arr[d SUBSEP b]
+      return a < b
+    }
+    # The k largest of a newline-separated list into out[1..k], biggest first,
+    # counted by arr under context d. k of 0 asks for the lot. Returns how many
+    # there were, which is the number to stop at when it is fewer than k. Every
+    # listing below is this and nothing else, so k keeps the cost paid to what
+    # is actually printed rather than sorting every author on every run
+    function ranked(list, arr, d, out, k,   v, n, i, r, best, took) {
+      n = split(list, v, "\n")
+      if (!k || k > n) k = n
+      for (r = 1; r <= k; r++) {
+        best = 0
+        for (i = 1; i <= n; i++)
+          if (!(i in took) && (best == 0 || bigger(arr, d, v[i], v[best]))) best = i
+        took[best] = 1
+        out[r] = v[best]
+      }
+      return n
+    }
+    function chunk(colour, name, part, whole) {
+      return "\t" colour (verbose ? name : clip(name)) unitsep \
+             share(part, whole) unitsep human(part)
     }
     function human(x) {
       if (x >= 1000000) return sprintf("%.1fM", x / 1000000)
@@ -98,7 +519,10 @@ git grep -I --name-only -z -e '' HEAD -- "${prefix:-.}" |
       return sprintf("%d", x)
     }
     {
-      f = $1; a = $2; n = $3
+      f = $1; a = $2; n = $4
+      if (!((a SUBSEP $3) in seenmail))
+        maillist[a] = maillist[a] (maillist[a] == "" ? "" : "\n") $3
+      seenmail[a SUBSEP $3] += n
       if (prefix != "" && substr(f, 1, length(prefix)) == prefix)
         f = substr(f, length(prefix) + 1)
       dd = 0; add(".", a, n)
@@ -108,69 +532,233 @@ git grep -I --name-only -z -e '' HEAD -- "${prefix:-.}" |
         p = (i == 1 ? part[1] : p "/" part[i])
         dd = i; add(p, a, n)
       }
+      # Where the file itself lands, counted once, so an author is split over
+      # directories that add up to everything they wrote
+      b = (p == "" ? "." : p)
+      if (!((a SUBSEP b) in bkt)) blist[a] = blist[a] (blist[a] == "" ? "" : "\n") b
+      bkt[a SUBSEP b] += n
+      # Keyed like every other tally, so the shared ranking can read it too
+      if (!((SUBSEP b) in btot)) dirlist = dirlist (dirlist == "" ? "" : "\n") b
+      btot[SUBSEP b] += n
     }
     END {
+      # One address per author: the one most of their lines carry. A second
+      # address on the same name is theirs too, and stays folded in
+      if (verbose)
+        for (name in maillist) {
+          ranked(maillist[name], seenmail, name, mv, 1)
+          mail[name] = mv[1]
+        }
+
+      # --is prints a page about somebody rather than a table, so it writes its
+      # own lines and leaves before the two views below
+      if (detail) {
+        pat = tolower(ispat)
+        # No name to go on means the ones with the most lines, as many as --top
+        # asks for, ten when it says nothing
+        shown = (topn ? topn : 10)
+        # Only that many are ever printed, so only that many need ranking. A
+        # name to match is the exception: any of them can be the one wanted, so
+        # they all have to be placed. ranked() counts the field either way
+        ng = ranked(alist["."], cnt, ".", ga, pat == "" ? shown : 0)
+        placed = (pat == "" && shown < ng ? shown : ng)
+        for (r = 1; r <= placed; r++) rank[ga[r]] = r
+        # The same three the table gives the top authors, so a name keeps its
+        # colour whichever way you ask
+        green = pal[0]; blue = pal[1]; amber = pal[2]
+        for (r = 1; r <= ng; r++) {
+          a = ga[r]
+          if (pat == "") { if (r > shown) break }
+          else if (!matches(a, pat)) continue
+          if (found++) print "\n"   # a clear gap between one and the next
+          printf "%s%s%s  %s#%d of %d by lines%s\n", bright, a, reset, dim, rank[a], ng, reset
+
+          if (a in ghlogin) {
+            said = "@" ghlogin[a]
+            if (ghfirm[a] != "") said = said " · " ghfirm[a]
+            if (ghwhere[a] != "") said = said " · " ghwhere[a]
+            printf "  %s%-8s%s %s%s%s %s· %s followers · %s repos · since %s%s\n",
+                   dim, "github", reset, blue, said, reset,
+                   dim, human(ghfans[a]), ghrepos[a], ghsince[a], reset
+            printf "  %s%-8s%s %s%s%s %spull requests here,%s %s%s%s %smerged,%s %s%s%s %sreviewed%s\n",
+                   dim, "", reset, green, ghpr[a], reset, dim, reset,
+                   green, ghmerged[a], reset, dim, reset, green, ghrev[a], reset, dim, reset
+          }
+
+          nm = ranked(maillist[a], seenmail, a, mv, 0)
+          for (q = 1; q <= nm; q++)
+            printf "  %s%-8s%s %s%11s%s  %s%s%s\n", dim, (q == 1 ? "address" : ""), reset,
+                   dim, human(seenmail[a SUBSEP mv[q]]), reset, blue, mv[q], reset
+
+          printf "  %s%-8s%s %s%s%s %sof%s %s %sin the tree,%s %s%s%s\n",
+                 dim, "lines", reset, green, human(cnt["." SUBSEP a]), reset,
+                 dim, reset, human(tot["."]), dim, reset,
+                 green, share(cnt["." SUBSEP a], tot["."]), reset
+          if (a in commits) {
+            printf "  %s%-8s%s %s%d%s %sacross the repo,%s %s%d%s %sof them merges%s\n",
+                   dim, "commits", reset, green, commits[a], reset, dim, reset,
+                   amber, merges[a] + 0, reset, dim, reset
+            span = (firstday[a] == lastday[a] ? firstday[a] \
+                                              : firstday[a] " " dim "to" reset " " lastday[a])
+            # The bar covers the whole history whoever it is drawn for, and is
+            # the same width in every block, so two people can be held against
+            # each other. The years either end say what it spans. One date is
+            # padded to the width of two, to keep the bars under one another
+            span = span sprintf("%*s", 24 - dlen(firstday[a] == lastday[a] ? firstday[a] \
+                                                : firstday[a] " to " lastday[a]), "")
+            bars = cols - 48
+            if (bars > 44) bars = 44
+            if (bars < 8) bars = 8
+            months = repomax - repomin + 1
+            if (months < bars) bars = months
+            split("", slice)
+            peak = 0
+            for (mi = repomin; mi <= repomax; mi++) {
+              if (!((a SUBSEP mi) in month)) continue
+              b = int((mi - repomin) * bars / months)
+              slice[b] += month[a SUBSEP mi]
+              if (slice[b] > peak) peak = slice[b]
+            }
+            # Quiet stretches in grey, so the eye reads them as nothing rather
+            # than as something small
+            spark = ""
+            was = ""
+            for (b = 0; b < bars; b++) {
+              v = slice[b] + 0
+              hue = (v == 0 ? dim : green)
+              if (hue != was) { spark = spark hue; was = hue }
+              spark = spark (v == 0 ? level[0] \
+                             : level[1 + int(7 * (v - 1) / (peak > 1 ? peak - 1 : 1))])
+            }
+            spark = spark reset
+            printf "  %s%-8s%s %s  %s%d%s %s %s%d%s\n", dim, "active", reset, span,
+                   dim, int(repomin / 12), reset, spark,
+                   dim, int(repomax / 12), reset
+          }
+
+          # One directory a line, the shares under one another, so the eye can
+          # run down them rather than hunt along
+          nb = ranked(blist[a], bkt, a, bv, top)
+          for (q = 1; q <= nb && q <= top; q++)
+            printf "  %s%-8s%s %s%4s%s %s%6s%s  %s%s%s\n",
+                   dim, (q == 1 ? "areas" : ""), reset,
+                   green, share(bkt[a SUBSEP bv[q]], cnt["." SUBSEP a]), reset,
+                   dim, human(bkt[a SUBSEP bv[q]]), reset,
+                   blue, (bv[q] == "." ? "<root>" : bv[q] "/"), reset
+        }
+        # Contributors are read off the blame, so someone whose lines have all
+        # been rewritten is not among them. The log still remembers them
+        if (!found && pat != "") {
+          for (name in commits)
+            if (substr(tolower(name), 1, length(pat)) == pat) {
+              found++
+              span = (firstday[name] == lastday[name] ? firstday[name] \
+                                                      : firstday[name] " to " lastday[name])
+              printf "%s%s%s  %s%d %s, %s, no lines left in the tree%s\n",
+                     bright, name, reset, dim, commits[name],
+                     (commits[name] == 1 ? "commit" : "commits"), span, reset
+            }
+          if (!found) {
+            printf "git-who: nobody here starts with \"%s\"\n", ispat >"/dev/stderr"
+            exit 1
+          }
+        }
+        exit
+      }
+
+      # --top reads the other way round: a row per author, largest first, and
+      # the directories their lines sit in. Colours go by directory here, so a
+      # place keeps its colour down the column
+      if (topn) {
+        nbd = ranked(dirlist, btot, "", dv, 6)
+        for (r = 1; r <= 6 && r <= nbd; r++) dcol[dv[r]] = r - 1
+        ng = ranked(alist["."], cnt, ".", ga, topn)
+        m = (ng < topn ? ng : topn)
+        for (j = 1; j <= m; j++) {
+          who[j] = ga[j]
+          lbl[j] = person(ga[j])
+          if (dlen(lbl[j]) > w) w = dlen(lbl[j])
+          nb = ranked(blist[who[j]], bkt, who[j], bv, top)
+          out[j] = ""
+          mm = (nb < top ? nb : top)
+          for (r = 1; r <= mm; r++)
+            out[j] = out[j] chunk((bv[r] in dcol ? dcol[bv[r]] : 9),
+                                  (bv[r] == "." ? "<root>" : bv[r] "/"),
+                                  bkt[who[j] SUBSEP bv[r]], cnt["." SUBSEP who[j]])
+        }
+        # The rank is the sort key, so the order survives the sort below
+        for (j = 1; j <= m; j++)
+          printf "%06d\t%s\t%7s%s\n", j, pad(lbl[j], w), human(cnt["." SUBSEP who[j]]), out[j]
+        exit
+      }
+
       # A colour per author, handed out by their share of the whole tree, so
       # the same name keeps the same colour on every row
-      ng = split(alist["."], ga, "\n")
-      for (r = 0; r < 6 && r < ng; r++) {
-        best = 0
-        for (i = 1; i <= ng; i++)
-          if (!(ga[i] in colr) &&
-              (best == 0 || cnt["." SUBSEP ga[i]] > cnt["." SUBSEP ga[best]])) best = i
-        if (best) colr[ga[best]] = r
-      }
+      ng = ranked(alist["."], cnt, ".", ga, 6)
+      for (r = 1; r <= 6 && r <= ng; r++) colr[ga[r]] = r - 1
       for (j = 1; j <= nd; j++) {
         d = dirs[j]
         seg = label
         if (d != ".") { k = split(d, part, "/"); seg = part[k] }
         lbl[j] = sprintf("%*s%s/", depth[d] * 2, "", seg)
-        if (length(lbl[j]) > w) w = length(lbl[j])
-        na = split(alist[d], av, "\n")
-        split("", used)
+        if (dlen(lbl[j]) > w) w = dlen(lbl[j])
+        na = ranked(alist[d], cnt, d, av, top)
         out[j] = ""
         m = (na < top ? na : top)
-        for (r = 1; r <= m; r++) {
-          best = 0
-          for (i = 1; i <= na; i++)
-            if (!(i in used) &&
-                (best == 0 || cnt[d SUBSEP av[i]] > cnt[d SUBSEP av[best]])) best = i
-          used[best] = 1
-          pct = 100 * cnt[d SUBSEP av[best]] / tot[d]
-          out[j] = out[j] "\t" (av[best] in colr ? colr[av[best]] : 9) short(av[best]) \
-                   unitsep (pct < 1 ? "<1" : sprintf("%.0f", pct)) "%"
-        }
+        for (r = 1; r <= m; r++)
+          out[j] = out[j] chunk((av[r] in colr ? colr[av[r]] : 9), person(av[r]),
+                                cnt[d SUBSEP av[r]], tot[d])
       }
       # Names pad to the widest here, so the last stage can print as it reads.
       # The sort key takes a low byte for the slash, else a sibling like "a-b"
       # lands between "a" and "a/b" and the nesting reads wrong
       for (j = 1; j <= nd; j++) {
         key = dirs[j]; gsub("/", lowsep, key)
-        printf "%s\t%-*s\t%7s%s\n", key, w, lbl[j], human(tot[dirs[j]]), out[j]
+        printf "%s\t%s\t%7s%s\n", key, pad(lbl[j], w), human(tot[dirs[j]]), out[j]
       }
-    }' |
+    }' "$work/counts" >"$work/folded"
 
-  LC_ALL=C sort -t$'\t' -k1,1 |
+if [[ -n $detail ]]; then
+  mv "$work/folded" "$work/out"
+else
+  LC_ALL=C sort -t$'\t' -k1,1 "$work/folded" |
 
   # Colour the names and fit as many as the terminal has room for
-  awk -F'\t' -v cols="$cols" -v esc="$esc" -v unitsep="$unitsep" '
-    BEGIN {
-      pal[0] = esc "[38;5;114m"; pal[1] = esc "[38;5;110m"
-      pal[2] = esc "[38;5;180m"; pal[3] = esc "[38;5;175m"
-      pal[4] = esc "[38;5;139m"; pal[5] = esc "[38;5;109m"
-      grey = esc "[38;5;246m"; dim = esc "[90m"; reset = esc "[0m"
-    }
+  awk -F'\t' -v cols="$cols" -v esc="$esc" -v unitsep="$unitsep" -v topn="$topn" \
+      "$awk_common"'
     {
       printf "%s  %s%s%s  ", $2, dim, $3, reset
-      used = length($2) + length($3) + 4
+      used = dlen($2) + dlen($3) + 4
       for (i = 4; i <= NF; i++) {
         c = substr($i, 1, 1) + 0
         split(substr($i, 2), field, unitsep)
-        width = length(field[1]) + length(field[2]) + 1
+        # The share alone in the tree, where the row total is right there. The
+        # author rows carry the lines as well, being a tally of one persons work
+        tail = (topn ? field[2] " " field[3] : field[2])
+        width = dlen(field[1]) + dlen(tail) + 1
         if (i > 4 && used + width + 2 > cols) break
         printf "%s%s%s%s %s%s%s", (i > 4 ? "  " : ""), \
-          (c in pal ? pal[c] : grey), field[1], reset, dim, field[2], reset
+          (c in pal ? pal[c] : grey), field[1], reset, dim, tail, reset
         used += width + 2
       }
       printf "\n"
-    }' | less -RFX
+    }' >"$work/out"
+fi
+
+if [[ -n $mutter_pid ]]; then
+  kill "$mutter_pid" 2>/dev/null || true
+  wait "$mutter_pid" 2>/dev/null || true
+  mutter_pid=
+fi
+
+# The line has said its piece by the time there is something to read
+draw ""
+# -F leaves short output on the screen, -X keeps it there. Asking first, rather
+# than falling back on a failed run, so a quit or a closed pipe is not mistaken
+# for a missing less and the whole listing printed a second time
+# Fed on stdin rather than named, so its prompt has no temporary path to show
+if command -v less >/dev/null 2>&1; then
+  less -RFX <"$work/out"
+else
+  cat "$work/out"
+fi
