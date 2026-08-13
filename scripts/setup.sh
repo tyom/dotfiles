@@ -52,10 +52,10 @@ if [[ "${MINIMAL_SETUP:-}" != "true" ]]; then
     options+=('casks|macOS apps and Quick Look plugins|off')
   options+=('bun|Bun (faster JS tooling)|off')
 fi
-# hooks.json, not package.json: the plugin has no dependencies and no manifest
-# beyond its own, so a package.json gate silently dropped it from the checklist.
-[ -f "$DOTFILES_DIR/claude-plugin/hooks/hooks.json" ] &&
-  options+=('claude-plugin|Claude Code dotfiles plugin|off')
+# Unconditional: the plugin ships with this repo, so a file test here can only
+# ever be true — and when the file it named was deleted, the option vanished from
+# the checklist with no message rather than failing.
+options+=('claude-plugin|Claude Code dotfiles plugin|off')
 
 multi_select 'Select what to install (nothing selected = exit):' "${options[@]}"
 

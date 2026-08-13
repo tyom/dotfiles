@@ -18,6 +18,7 @@ import { dirname, resolve, join, extname, relative, basename } from "node:path";
 import { spawnSync } from "node:child_process";
 import { existsSync } from "node:fs";
 import { readFile, readdir } from "node:fs/promises";
+import { text } from "node:stream/consumers";
 
 /**
  * @typedef {object} StopHookInput
@@ -164,23 +165,13 @@ async function findProjectRoot(start) {
   return nearest;
 }
 
+// Absolute paths Claude edited this session, as claimed by the transcript.
 /**
- * One transcript entry. Only the edit tool calls matter, and the rest of the
- * shape is whatever the harness wrote, so everything is optional.
- *
- * @typedef {object} TranscriptEntry
- * @property {{ content?: unknown }} [message]
- */
-
-// Absolute paths Claude edited this session, still on disk. Files written and
-// later deleted must be dropped: eslint and prettier fatal-error on a missing path.
-/**
- * @param {string | undefined} transcriptPath
+ * @param {string} transcriptPath
  * @param {string} projectRoot
- * @returns {Promise<string[]>}
  */
 async function getEditedFiles(transcriptPath, projectRoot) {
-  if (!transcriptPath || !existsSync(transcriptPath)) return [];
+  if (!existsSync(transcriptPath)) return [];
 
   const editTools = new Set(["Edit", "Write", "MultiEdit", "NotebookEdit"]);
   /** @type {Set<string>} */
@@ -188,8 +179,7 @@ async function getEditedFiles(transcriptPath, projectRoot) {
 
   for (const line of (await readFile(transcriptPath, "utf8")).split("\n")) {
     if (!line.trim()) continue;
-    /** @type {TranscriptEntry | null} */
-    let entry = null;
+    let entry;
     try {
       entry = JSON.parse(line);
     } catch {
@@ -210,26 +200,28 @@ async function getEditedFiles(transcriptPath, projectRoot) {
       const fp = block.input?.file_path;
       if (typeof fp !== "string") continue;
       const abs = resolve(fp);
-      if (
-        (abs.startsWith(projectRoot + "/") || abs === projectRoot) &&
-        !abs.includes("/node_modules/")
-      ) {
+      if (abs.startsWith(projectRoot + "/") || abs === projectRoot) {
         seen.add(abs);
       }
     }
   }
 
-  return [...seen].filter((p) => existsSync(p));
+  return [...seen];
 }
+
+// Both sources hand over raw candidates, so what counts as a file worth checking
+// is decided once. Files written and later deleted have to go: eslint and
+// prettier fatal-error on a missing path, and `git diff HEAD` lists deletions as
+// a matter of course.
+/** @param {string[]} files */
+const worthChecking = (files) =>
+  files.filter((f) => !f.includes("/node_modules/") && existsSync(f));
 
 // Codex fires Stop but sends no transcript_path, so there is no record of what
 // the agent touched. The working tree is the neutral answer: what changed since
 // HEAD, plus anything new that git is not ignoring. Wider than the transcript —
 // a file edited by hand counts too — which is why it is only the fallback.
-/**
- * @param {string} projectRoot
- * @returns {string[]}
- */
+/** @param {string} projectRoot */
 function gitChangedFiles(projectRoot) {
   // --relative scopes the output to projectRoot and prints paths relative to it,
   // which matters when the project is one package inside a larger repo. -z keeps
@@ -246,8 +238,7 @@ function gitChangedFiles(projectRoot) {
     .filter((r) => r.success)
     .flatMap((r) => r.output.split("\0"))
     .filter(Boolean)
-    .map((p) => resolve(projectRoot, p))
-    .filter((abs) => !abs.includes("/node_modules/") && existsSync(abs));
+    .map((p) => resolve(projectRoot, p));
 }
 
 /**
@@ -269,7 +260,6 @@ function gitChangedFiles(projectRoot) {
 /**
  * @param {string[]} files
  * @param {string} projectRoot
- * @returns {Categorized}
  */
 function categorize(files, projectRoot) {
   /** @type {Categorized} */
@@ -323,7 +313,6 @@ function categorize(files, projectRoot) {
  * @param {string[]} command
  * @param {string} cwd
  * @param {number} timeoutMs
- * @returns {{ success: boolean; output: string; status: number | null }}
  */
 function runCommand(command, cwd, timeoutMs) {
   const result = spawnSync(command[0], command.slice(1), {
@@ -350,7 +339,6 @@ function runCommand(command, cwd, timeoutMs) {
 /**
  * @param {string} projectRoot
  * @param {string} name
- * @returns {string | null}
  */
 function binPath(projectRoot, name) {
   const path = resolve(projectRoot, "node_modules", ".bin", name);
@@ -362,7 +350,6 @@ function binPath(projectRoot, name) {
 /**
  * @param {string} projectRoot
  * @param {RegExp} pattern
- * @returns {Promise<boolean>}
  */
 async function hasConfig(projectRoot, pattern) {
   try {
@@ -376,7 +363,6 @@ async function hasConfig(projectRoot, pattern) {
  * @param {string} projectRoot
  * @param {Categorized} c
  * @param {boolean} forceFull
- * @returns {Promise<{ errors: string[]; warnings: string[] }>}
  */
 async function lint(projectRoot, c, forceFull) {
   /** @type {string[]} */
@@ -400,8 +386,7 @@ async function lint(projectRoot, c, forceFull) {
         projectRoot,
         budget(30_000)
       );
-      if (!r.success && r.output)
-        errors.push(`TypeScript errors:\n${r.output}`);
+      if (!r.success && r.output) errors.push(`TypeScript errors:\n${r.output}`);
     }
   }
 
@@ -456,10 +441,7 @@ async function lint(projectRoot, c, forceFull) {
   return { errors, warnings };
 }
 
-/**
- * @param {string} dir
- * @returns {PackageManager}
- */
+/** @param {string} dir */
 function detectPackageManager(dir) {
   return LOCKFILES.find(([name]) => existsSync(join(dir, name)))?.[1] ?? "npm";
 }
@@ -472,10 +454,8 @@ async function detectTestSetup(dir) {
   const pm = detectPackageManager(dir);
   const pkg = await readJson(join(dir, "package.json"));
 
-  /** @type {Framework | undefined} */
-  let framework = undefined;
-  /** @type {string | undefined} */
-  let bin = undefined;
+  let framework;
+  let bin;
   for (const candidate of /** @type {const} */ (["vitest", "jest", "mocha"])) {
     if (!pkg?.dependencies?.[candidate] && !pkg?.devDependencies?.[candidate]) {
       continue;
@@ -494,14 +474,12 @@ async function detectTestSetup(dir) {
   const hasTestScript =
     !!testScript && testScript !== 'echo "Error: no test specified" && exit 1';
 
-  /** @type {string[]} */
   let fullSuiteCommand;
   if (hasTestScript) {
     fullSuiteCommand = pm === "bun" ? ["bun", "run", "test"] : [pm, "test"];
-  } else if (framework === "vitest" && bin) {
-    fullSuiteCommand = [bin, "run"];
-  } else if (framework && bin) {
-    fullSuiteCommand = [bin];
+  } else if (bin) {
+    // bin is only ever set alongside framework, so this covers both.
+    fullSuiteCommand = framework === "vitest" ? [bin, "run"] : [bin];
   } else if (pm === "bun") {
     fullSuiteCommand = ["bun", "test"];
   } else {
@@ -519,7 +497,6 @@ async function detectTestSetup(dir) {
  * @param {TestSetup} setup
  * @param {Categorized} c
  * @param {string} projectRoot
- * @returns {string[]}
  */
 function buildTestCommand(setup, c, projectRoot) {
   if (c.testConfigChanged || c.codeFiles.length === 0) {
@@ -556,15 +533,8 @@ function block(reason) {
 }
 
 // The harness always pipes the payload in. A TTY means someone ran this by hand,
-// and iterating stdin there would hang rather than fail.
-/** @returns {Promise<string>} */
-async function readStdin() {
-  if (process.stdin.isTTY) return "";
-  let data = "";
-  process.stdin.setEncoding("utf8");
-  for await (const chunk of process.stdin) data += chunk;
-  return data;
-}
+// and reading stdin there would hang rather than fail.
+const readStdin = () => (process.stdin.isTTY ? "" : text(process.stdin));
 
 async function main() {
   const lintEnabled = process.env.LINT_ON_SAVE !== "false";
@@ -587,11 +557,16 @@ async function main() {
   const lintFull = process.env.LINT_FULL === "true";
   const testsFull = process.env.RUN_TESTS_FULL_SUITE === "true";
 
-  // The transcript names what the agent touched, so it wins wherever it exists.
-  // Git only stands in when there is none, which is every Codex session.
-  const edited = await getEditedFiles(input.transcript_path, projectRoot);
+  // Which source, not which result: an empty transcript means the agent edited
+  // nothing, and falling back there would lint and test whatever happens to be
+  // dirty after a turn that only read code. Git stands in when no transcript was
+  // sent at all, which is every Codex session.
   const c = categorize(
-    edited.length > 0 ? edited : gitChangedFiles(projectRoot),
+    worthChecking(
+      input.transcript_path
+        ? await getEditedFiles(input.transcript_path, projectRoot)
+        : gitChangedFiles(projectRoot)
+    ),
     projectRoot
   );
 

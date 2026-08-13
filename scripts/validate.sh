@@ -306,18 +306,17 @@ fi
 echo ""
 print_info "Checking Claude Code plugin..."
 
-# Running the hook's own tests is CI's job. The plugin has no dependencies, so
-# all this needs to answer is whether it is present and has a runtime to run on.
-PLUGIN_DIR="$DOTFILES_DIR/claude-plugin"
-if [ -f "$PLUGIN_DIR/hooks/hooks.json" ]; then
-  print_success "Claude Code plugin present"
-  if command -v node >/dev/null 2>&1; then
-    print_success "node available for the plugin hook"
+# Running the hook's own tests is CI's job, node is checked above, and the plugin
+# directory ships with this repo — so the one thing left worth asking is whether
+# the registration setup.sh performs actually took.
+if command -v claude >/dev/null 2>&1; then
+  if claude plugin list 2>/dev/null | grep -q 'dotfiles@tyom'; then
+    print_success "Claude Code plugin installed"
   else
-    print_warning "node not found, the plugin hook will not run"
+    print_skip "Claude Code plugin not installed, skipping"
   fi
 else
-  print_skip "Claude Code plugin not found, skipping"
+  print_skip "Claude Code not installed, skipping"
 fi
 
 # Check Homebrew packages (optional - warnings only)

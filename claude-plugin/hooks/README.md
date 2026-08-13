@@ -2,7 +2,7 @@
 
 ## Stop: lint, type check, format, test
 
-One hook, `stop/stop.ts`, runs before Claude stops. It reads the session
+One hook, `stop/stop.mjs`, runs before the agent stops. It reads the session
 transcript once for the files Claude edited, then works only on those:
 
 | Tool     | Scope                                                                                                                                                                          |
@@ -96,6 +96,6 @@ unknown; nothing else here needs them.
 
 ## Tests
 
-`node --test hooks/stop/stop.test.mjs` from `claude-plugin/`. It drives the hook
+`node --test` from `claude-plugin/`. It drives the hook
 the way Claude Code does, transcript on stdin and decision on stdout, against a
 throwaway project, under whichever runtime is running the tests.

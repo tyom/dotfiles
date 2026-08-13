@@ -170,11 +170,18 @@ test("a transcript wins over an unrelated dirty file", () => {
   assert.doesNotMatch(reason, /untouched\.ts/);
 });
 
-// The Bun build read the transcript through a Bun-only API. Under node that
-// threw into a catch that swallowed it, so the hook checked nothing and exited
-// clean. A transcript naming a real source file has to reach the runner.
-test("the transcript is actually read", () => {
-  const dir = vitestFixture();
-  const reason = JSON.parse(runHook(dir, ["src/thing.ts"])).reason;
-  assert.match(reason, /related src\/thing\.ts/);
+// A turn that only read code produces an empty transcript result, which is not
+// the same as no transcript. Falling back to git here would lint and test
+// whatever happened to be dirty after a turn that changed nothing.
+test("a read-only turn checks nothing, however dirty the tree", () => {
+  const dir = gitFixture();
+  mkdirSync(join(dir, "src"), { recursive: true });
+  writeFileSync(join(dir, "src", "dirty.ts"), "export const x = 1\n");
+  const proc = spawnSync(process.execPath, [HOOK], {
+    cwd: dir,
+    encoding: "utf-8",
+    input: JSON.stringify({ transcript_path: transcript(dir, []) }),
+  });
+  assert.equal(proc.status, 0);
+  assert.equal(proc.stdout.trim(), "");
 });
