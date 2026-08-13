@@ -43,10 +43,8 @@ How it behaves:
   several coding agents in one terminal, and the rest of
   [scripts/install/brew.sh](./scripts/install/brew.sh)
 - **Node**: Volta, and Node installed through it. Bun if you tick it.
-- **Scripts on your PATH**: `gl` prints the git log one commit per line with
-  refs underneath, `gb` lists branches by commit date, or by the disk they hold
-  with `-s`, `gw` lists worktrees and can switch to or prune them, `git who`
-  blames the tree and shows each directory's top authors, plus
+- **Scripts on your PATH**: [`gl`, `gb`, `gw` and `git who`](#git-tools) for
+  logs, branches, worktrees and line ownership, plus
   `color-test` and two of my tools from Homebrew:
   [`ungit`](https://github.com/tyom/ungit) reads a GitHub repo or subdirectory
   as text, and [`repo-intel`](https://github.com/tyom/repo-intel) builds a
@@ -281,6 +279,46 @@ Git configuration is handled separately (not symlinked):
 - `~/.gitignore` - Copied during setup (if it doesn't exist) so you can customise it
 
 </details>
+
+## Git tools
+
+Four scripts on your PATH. `git who`, `gb` and `gw` explain themselves with
+`-h`.
+
+### `git who`
+
+Who owns which part of the tree. Runs `git blame` over every tracked text file
+at HEAD, ignoring whitespace-only changes, so the shares say who wrote the code
+that is there now rather than who committed most.
+
+- default: a tree, each directory with its top authors
+- `-t [n]`: the other way round, top authors first and where their lines sit
+- `-i [name]`: a page about a person instead of a table, with their lines,
+  commits, the span they worked over, and their GitHub profile and pull requests
+  when `gh` is installed and the remote is GitHub
+- `-d n` sets the depth, `-v` writes names out in full, and a path roots the
+  tree somewhere else
+
+Counts are cached in `.git/git-who.cache`, so a second run only blames what
+changed. `-c` starts the cache over.
+
+### `gl`
+
+Git log, one commit per line, with any refs on a continuation line underneath.
+Takes the usual `git log` options.
+
+### `gb`
+
+Branches, most recently committed to first. The current one is a block, a tick
+marks those already merged into HEAD. `-r` for remote branches, `-s` for name
+and size only, largest first, where size is the disk taken by the objects a
+branch holds that the default branch does not.
+
+### `gw`
+
+Worktrees mapped to their branches, newest first. `gw switch <branch>` changes
+to one, `gw prune` removes the worktrees whose branches are merged, asking
+first and treating locked ones separately.
 
 ## Development
 
