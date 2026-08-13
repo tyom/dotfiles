@@ -49,7 +49,8 @@ How it behaves:
   [`ungit`](https://github.com/tyom/ungit) reads a GitHub repo or subdirectory
   as text, and [`repo-intel`](https://github.com/tyom/repo-intel) builds a
   contributor dashboard for any git repo
-- **Claude Code plugin**: `/explain-code`, `/review-code` and `/refactor-code`
+- **Claude Code plugin**: one `Stop` hook that lints, type checks, formats and
+  tests what the agent edited before it stops. Codex runs the same file
 
 ## Installation
 
@@ -111,13 +112,13 @@ dotfiles/
 │   ├── .vimrc
 │   ├── .vimrc.bundles
 │   ├── .config/       # ~/.config entries (ghostty)
-│   ├── .claude/       # Claude Code instructions (imports the Codex file)
+│   ├── .claude/       # Claude Code instructions (imports the Codex file) + status line
 │   ├── .codex/        # Agent instructions, shared by both
 │   └── bin/           # Shell scripts
 ├── git/               # Git config (included via ~/.gitconfig)
 ├── zsh/               # Zsh config + theme (sourced/symlinked)
 ├── shell/             # Shell modules
-├── claude-plugin/     # Claude Code plugin
+├── claude-plugin/     # Claude Code hook plugin
 └── scripts/           # Installation scripts
 ```
 
@@ -231,7 +232,6 @@ setup.sh (orchestrator)
 │    ├── Install vim-plug
 │    └── Run PlugInstall
 ├── 11. Install Claude Code plugin (optional)
-│    ├── Install dependencies (bun or npm)
 │    └── Register plugin (if claude installed)
 └── 12. Validate installation (scripts/validate.sh)
 ```
@@ -390,20 +390,55 @@ Run `make` to see all available commands:
 
 Docker commands support `VARIANT=minimal` for testing without Homebrew/Bun (e.g., `make docker-test VARIANT=minimal`).
 
-## Claude Code Plugin
+## Claude Code
 
-The `claude-plugin/` directory contains a [Claude Code](https://docs.anthropic.com/en/docs/claude-code) plugin with custom commands, agents, and skills.
+### Plugin
 
-### Commands
+The `claude-plugin/` directory is a [Claude Code](https://docs.anthropic.com/en/docs/claude-code)
+plugin holding one thing: a `Stop` hook that lints, type checks, formats and
+tests the files Claude edited. See [`claude-plugin/hooks/README.md`](claude-plugin/hooks/README.md)
+for what it runs and how to switch parts of it off.
 
-- `/explain-code` - Analyse and explain code functionality
-- `/review-code` - Review code for bugs, security, and quality issues
-- `/refactor-code` - Refactor code with analysis and pattern application
+It is a plugin because that is how a hook gets registered. `make install` runs
+`claude plugin install` for you when the item is ticked. There is nothing to
+build or install: the hook is plain JavaScript on `node:` builtins, so `node`,
+`deno` and `bun` all run it as-is.
 
-### Agents
+Prompts and agents are not here. Reusable skills live in
+[tyom/skills](https://github.com/tyom/skills) so Codex gets them too, and
+anything Claude Code ships built in (`/code-review`, `/simplify`) is not worth
+reimplementing.
 
-- `code-quality-reviewer` reads finished changes and reports quality and security problems
+### Status line
 
-### Skills
+`home/.claude/statusline.sh` shows the model, context usage and branch. It is
+symlinked with the rest of `home/`, so point `~/.claude/settings.json` at the
+link, not at this repo:
 
-- `ungit` - Fetch GitHub repos/subdirs as LLM-friendly text (supports include/exclude filters)
+```json
+{
+  "statusLine": {
+    "type": "command",
+    "command": "bash \"$HOME/.claude/statusline.sh\"",
+    "padding": 0
+  }
+}
+```
+
+```text
+Opus 5 | 14.52k ████████▌ 89% | ⎇ master
+```
+
+Model, tokens used, a 10-cell bar over the context window, the percentage, and
+the workspace branch. Each cell is 10%, with a half block (▌) from 5%. The token
+count and bar are coloured by absolute usage, not by the percentage, so the
+reading does not change meaning between a 200k and a 1M window:
+
+| Tokens    | Colour |
+| --------- | ------ |
+| ≤ 100k    | green  |
+| 100k–600k | yellow |
+| > 600k    | red    |
+
+Before the first response there is nothing to measure, so only the model and
+branch are drawn. Requires `jq`.

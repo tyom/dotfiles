@@ -52,8 +52,10 @@ if [[ "${MINIMAL_SETUP:-}" != "true" ]]; then
     options+=('casks|macOS apps and Quick Look plugins|off')
   options+=('bun|Bun (faster JS tooling)|off')
 fi
-[ -f "$DOTFILES_DIR/claude-plugin/package.json" ] &&
-  options+=('claude-plugin|Claude Code dotfiles plugin|off')
+# Unconditional: the plugin ships with this repo, so a file test here can only
+# ever be true — and when the file it named was deleted, the option vanished from
+# the checklist with no message rather than failing.
+options+=('claude-plugin|Claude Code dotfiles plugin|off')
 
 multi_select 'Select what to install (nothing selected = exit):' "${options[@]}"
 
@@ -147,38 +149,35 @@ fi
 
 if is_checked claude-plugin; then
   PLUGIN_DIR="$DOTFILES_DIR/claude-plugin"
-  print_step 'Installing Claude Code plugin dependencies'
-  if command -v bun &>/dev/null; then
-    if (cd "$PLUGIN_DIR" && (bun install --frozen-lockfile || bun install)); then
-      print_success 'Dependencies installed via bun'
-    else
-      print_error 'Failed to install dependencies via bun'
-    fi
-  elif command -v npm &>/dev/null; then
-    if (cd "$PLUGIN_DIR" && npm install); then
-      print_success 'Dependencies installed via npm'
-    else
-      print_error 'Failed to install dependencies via npm'
-    fi
-  else
-    print_info 'Skipping: neither bun nor npm available'
+
+  # The hook is plain JS on node: builtins, so there is nothing to install. It
+  # needs node on PATH at run time, which the 'node' item above provides.
+  if ! command -v node &>/dev/null; then
+    print_warning 'node not found, the plugin hook will not run until it is'
   fi
 
   # Register plugin if claude is available
-  if command -v claude &>/dev/null; then
+  if ! command -v claude &>/dev/null; then
+    print_warning 'claude not found, the plugin cannot be registered'
+    SUMMARY+=('Claude Code plugin: skipped, claude not found')
+  else
     print_step 'Registering Claude Code dotfiles plugin'
     if claude plugin marketplace add "$PLUGIN_DIR" &>/dev/null; then
       print_success 'Plugin marketplace entry added'
     else
       print_info 'Plugin marketplace entry may already exist'
     fi
-    if claude plugin install dotfiles@tyom --scope user &>/dev/null; then
-      print_success 'Plugin installed successfully'
+    # A failed install is usually one that was already there, so ask the list
+    # rather than reporting either outcome on the exit status alone.
+    if claude plugin install dotfiles@tyom --scope user &>/dev/null ||
+      claude plugin list 2>/dev/null | grep -q 'dotfiles@tyom'; then
+      print_success 'Plugin installed'
+      SUMMARY+=('Claude Code plugin: installed')
     else
-      print_info 'Plugin may already be installed'
+      print_error 'Plugin installation failed'
+      SUMMARY+=('Claude Code plugin: install failed')
     fi
   fi
-  SUMMARY+=('Claude Code plugin: installed')
 fi
 
 if is_checked dotfiles; then

@@ -2,7 +2,7 @@
 
 ## Stop: lint, type check, format, test
 
-One hook, `stop/stop.ts`, runs before Claude stops. It reads the session
+One hook, `stop/stop.mjs`, runs before the agent stops. It reads the session
 transcript once for the files Claude edited, then works only on those:
 
 | Tool     | Scope                                                                                                                                                                          |
@@ -39,7 +39,66 @@ Set per-project in `.claude/settings.local.json`:
 | `RUN_TESTS_ON_STOP`    | `true`  | Run tests                                      |
 | `RUN_TESTS_FULL_SUITE` | `false` | Ignore related-tests mode, always run the lot  |
 
+## Codex
+
+Codex fires `Stop` too, but it cannot get the hook from this plugin: its plugin
+format is separate, so the marketplace entry here is Claude Code's alone. Point
+`~/.codex/hooks.json` at the file instead, which also means Codex runs the repo
+copy rather than a snapshot.
+
+The directory keeps its Claude Code name even though both agents run the hook,
+because `claude plugin install` copies this directory into a cache and a
+`hooks.json` command cannot reference anything outside it. The script has to live
+here, so Codex reaches in rather than the code moving somewhere neutral.
+
+```json
+"Stop": [
+  {
+    "hooks": [
+      {
+        "command": "node '/path/to/dotfiles/claude-plugin/hooks/stop/stop.mjs'",
+        "timeout": 150,
+        "type": "command"
+      }
+    ]
+  }
+]
+```
+
+Codex asks to trust a new hook before it will run, and again whenever the
+command changes. `/hooks` in the CLI lists what is configured and trusts it. The
+file is not wired up by `make install`: `~/.codex/hooks.json` is written by other
+tools too, so this repo does not own it.
+
+## Finding the edited files
+
+Claude Code passes a `transcript_path`, and the edits are read from it. Codex
+sends one too, pointing at a rollout log in its own format, and nothing in it
+parses as a Claude tool call. Either of those — no path, or a file with no line
+this hook understands — falls back to the git working tree: what changed since
+`HEAD`, plus anything untracked that git is not ignoring, scoped to the project
+root.
+
+A Claude transcript that names no edits is a different answer, and it stands: the
+agent read code and changed nothing, so nothing is checked however dirty the tree
+is. The fallback is wider by nature — a file you edited by hand counts as an edit
+— so a session started in a dirty repo can put pre-existing changes in scope.
+Outside a git repo it finds nothing and the hook does nothing.
+
+## Runtime
+
+`stop.mjs` is plain JavaScript on `node:` builtins, so `node`, `deno` and `bun`
+all run it as-is with nothing installed. The plugin has no dependencies, no
+lockfile and no build step. `hooks.json` calls `node`; swap that for
+`deno run -A` or `bun run` if you would rather.
+
+Types are JSDoc under a `// @ts-check` pragma, so an editor checks them with its
+own TypeScript and no dependency is needed. It checks clean under `--strict`. An
+editor that does not fetch `@types/node` will flag `process` and `console` as
+unknown; nothing else here needs them.
+
 ## Tests
 
-`bun test` from `claude-plugin/`. It drives the hook the way Claude Code does,
-transcript on stdin and decision on stdout, against a throwaway project.
+`node --test` from `claude-plugin/`. It drives the hook
+the way Claude Code does, transcript on stdin and decision on stdout, against a
+throwaway project, under whichever runtime is running the tests.

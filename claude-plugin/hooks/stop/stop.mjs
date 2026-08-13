@@ -1,4 +1,4 @@
-#!/usr/bin/env bun
+// @ts-check
 /**
  * Stop Hook: lint, type check, format, then run tests.
  *
@@ -8,23 +8,31 @@
  *
  * Lint errors block before the tests run — a project that doesn't type check
  * has nothing to learn from a two-minute test run.
+ *
+ * Plain JS on node: builtins only, so node, deno and bun all run it as-is with
+ * nothing installed. The types are JSDoc: an editor checks them, and no
+ * dependency is needed to do it.
  */
 
-import { dirname, resolve, join, extname, relative, basename } from "path";
-import { spawnSync } from "child_process";
-import { existsSync } from "fs";
+import { dirname, resolve, join, extname, relative, basename } from "node:path";
+import { spawnSync } from "node:child_process";
+import { existsSync } from "node:fs";
+import { readFile, readdir } from "node:fs/promises";
+import { text } from "node:stream/consumers";
 
-interface StopHookInput {
-  stop_hook_active?: boolean;
-  transcript_path?: string;
-}
+/**
+ * @typedef {object} StopHookInput
+ * @property {boolean} [stop_hook_active]
+ * @property {string} [transcript_path]
+ */
 
-type Framework = "vitest" | "jest" | "mocha" | "bun";
-type PackageManager = "bun" | "pnpm" | "yarn" | "npm";
+/** @typedef {"vitest" | "jest" | "mocha" | "bun"} Framework */
+/** @typedef {"bun" | "pnpm" | "yarn" | "npm"} PackageManager */
 
 // One list, three jobs: the project-root marker, the package-manager map, and
 // part of SKIP_BASENAMES below. Ordered — the first match names the manager.
-const LOCKFILES: [string, PackageManager][] = [
+/** @type {[string, PackageManager][]} */
+const LOCKFILES = [
   ["bun.lock", "bun"],
   ["bun.lockb", "bun"],
   ["pnpm-lock.yaml", "pnpm"],
@@ -92,37 +100,53 @@ const TEST_CONFIG_PATTERN =
   /(?:^|\/)(?:(?:vitest|jest|mocha|playwright|vite|babel|rollup|webpack|esbuild|tsup|swc)\.config\.[cm]?[jt]sx?|\.(?:babelrc|mocharc)(?:\.[a-z]+)?)$/;
 const TEST_FILE_PATTERN = /[._](?:test|spec)\.[jt]sx?$/;
 
+// Matched against a directory listing rather than a glob, so there is no pattern
+// library to depend on. eslint reuses ESLINT_CONFIG_PATTERN above: its `(?:^|\/)`
+// prefix matches a bare basename just as well as a path.
+const PRETTIER_CONFIG_FILE = /^(?:prettier\.config\.|\.prettierrc)/;
+
 // One budget for the whole run, sitting under the timeout in hooks.json. A hook
 // the harness kills never writes its decision, so failing tests would read as a
 // clean stop — each tool gets what is actually left, not its own fixed slice.
 const DEADLINE = Date.now() + 140_000;
-const budget = (cap: number) =>
-  Math.min(cap, Math.max(1000, DEADLINE - Date.now()));
+/** @param {number} cap */
+const budget = (cap) => Math.min(cap, Math.max(1000, DEADLINE - Date.now()));
 
-interface TestSetup {
-  framework?: Framework;
-  binPath?: string;
-  fullSuiteCommand: string[];
-}
+/**
+ * @typedef {object} TestSetup
+ * @property {Framework} [framework]
+ * @property {string} [binPath]
+ * @property {string[]} fullSuiteCommand
+ */
 
-async function readJson(path: string): Promise<Record<string, any> | null> {
+/**
+ * @param {string} path
+ * @returns {Promise<Record<string, any> | null>}
+ */
+async function readJson(path) {
   try {
-    return await Bun.file(path).json();
+    return JSON.parse(await readFile(path, "utf8"));
   } catch {
     return null;
   }
 }
 
-const hasLockfile = (dir: string) =>
+/** @param {string} dir */
+const hasLockfile = (dir) =>
   LOCKFILES.some(([name]) => existsSync(join(dir, name)));
 
 // Walk up to the workspace root — the directory whose package.json sits beside a
 // lockfile, a .git, or a `workspaces` field. That is where node_modules/.bin
 // lives, so it is the only root both eslint and the test runner can be launched
 // from. Falls back to the nearest package.json.
-async function findProjectRoot(start: string): Promise<string | null> {
+/**
+ * @param {string} start
+ * @returns {Promise<string | null>}
+ */
+async function findProjectRoot(start) {
   let dir = start;
-  let nearest: string | null = null;
+  /** @type {string | null} */
+  let nearest = null;
 
   while (dir !== dirname(dir)) {
     const pkg = join(dir, "package.json");
@@ -141,29 +165,39 @@ async function findProjectRoot(start: string): Promise<string | null> {
   return nearest;
 }
 
-// Absolute paths Claude edited this session, still on disk. Files written and
-// later deleted must be dropped: eslint and prettier fatal-error on a missing path.
-async function getEditedFiles(
-  transcriptPath: string | undefined,
-  projectRoot: string,
-): Promise<string[]> {
-  if (!transcriptPath || !existsSync(transcriptPath)) return [];
+// Absolute paths Claude edited this session, as claimed by the transcript.
+// null, not [], when there is no transcript here to read: the file is missing,
+// or every line is in some other agent's format. Codex sends a transcript path
+// too, pointing at its own rollout log, and none of it parses as Claude's tool
+// calls. The caller falls back to git for that; an empty Claude transcript is a
+// real answer and stays empty.
+/**
+ * @param {string} transcriptPath
+ * @param {string} projectRoot
+ * @returns {Promise<string[] | null>}
+ */
+async function getEditedFiles(transcriptPath, projectRoot) {
+  if (!existsSync(transcriptPath)) return null;
 
   const editTools = new Set(["Edit", "Write", "MultiEdit", "NotebookEdit"]);
-  const seen = new Set<string>();
+  /** @type {Set<string>} */
+  const seen = new Set();
+  let readable = false;
 
-  for (const line of (await Bun.file(transcriptPath).text()).split("\n")) {
+  for (const line of (await readFile(transcriptPath, "utf8")).split("\n")) {
     if (!line.trim()) continue;
-    let entry: unknown;
+    let entry;
     try {
       entry = JSON.parse(line);
     } catch {
       continue;
     }
 
-    const content = (entry as { message?: { content?: unknown } })?.message
-      ?.content;
+    // One line in the shape this parser expects is enough to call the file ours:
+    // a session that only read code still has assistant messages in it.
+    const content = entry?.message?.content;
     if (!Array.isArray(content)) continue;
+    readable = true;
 
     for (const block of content) {
       if (
@@ -173,40 +207,73 @@ async function getEditedFiles(
       ) {
         continue;
       }
-      const fp = (block.input as { file_path?: unknown } | undefined)
-        ?.file_path;
+      const fp = block.input?.file_path;
       if (typeof fp !== "string") continue;
       const abs = resolve(fp);
-      if (
-        (abs.startsWith(projectRoot + "/") || abs === projectRoot) &&
-        !abs.includes("/node_modules/")
-      ) {
+      if (abs.startsWith(projectRoot + "/") || abs === projectRoot) {
         seen.add(abs);
       }
     }
   }
 
-  return [...seen].filter((p) => existsSync(p));
+  return readable ? [...seen] : null;
 }
 
-interface Categorized {
-  prettierFiles: string[];
-  // Every edited code file, and the targets for a related-tests run — not only
-  // the TS/JS ones. `vitest related` and `jest --findRelatedTests` resolve a
-  // stylesheet or a JSON fixture back to the tests that import it, so scoping
-  // by them beats falling through to the whole suite.
-  codeFiles: string[];
-  // The subset of codeFiles that are themselves test files.
-  testFiles: string[];
-  tsConfigChanged: boolean;
-  eslintConfigChanged: boolean;
-  packageJsonChanged: boolean;
-  testConfigChanged: boolean;
-  hasCode: boolean;
+// Both sources hand over raw candidates, so what counts as a file worth checking
+// is decided once. Files written and later deleted have to go: eslint and
+// prettier fatal-error on a missing path, and `git diff HEAD` lists deletions as
+// a matter of course.
+/** @param {string[]} files */
+const worthChecking = (files) =>
+  files.filter((f) => !f.includes("/node_modules/") && existsSync(f));
+
+// Codex fires Stop but sends no transcript_path, so there is no record of what
+// the agent touched. The working tree is the neutral answer: what changed since
+// HEAD, plus anything new that git is not ignoring. Wider than the transcript —
+// a file edited by hand counts too — which is why it is only the fallback.
+/** @param {string} projectRoot */
+function gitChangedFiles(projectRoot) {
+  // --relative scopes the output to projectRoot and prints paths relative to it,
+  // which matters when the project is one package inside a larger repo. -z keeps
+  // paths intact when they contain spaces or non-ASCII.
+  const run = (/** @type {string[]} */ args) =>
+    runCommand(["git", "-C", projectRoot, ...args], projectRoot, budget(5_000));
+
+  // A repo with no commits has no HEAD to diff, and everything in it is
+  // untracked anyway, so a failure here is not worth reporting.
+  const tracked = run(["diff", "-z", "--name-only", "--relative", "HEAD"]);
+  const untracked = run(["ls-files", "-z", "--others", "--exclude-standard"]);
+
+  return [tracked, untracked]
+    .filter((r) => r.success)
+    .flatMap((r) => r.output.split("\0"))
+    .filter(Boolean)
+    .map((p) => resolve(projectRoot, p));
 }
 
-function categorize(files: string[], projectRoot: string): Categorized {
-  const c: Categorized = {
+/**
+ * @typedef {object} Categorized
+ * @property {string[]} prettierFiles
+ * @property {string[]} codeFiles Every edited code file, and the targets for a
+ *   related-tests run — not only the TS/JS ones. `vitest related` and
+ *   `jest --findRelatedTests` resolve a stylesheet or a JSON fixture back to the
+ *   tests that import it, so scoping by them beats falling through to the whole
+ *   suite.
+ * @property {string[]} testFiles The subset of codeFiles that are themselves test files.
+ * @property {boolean} tsConfigChanged
+ * @property {boolean} eslintConfigChanged
+ * @property {boolean} packageJsonChanged
+ * @property {boolean} testConfigChanged
+ * @property {boolean} hasCode
+ */
+
+/**
+ * @param {string[]} files
+ * @param {string} projectRoot
+ */
+function categorize(files, projectRoot) {
+  /** @type {Categorized} */
+  const c = {
     prettierFiles: [],
     codeFiles: [],
     testFiles: [],
@@ -252,11 +319,12 @@ function categorize(files: string[], projectRoot: string): Categorized {
   return c;
 }
 
-function runCommand(
-  command: string[],
-  cwd: string,
-  timeoutMs: number,
-): { success: boolean; output: string; status: number | null } {
+/**
+ * @param {string[]} command
+ * @param {string} cwd
+ * @param {number} timeoutMs
+ */
+function runCommand(command, cwd, timeoutMs) {
   const result = spawnSync(command[0], command.slice(1), {
     cwd,
     encoding: "utf-8",
@@ -278,30 +346,39 @@ function runCommand(
   };
 }
 
-function binPath(projectRoot: string, name: string): string | null {
+/**
+ * @param {string} projectRoot
+ * @param {string} name
+ */
+function binPath(projectRoot, name) {
   const path = resolve(projectRoot, "node_modules", ".bin", name);
   return existsSync(path) ? path : null;
 }
 
-// One glob per tool instead of a hand-kept list of every config filename.
-async function hasConfig(projectRoot: string, glob: string): Promise<boolean> {
-  for await (const _ of new Bun.Glob(glob).scan({
-    cwd: projectRoot,
-    dot: true,
-    onlyFiles: false,
-  })) {
-    return true;
+// One directory listing per tool instead of a hand-kept list of every config
+// filename.
+/**
+ * @param {string} projectRoot
+ * @param {RegExp} pattern
+ */
+async function hasConfig(projectRoot, pattern) {
+  try {
+    return (await readdir(projectRoot)).some((name) => pattern.test(name));
+  } catch {
+    return false;
   }
-  return false;
 }
 
-async function lint(
-  projectRoot: string,
-  c: Categorized,
-  forceFull: boolean,
-): Promise<{ errors: string[]; warnings: string[] }> {
-  const errors: string[] = [];
-  const warnings: string[] = [];
+/**
+ * @param {string} projectRoot
+ * @param {Categorized} c
+ * @param {boolean} forceFull
+ */
+async function lint(projectRoot, c, forceFull) {
+  /** @type {string[]} */
+  const errors = [];
+  /** @type {string[]} */
+  const warnings = [];
   // Lint only understands TS/JS, so it takes a narrower slice than the tests do.
   const tsJsFiles = c.codeFiles.filter((f) => TS_JS_EXTENSIONS.has(extname(f)));
 
@@ -326,10 +403,7 @@ async function lint(
 
   // ── ESLint (scoped to edited JS/TS unless config or package.json changed) ──
   const eslint = binPath(projectRoot, "eslint");
-  if (
-    eslint &&
-    (await hasConfig(projectRoot, "{eslint.config.*,.eslintrc*}"))
-  ) {
+  if (eslint && (await hasConfig(projectRoot, ESLINT_CONFIG_PATTERN))) {
     const targets =
       forceFull || c.eslintConfigChanged || c.packageJsonChanged
         ? ["."]
@@ -360,7 +434,7 @@ async function lint(
     c.prettierFiles.length > 0 ? binPath(projectRoot, "prettier") : null;
   const configured =
     !!prettier &&
-    ((await hasConfig(projectRoot, "{prettier.config.*,.prettierrc*}")) ||
+    ((await hasConfig(projectRoot, PRETTIER_CONFIG_FILE)) ||
       !!(await readJson(join(projectRoot, "package.json")))?.prettier);
 
   if (prettier && configured) {
@@ -378,17 +452,22 @@ async function lint(
   return { errors, warnings };
 }
 
-function detectPackageManager(dir: string): PackageManager {
+/** @param {string} dir */
+function detectPackageManager(dir) {
   return LOCKFILES.find(([name]) => existsSync(join(dir, name)))?.[1] ?? "npm";
 }
 
-async function detectTestSetup(dir: string): Promise<TestSetup | null> {
+/**
+ * @param {string} dir
+ * @returns {Promise<TestSetup | null>}
+ */
+async function detectTestSetup(dir) {
   const pm = detectPackageManager(dir);
   const pkg = await readJson(join(dir, "package.json"));
 
-  let framework: Framework | undefined;
-  let bin: string | undefined;
-  for (const candidate of ["vitest", "jest", "mocha"] as const) {
+  let framework;
+  let bin;
+  for (const candidate of /** @type {const} */ (["vitest", "jest", "mocha"])) {
     if (!pkg?.dependencies?.[candidate] && !pkg?.devDependencies?.[candidate]) {
       continue;
     }
@@ -406,13 +485,12 @@ async function detectTestSetup(dir: string): Promise<TestSetup | null> {
   const hasTestScript =
     !!testScript && testScript !== 'echo "Error: no test specified" && exit 1';
 
-  let fullSuiteCommand: string[];
+  let fullSuiteCommand;
   if (hasTestScript) {
     fullSuiteCommand = pm === "bun" ? ["bun", "run", "test"] : [pm, "test"];
-  } else if (framework === "vitest") {
-    fullSuiteCommand = [bin!, "run"];
-  } else if (framework) {
-    fullSuiteCommand = [bin!];
+  } else if (bin) {
+    // bin is only ever set alongside framework, so this covers both.
+    fullSuiteCommand = framework === "vitest" ? [bin, "run"] : [bin];
   } else if (pm === "bun") {
     fullSuiteCommand = ["bun", "test"];
   } else {
@@ -426,11 +504,12 @@ async function detectTestSetup(dir: string): Promise<TestSetup | null> {
   };
 }
 
-function buildTestCommand(
-  setup: TestSetup,
-  c: Categorized,
-  projectRoot: string,
-): string[] {
+/**
+ * @param {TestSetup} setup
+ * @param {Categorized} c
+ * @param {string} projectRoot
+ */
+function buildTestCommand(setup, c, projectRoot) {
   if (c.testConfigChanged || c.codeFiles.length === 0) {
     return setup.fullSuiteCommand;
   }
@@ -455,19 +534,28 @@ function buildTestCommand(
   return setup.fullSuiteCommand;
 }
 
-function block(reason: string): never {
+/**
+ * @param {string} reason
+ * @returns {never}
+ */
+function block(reason) {
   console.log(JSON.stringify({ decision: "block", reason }));
   process.exit(0);
 }
+
+// The harness always pipes the payload in. A TTY means someone ran this by hand,
+// and reading stdin there would hang rather than fail.
+const readStdin = () => (process.stdin.isTTY ? "" : text(process.stdin));
 
 async function main() {
   const lintEnabled = process.env.LINT_ON_SAVE !== "false";
   const testsEnabled = process.env.RUN_TESTS_ON_STOP !== "false";
   if (!lintEnabled && !testsEnabled) process.exit(0);
 
-  let input: StopHookInput = {};
+  /** @type {StopHookInput} */
+  let input = {};
   try {
-    const stdin = await Bun.stdin.text();
+    const stdin = await readStdin();
     if (stdin.trim()) input = JSON.parse(stdin);
   } catch {
     // Continue with empty input
@@ -480,8 +568,16 @@ async function main() {
   const lintFull = process.env.LINT_FULL === "true";
   const testsFull = process.env.RUN_TESTS_FULL_SUITE === "true";
 
+  // Which source, not which result: an empty transcript means the agent edited
+  // nothing, and falling back there would lint and test whatever happens to be
+  // dirty after a turn that only read code. Git stands in when there is no
+  // transcript this hook can read — none sent, or one in another agent's format.
+  const edited = input.transcript_path
+    ? await getEditedFiles(input.transcript_path, projectRoot)
+    : null;
+
   const c = categorize(
-    await getEditedFiles(input.transcript_path, projectRoot),
+    worthChecking(edited ?? gitChangedFiles(projectRoot)),
     projectRoot,
   );
 
@@ -496,7 +592,9 @@ async function main() {
 
   if (errors.length > 0) {
     block(
-      `Lint/type errors found. Please fix before stopping.\n\n${errors.join("\n\n")}`,
+      `Lint/type errors found. Please fix before stopping.\n\n${errors.join(
+        "\n\n",
+      )}`,
     );
   }
 
@@ -509,13 +607,19 @@ async function main() {
       const r = runCommand(command, projectRoot, budget(120_000));
       if (!r.success) {
         block(
-          `Tests failed. Please fix the failing tests before stopping.\n\n$ ${command.join(" ")}\n\n${r.output}`,
+          `Tests failed. Please fix the failing tests before stopping.\n\n$ ${command.join(
+            " ",
+          )}\n\n${r.output}`,
         );
       }
     }
   }
 
-  if (warnings.length > 0) console.log(warnings.join("\n\n"));
+  // systemMessage, not bare text: plain stdout from a hook that exits 0 only
+  // shows in transcript mode, so a warning printed that way is one nobody reads.
+  if (warnings.length > 0) {
+    console.log(JSON.stringify({ systemMessage: warnings.join("\n\n") }));
+  }
   process.exit(0);
 }
 

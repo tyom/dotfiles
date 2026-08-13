@@ -45,9 +45,9 @@ jobs:
 
       - run: make test-links
 
-  # validate.sh deliberately no longer type checks the plugin ("CI's job"), and
-  # the Docker tests only exercise the installer — so this is the only thing that
-  # runs the hook's own tsc and test suite.
+  # The Docker tests only exercise the installer, so this is the only thing that
+  # runs the hook's own test suite. The hook has no dependencies and nothing to
+  # build, so there is no install step to run first.
   plugin:
     runs-on: ubuntu-latest
     defaults:
@@ -57,8 +57,10 @@ jobs:
       - uses: actions/checkout@v5
         with:
           persist-credentials: false
-      - uses: oven-sh/setup-bun@v2
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
 
-      - run: bun install --frozen-lockfile
-      - run: bun run typecheck
-      - run: bun test
+      # No path: node discovers **/*.test.mjs itself, so a second test file runs
+      # here without anyone remembering to add it.
+      - run: node --test
