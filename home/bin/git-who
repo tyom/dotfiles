@@ -97,16 +97,13 @@ while (($#)); do
   case $1 in
     -t | --top) topn=10
                 [[ ${2:-} =~ ^[0-9]+$ ]] && { topn=$2; shift; } ;;
-    --top=*)    topn=${1#*=} ;;
     -t*)        topn=${1#-t} ;;
     -d | --depth) [[ -n ${2:-} ]] ||
                     { echo "git-who: -d wants a number" >&2; exit 2; }
                   depth=$2; shift ;;
-    --depth=*)  depth=${1#*=} ;;
     -d*)        depth=${1#-d} ;;
     -i | --is) detail=1
                [[ -n ${2:-} && ${2:0:1} != - ]] && { is=$2; shift; } ;;
-    --is=*)    detail=1; is=${1#*=} ;;
     -c | --clear) clear=1 ;;
     -v | --verbose) verbose=1 ;;
     -h | --help) usage && exit 0 ;;
@@ -155,8 +152,7 @@ lowsep=$'\001'
 unitsep=$'\037'
 
 work=$(mktemp -d)
-mutter_pid=
-trap 'rm -rf "$work"; [[ -n $mutter_pid ]] && kill "$mutter_pid" 2>/dev/null' EXIT
+trap 'rm -rf "$work"' EXIT
 : >"$work/miss"
 : >"$work/keep"
 : >"$work/blamed"
@@ -258,27 +254,6 @@ if [[ -s "$work/miss" ]]; then
       { print }' >"$work/blamed"
 fi
 
-# Blaming counts itself off. Everything after it — the cache, GitHub, the
-# folding — has nothing to report a number about, so a word every so often says
-# the work is still moving. The note file lets a slow stretch name itself
-: >"$work/phase"
-verbs=(contemplating tallying reckoning weighing sifting refining distilling squaring)
-mutter() {
-  local i=$((RANDOM % ${#verbs[@]})) note
-  while :; do
-    note=$(cat "$work/phase" 2>/dev/null) || note=
-    draw "$status (${note:+$note, }${verbs[$((i % ${#verbs[@]}))]}…)"
-    i=$((i + 1))
-    # Anywhere from 0.7 to 1.3 seconds, so it does not tick like a clock
-    tenths=$((7 + RANDOM % 7))
-    sleep "$((tenths / 10)).$((tenths % 10))"
-  done
-}
-if [[ -t 2 ]]; then
-  mutter &
-  mutter_pid=$!
-fi
-
 # Written whole and moved into place, so a killed run leaves the old one intact
 if [[ $cache != /dev/null ]]; then
   { printf '%s\n' "$stamp"; sort -u "$work/keep" "$work/blamed"; } >"$work/new"
@@ -335,7 +310,7 @@ ask_github() {
 }
 
 if [[ -n $slug ]]; then
-  echo 'asking github' >"$work/phase"
+  draw "$status (asking github…)"
   # Whoever the page is about, largest first, with one commit each to be
   # identified by. The page below picks the same people by the same rule: a
   # starts-with on the name or on any address, and as many of them as --top
@@ -377,17 +352,23 @@ if [[ -n $slug ]]; then
       }
     }' "$work/counts" "$work/log" >"$work/whoto"
 
-  # One at a time is a second each, so they go together, a file apiece to land
-  # in. Waited on by name, since a bare wait would also wait on the spinner and
-  # that one never finishes
-  asked=()
+  # One at a time is a second each, so they go together, a file apiece to land in
+  n=0
   while IFS=$'\t' read -r name mail sha; do
-    ask_github "$name" "$mail" "$sha" >"$work/gh.${#asked[@]}" &
-    asked+=($!)
+    ask_github "$name" "$mail" "$sha" >"$work/gh.$n" &
+    n=$((n + 1))   # in the parent: a background job expands its redirect in the child
   done <"$work/whoto"
-  ((${#asked[@]})) && { wait "${asked[@]}" 2>/dev/null || true; }
+  # These are the only jobs in flight, so the ones still running are the
+  # answers still out. A network wait is the one stretch worth saying anything
+  # about, and how many are left says more than a spinner would
+  if [[ -t 2 ]]; then
+    while left=$(jobs -r | wc -l); ((left)); do
+      draw "$status (asking github, $((n - left))/$n)"
+      sleep 0.3
+    done
+  fi
+  wait 2>/dev/null || true
   cat "$work/gh."* >"$work/gh" 2>/dev/null || true
-  : >"$work/phase"
 fi
 
 # A sort has to sit between the folding and the colouring, so they cannot be
@@ -743,12 +724,6 @@ else
       }
       printf "\n"
     }' >"$work/out"
-fi
-
-if [[ -n $mutter_pid ]]; then
-  kill "$mutter_pid" 2>/dev/null || true
-  wait "$mutter_pid" 2>/dev/null || true
-  mutter_pid=
 fi
 
 # The line has said its piece by the time there is something to read
