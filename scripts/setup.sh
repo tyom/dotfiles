@@ -157,20 +157,27 @@ if is_checked claude-plugin; then
   fi
 
   # Register plugin if claude is available
-  if command -v claude &>/dev/null; then
+  if ! command -v claude &>/dev/null; then
+    print_warning 'claude not found, the plugin cannot be registered'
+    SUMMARY+=('Claude Code plugin: skipped, claude not found')
+  else
     print_step 'Registering Claude Code dotfiles plugin'
     if claude plugin marketplace add "$PLUGIN_DIR" &>/dev/null; then
       print_success 'Plugin marketplace entry added'
     else
       print_info 'Plugin marketplace entry may already exist'
     fi
-    if claude plugin install dotfiles@tyom --scope user &>/dev/null; then
-      print_success 'Plugin installed successfully'
+    # A failed install is usually one that was already there, so ask the list
+    # rather than reporting either outcome on the exit status alone.
+    if claude plugin install dotfiles@tyom --scope user &>/dev/null ||
+      claude plugin list 2>/dev/null | grep -q 'dotfiles@tyom'; then
+      print_success 'Plugin installed'
+      SUMMARY+=('Claude Code plugin: installed')
     else
-      print_info 'Plugin may already be installed'
+      print_error 'Plugin installation failed'
+      SUMMARY+=('Claude Code plugin: install failed')
     fi
   fi
-  SUMMARY+=('Claude Code plugin: installed')
 fi
 
 if is_checked dotfiles; then

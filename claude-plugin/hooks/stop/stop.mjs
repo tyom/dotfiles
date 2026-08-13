@@ -604,7 +604,11 @@ async function main() {
     }
   }
 
-  if (warnings.length > 0) console.log(warnings.join("\n\n"));
+  // systemMessage, not bare text: plain stdout from a hook that exits 0 only
+  // shows in transcript mode, so a warning printed that way is one nobody reads.
+  if (warnings.length > 0) {
+    console.log(JSON.stringify({ systemMessage: warnings.join("\n\n") }));
+  }
   process.exit(0);
 }
 

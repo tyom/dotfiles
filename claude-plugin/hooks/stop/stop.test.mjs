@@ -26,7 +26,9 @@ const HOOK = join(import.meta.dirname, "stop.mjs");
 function tmpProject(pkg) {
   const dir = realpathSync(mkdtempSync(join(tmpdir(), "stop-hook-")));
   writeFileSync(join(dir, "package.json"), JSON.stringify(pkg));
-  writeFileSync(join(dir, "bun.lock"), "");
+  // npm, not bun: the fixture's test script has to actually run, and bun is not
+  // on every machine that runs these tests.
+  writeFileSync(join(dir, "package-lock.json"), "");
   return dir;
 }
 
