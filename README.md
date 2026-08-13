@@ -49,7 +49,8 @@ How it behaves:
   [`ungit`](https://github.com/tyom/ungit) reads a GitHub repo or subdirectory
   as text, and [`repo-intel`](https://github.com/tyom/repo-intel) builds a
   contributor dashboard for any git repo
-- **Claude Code plugin**: `/explain-code`, `/review-code` and `/refactor-code`
+- **Claude Code plugin**: one `Stop` hook that lints, type checks, formats and
+  tests what the agent edited before it stops. Codex runs the same file
 
 ## Installation
 
