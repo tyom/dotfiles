@@ -1,4 +1,3 @@
-#!/usr/bin/env node
 // @ts-check
 /**
  * Stop Hook: lint, type check, format, then run tests.
@@ -372,7 +371,7 @@ async function lint(projectRoot, c, forceFull) {
       const r = runCommand(
         [tsc, "--noEmit", "--skipLibCheck"],
         projectRoot,
-        budget(30_000),
+        budget(30_000)
       );
       if (!r.success && r.output)
         errors.push(`TypeScript errors:\n${r.output}`);
@@ -397,7 +396,7 @@ async function lint(projectRoot, c, forceFull) {
           ...targets,
         ],
         projectRoot,
-        budget(30_000),
+        budget(30_000)
       );
       if (r.output) {
         if (r.status === 1) errors.push(`ESLint errors:\n${r.output}`);
@@ -421,7 +420,7 @@ async function lint(projectRoot, c, forceFull) {
     const r = runCommand(
       [prettier, "--write", "--list-different", ...c.prettierFiles],
       projectRoot,
-      budget(30_000),
+      budget(30_000)
     );
     if (!r.success) errors.push(`Prettier errors:\n${r.output}`);
     else if (r.output) warnings.push(`Prettier: auto-formatted\n${r.output}`);
@@ -563,7 +562,7 @@ async function main() {
 
   const c = categorize(
     await getEditedFiles(input.transcript_path, projectRoot),
-    projectRoot,
+    projectRoot
   );
 
   // Nothing functional changed and nothing formattable was touched → skip.
@@ -577,7 +576,9 @@ async function main() {
 
   if (errors.length > 0) {
     block(
-      `Lint/type errors found. Please fix before stopping.\n\n${errors.join("\n\n")}`,
+      `Lint/type errors found. Please fix before stopping.\n\n${errors.join(
+        "\n\n"
+      )}`
     );
   }
 
@@ -590,7 +591,9 @@ async function main() {
       const r = runCommand(command, projectRoot, budget(120_000));
       if (!r.success) {
         block(
-          `Tests failed. Please fix the failing tests before stopping.\n\n$ ${command.join(" ")}\n\n${r.output}`,
+          `Tests failed. Please fix the failing tests before stopping.\n\n$ ${command.join(
+            " "
+          )}\n\n${r.output}`
         );
       }
     }
