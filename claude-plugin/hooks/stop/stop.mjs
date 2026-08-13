@@ -166,16 +166,23 @@ async function findProjectRoot(start) {
 }
 
 // Absolute paths Claude edited this session, as claimed by the transcript.
+// null, not [], when there is no transcript here to read: the file is missing,
+// or every line is in some other agent's format. Codex sends a transcript path
+// too, pointing at its own rollout log, and none of it parses as Claude's tool
+// calls. The caller falls back to git for that; an empty Claude transcript is a
+// real answer and stays empty.
 /**
  * @param {string} transcriptPath
  * @param {string} projectRoot
+ * @returns {Promise<string[] | null>}
  */
 async function getEditedFiles(transcriptPath, projectRoot) {
-  if (!existsSync(transcriptPath)) return [];
+  if (!existsSync(transcriptPath)) return null;
 
   const editTools = new Set(["Edit", "Write", "MultiEdit", "NotebookEdit"]);
   /** @type {Set<string>} */
   const seen = new Set();
+  let readable = false;
 
   for (const line of (await readFile(transcriptPath, "utf8")).split("\n")) {
     if (!line.trim()) continue;
@@ -186,8 +193,11 @@ async function getEditedFiles(transcriptPath, projectRoot) {
       continue;
     }
 
+    // One line in the shape this parser expects is enough to call the file ours:
+    // a session that only read code still has assistant messages in it.
     const content = entry?.message?.content;
     if (!Array.isArray(content)) continue;
+    readable = true;
 
     for (const block of content) {
       if (
@@ -206,7 +216,7 @@ async function getEditedFiles(transcriptPath, projectRoot) {
     }
   }
 
-  return [...seen];
+  return readable ? [...seen] : null;
 }
 
 // Both sources hand over raw candidates, so what counts as a file worth checking
@@ -384,9 +394,10 @@ async function lint(projectRoot, c, forceFull) {
       const r = runCommand(
         [tsc, "--noEmit", "--skipLibCheck"],
         projectRoot,
-        budget(30_000)
+        budget(30_000),
       );
-      if (!r.success && r.output) errors.push(`TypeScript errors:\n${r.output}`);
+      if (!r.success && r.output)
+        errors.push(`TypeScript errors:\n${r.output}`);
     }
   }
 
@@ -408,7 +419,7 @@ async function lint(projectRoot, c, forceFull) {
           ...targets,
         ],
         projectRoot,
-        budget(30_000)
+        budget(30_000),
       );
       if (r.output) {
         if (r.status === 1) errors.push(`ESLint errors:\n${r.output}`);
@@ -432,7 +443,7 @@ async function lint(projectRoot, c, forceFull) {
     const r = runCommand(
       [prettier, "--write", "--list-different", ...c.prettierFiles],
       projectRoot,
-      budget(30_000)
+      budget(30_000),
     );
     if (!r.success) errors.push(`Prettier errors:\n${r.output}`);
     else if (r.output) warnings.push(`Prettier: auto-formatted\n${r.output}`);
@@ -559,15 +570,15 @@ async function main() {
 
   // Which source, not which result: an empty transcript means the agent edited
   // nothing, and falling back there would lint and test whatever happens to be
-  // dirty after a turn that only read code. Git stands in when no transcript was
-  // sent at all, which is every Codex session.
+  // dirty after a turn that only read code. Git stands in when there is no
+  // transcript this hook can read — none sent, or one in another agent's format.
+  const edited = input.transcript_path
+    ? await getEditedFiles(input.transcript_path, projectRoot)
+    : null;
+
   const c = categorize(
-    worthChecking(
-      input.transcript_path
-        ? await getEditedFiles(input.transcript_path, projectRoot)
-        : gitChangedFiles(projectRoot)
-    ),
-    projectRoot
+    worthChecking(edited ?? gitChangedFiles(projectRoot)),
+    projectRoot,
   );
 
   // Nothing functional changed and nothing formattable was touched → skip.
@@ -582,8 +593,8 @@ async function main() {
   if (errors.length > 0) {
     block(
       `Lint/type errors found. Please fix before stopping.\n\n${errors.join(
-        "\n\n"
-      )}`
+        "\n\n",
+      )}`,
     );
   }
 
@@ -597,8 +608,8 @@ async function main() {
       if (!r.success) {
         block(
           `Tests failed. Please fix the failing tests before stopping.\n\n$ ${command.join(
-            " "
-          )}\n\n${r.output}`
+            " ",
+          )}\n\n${r.output}`,
         );
       }
     }

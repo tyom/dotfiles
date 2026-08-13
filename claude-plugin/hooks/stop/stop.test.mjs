@@ -69,7 +69,9 @@ function gitFixture() {
   return dir;
 }
 
-// One transcript line per edited file, in the shape the hook parses.
+// One transcript line per edited file, in the shape the hook parses, after an
+// assistant message: every session has one of those whether it edited anything
+// or not, and it is what marks the file as a transcript this hook can read.
 /**
  * @param {string} dir
  * @param {string[]} files
@@ -78,8 +80,11 @@ function transcript(dir, files) {
   const path = join(dir, "transcript.jsonl");
   writeFileSync(
     path,
-    files
-      .map((f) =>
+    [
+      JSON.stringify({
+        message: { content: [{ type: "text", text: "done" }] },
+      }),
+      ...files.map((f) =>
         JSON.stringify({
           message: {
             content: [
@@ -91,8 +96,8 @@ function transcript(dir, files) {
             ],
           },
         }),
-      )
-      .join("\n"),
+      ),
+    ].join("\n"),
   );
   return path;
 }
@@ -111,8 +116,8 @@ function runHook(dir, files, { withTranscript = true } = {}) {
   const proc = spawnSync(process.execPath, [HOOK], {
     cwd: dir,
     encoding: "utf-8",
-    // No transcript is what Codex sends: it has no Claude Code transcript to
-    // point at, so the hook has to find the edits another way.
+    // No transcript_path at all is one of the two ways the hook ends up on the
+    // git fallback; the other is a transcript it cannot parse.
     input: JSON.stringify(
       withTranscript ? { transcript_path: transcript(dir, files) } : {},
     ),
@@ -152,13 +157,42 @@ test("a test-config edit still runs the whole suite", () => {
   assert.match(reason, /argv: run/);
 });
 
-// Codex fires Stop but sends no transcript_path, so without a second source of
-// edited files the hook would check nothing and report a clean stop.
+// A Stop with no transcript_path at all: with no second source of edited files
+// the hook would check nothing and report a clean stop.
 test("with no transcript, the git working tree names the edits", () => {
   const reason = JSON.parse(
     runHook(gitFixture(), ["src/thing.ts"], { withTranscript: false }),
   ).reason;
   assert.match(reason, /related src\/thing\.ts/);
+});
+
+// Codex sends a transcript_path of its own, pointing at a rollout log in its
+// format. None of it parses as Claude's tool calls, so the working tree has to
+// stand in — read as an empty edit list, every Codex session would check nothing
+// and report a clean stop.
+test("a transcript in another format falls back to git", () => {
+  const dir = gitFixture();
+  const rollout = join(
+    realpathSync(mkdtempSync(join(tmpdir(), "rollout-"))),
+    "rollout.jsonl",
+  );
+  writeFileSync(
+    rollout,
+    JSON.stringify({
+      type: "response_item",
+      payload: { type: "function_call", name: "shell" },
+    }),
+  );
+  mkdirSync(join(dir, "src"), { recursive: true });
+  writeFileSync(join(dir, "src", "thing.ts"), "export const x = 1\n");
+
+  const proc = spawnSync(process.execPath, [HOOK], {
+    cwd: dir,
+    encoding: "utf-8",
+    input: JSON.stringify({ transcript_path: rollout }),
+  });
+  assert.equal(proc.status, 0);
+  assert.match(JSON.parse(proc.stdout.trim()).reason, /related src\/thing\.ts/);
 });
 
 // The transcript is the better signal where it exists: it names what the agent

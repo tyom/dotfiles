@@ -65,22 +65,25 @@ here, so Codex reaches in rather than the code moving somewhere neutral.
 ]
 ```
 
-Codex asks to trust a new hook before it will run, and records the approval in
-`~/.codex/config.toml` under `[hooks.state]`. `[features] hooks = true` must be
-set. It is not wired up by `make install`: `~/.codex/hooks.json` is written by
-other tools too, so this repo does not own the file.
+Codex asks to trust a new hook before it will run, and again whenever the
+command changes. `/hooks` in the CLI lists what is configured and trusts it. The
+file is not wired up by `make install`: `~/.codex/hooks.json` is written by other
+tools too, so this repo does not own it.
 
 ## Finding the edited files
 
 Claude Code passes a `transcript_path`, and the edits are read from it. Codex
-fires `Stop` with no transcript, so there the hook falls back to the git working
-tree: what changed since `HEAD`, plus anything untracked that git is not
-ignoring, scoped to the project root.
+sends one too, pointing at a rollout log in its own format, and nothing in it
+parses as a Claude tool call. Either of those — no path, or a file with no line
+this hook understands — falls back to the git working tree: what changed since
+`HEAD`, plus anything untracked that git is not ignoring, scoped to the project
+root.
 
-The transcript wins wherever it exists. The fallback is wider by nature — a file
-you edited by hand counts as an edit — so a session started in a dirty repo can
-put pre-existing changes in scope. Outside a git repo it finds nothing and the
-hook does nothing.
+A Claude transcript that names no edits is a different answer, and it stands: the
+agent read code and changed nothing, so nothing is checked however dirty the tree
+is. The fallback is wider by nature — a file you edited by hand counts as an edit
+— so a session started in a dirty repo can put pre-existing changes in scope.
+Outside a git repo it finds nothing and the hook does nothing.
 
 ## Runtime
 
