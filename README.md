@@ -292,15 +292,16 @@ at HEAD, ignoring whitespace-only changes, so the shares say who wrote the code
 that is there now rather than who committed most.
 
 - default: a tree, each directory with its top authors
-- `-t [n]`: the other way round, top authors first and where their lines sit
-- `-i [name]`: a page about a person instead of a table, with their addresses,
-  lines, commits and how many of those were merges, the span they worked over
-  with a bar of their activity month by month, and where their lines sit. With
-  no name it reports the biggest contributors instead: as many as `-t` asks for,
-  or ten if `-t` is absent. With `gh` installed and logged in to a GitHub
-  remote it adds their profile, pull requests and reviews
-- `-d n` sets the depth, `-v` writes names out in full, and a path roots the
-  tree somewhere else
+- `-t, --top [n]`: the other way round, top authors first and where their lines
+  sit
+- `-i, --is [name]`: a page about a person instead of a table, with their
+  addresses, lines, commits and how many of those were merges, the span they
+  worked over with a bar of their activity month by month, and where their lines
+  sit. With no name it reports the biggest contributors instead: as many as `-t`
+  asks for, or ten if `-t` is absent. With `gh` installed and logged in to a
+  GitHub remote it adds their profile, pull requests and reviews
+- `-d, --depth n` sets the depth, `-v` writes names out in full, and a path
+  roots the tree somewhere else
 
 Counts are cached in `.git/git-who.cache`, so a second run only blames what
 changed. `-c` starts the cache over.
