@@ -39,7 +39,20 @@ Set per-project in `.claude/settings.local.json`:
 | `RUN_TESTS_ON_STOP`    | `true`  | Run tests                                      |
 | `RUN_TESTS_FULL_SUITE` | `false` | Ignore related-tests mode, always run the lot  |
 
+## Runtime
+
+`stop.mjs` is plain JavaScript on `node:` builtins, so `node`, `deno` and `bun`
+all run it as-is with nothing installed. The plugin has no dependencies, no
+lockfile and no build step. `hooks.json` calls `node`; swap that for
+`deno run -A` or `bun run` if you would rather.
+
+Types are JSDoc under a `// @ts-check` pragma, so an editor checks them with its
+own TypeScript and no dependency is needed. It checks clean under `--strict`. An
+editor that does not fetch `@types/node` will flag `process` and `console` as
+unknown; nothing else here needs them.
+
 ## Tests
 
-`bun test` from `claude-plugin/`. It drives the hook the way Claude Code does,
-transcript on stdin and decision on stdout, against a throwaway project.
+`node --test hooks/stop/stop.test.mjs` from `claude-plugin/`. It drives the hook
+the way Claude Code does, transcript on stdin and decision on stdout, against a
+throwaway project, under whichever runtime is running the tests.

@@ -147,21 +147,11 @@ fi
 
 if is_checked claude-plugin; then
   PLUGIN_DIR="$DOTFILES_DIR/claude-plugin"
-  print_step 'Installing Claude Code plugin dependencies'
-  if command -v bun &>/dev/null; then
-    if (cd "$PLUGIN_DIR" && (bun install --frozen-lockfile || bun install)); then
-      print_success 'Dependencies installed via bun'
-    else
-      print_error 'Failed to install dependencies via bun'
-    fi
-  elif command -v npm &>/dev/null; then
-    if (cd "$PLUGIN_DIR" && npm install); then
-      print_success 'Dependencies installed via npm'
-    else
-      print_error 'Failed to install dependencies via npm'
-    fi
-  else
-    print_info 'Skipping: neither bun nor npm available'
+
+  # The hook is plain JS on node: builtins, so there is nothing to install. It
+  # needs node on PATH at run time, which the 'node' item above provides.
+  if ! command -v node &>/dev/null; then
+    print_warning 'node not found, the plugin hook will not run until it is'
   fi
 
   # Register plugin if claude is available

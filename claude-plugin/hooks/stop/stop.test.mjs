@@ -5,22 +5,25 @@
 // what's under test is the part the merge rewrote: transcript → categorise →
 // pick a test command → block or stay quiet.
 
-import { test, expect } from "bun:test";
+import test from "node:test";
+import assert from "node:assert/strict";
 import {
   mkdtempSync,
   writeFileSync,
   mkdirSync,
   realpathSync,
   chmodSync,
-} from "fs";
-import { tmpdir } from "os";
-import { join, dirname } from "path";
+} from "node:fs";
+import { tmpdir } from "node:os";
+import { join, dirname } from "node:path";
+import { spawnSync } from "node:child_process";
 
-const HOOK = join(import.meta.dir, "stop.ts");
+const HOOK = join(import.meta.dirname, "stop.mjs");
 
 // realpath: on macOS $TMPDIR is a symlink, and the hook compares edited paths
 // against the resolved cwd it is launched in.
-function tmpProject(pkg: Record<string, unknown>): string {
+/** @param {Record<string, unknown>} pkg */
+function tmpProject(pkg) {
   const dir = realpathSync(mkdtempSync(join(tmpdir(), "stop-hook-")));
   writeFileSync(join(dir, "package.json"), JSON.stringify(pkg));
   writeFileSync(join(dir, "bun.lock"), "");
@@ -28,13 +31,13 @@ function tmpProject(pkg: Record<string, unknown>): string {
 }
 
 // A project whose test script always fails, so a run that happens is visible.
-function fixture(): string {
+function fixture() {
   return tmpProject({ name: "fixture", scripts: { test: "exit 1" } });
 }
 
 // A vitest project whose runner fails and reports its own argv, so the command
 // the hook chose shows up in the block reason.
-function vitestFixture(): string {
+function vitestFixture() {
   const dir = tmpProject({ name: "fixture", devDependencies: { vitest: "*" } });
   const bin = join(dir, "node_modules", ".bin", "vitest");
   mkdirSync(dirname(bin), { recursive: true });
@@ -44,7 +47,11 @@ function vitestFixture(): string {
 }
 
 // One transcript line per edited file, in the shape the hook parses.
-function transcript(dir: string, files: string[]): string {
+/**
+ * @param {string} dir
+ * @param {string[]} files
+ */
+function transcript(dir, files) {
   const path = join(dir, "transcript.jsonl");
   writeFileSync(
     path,
@@ -67,35 +74,40 @@ function transcript(dir: string, files: string[]): string {
   return path;
 }
 
-function runHook(dir: string, files: string[]): string {
+// process.execPath, so the hook is exercised under whichever runtime is running
+// the tests rather than a second one that happens to be installed.
+/**
+ * @param {string} dir
+ * @param {string[]} files
+ */
+function runHook(dir, files) {
   for (const f of files) {
     mkdirSync(dirname(join(dir, f)), { recursive: true });
     writeFileSync(join(dir, f), "");
   }
-  const proc = Bun.spawnSync(["bun", "run", HOOK], {
+  const proc = spawnSync(process.execPath, [HOOK], {
     cwd: dir,
-    stdin: Buffer.from(
-      JSON.stringify({ transcript_path: transcript(dir, files) }),
-    ),
+    encoding: "utf-8",
+    input: JSON.stringify({ transcript_path: transcript(dir, files) }),
   });
   // The tests that assert silence would otherwise pass on a crashed hook.
-  if (proc.exitCode !== 0) {
-    throw new Error(`hook exited ${proc.exitCode}\n${proc.stderr.toString()}`);
+  if (proc.status !== 0) {
+    throw new Error(`hook exited ${proc.status}\n${proc.stderr}`);
   }
-  return proc.stdout.toString().trim();
+  return proc.stdout.trim();
 }
 
 test("a failing suite blocks when source was edited", () => {
   const out = runHook(fixture(), ["src/thing.ts"]);
-  expect(JSON.parse(out).decision).toBe("block");
+  assert.equal(JSON.parse(out).decision, "block");
 });
 
 test("a docs-only edit runs nothing", () => {
-  expect(runHook(fixture(), ["README.md"])).toBe("");
+  assert.equal(runHook(fixture(), ["README.md"]), "");
 });
 
 test("a lockfile-only edit runs nothing", () => {
-  expect(runHook(fixture(), ["package-lock.json"])).toBe("");
+  assert.equal(runHook(fixture(), ["package-lock.json"]), "");
 });
 
 // A stylesheet used to fall through to the whole suite, because only TS/JS was
@@ -103,12 +115,21 @@ test("a lockfile-only edit runs nothing", () => {
 // that import it, so it belongs in the scoped run.
 test("a stylesheet edit is scoped, not a full-suite run", () => {
   const reason = JSON.parse(runHook(vitestFixture(), ["src/style.css"])).reason;
-  expect(reason).toContain("related src/style.css --run");
+  assert.match(reason, /related src\/style\.css --run/);
 });
 
 test("a test-config edit still runs the whole suite", () => {
   const reason = JSON.parse(
     runHook(vitestFixture(), ["src/a.ts", "vitest.config.ts"]),
   ).reason;
-  expect(reason).toContain("argv: run");
+  assert.match(reason, /argv: run/);
+});
+
+// The Bun build read the transcript through a Bun-only API. Under node that
+// threw into a catch that swallowed it, so the hook checked nothing and exited
+// clean. A transcript naming a real source file has to reach the runner.
+test("the transcript is actually read", () => {
+  const dir = vitestFixture();
+  const reason = JSON.parse(runHook(dir, ["src/thing.ts"])).reason;
+  assert.match(reason, /related src\/thing\.ts/);
 });

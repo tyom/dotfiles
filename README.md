@@ -231,7 +231,6 @@ setup.sh (orchestrator)
 │    ├── Install vim-plug
 │    └── Run PlugInstall
 ├── 11. Install Claude Code plugin (optional)
-│    ├── Install dependencies (bun or npm)
 │    └── Register plugin (if claude installed)
 └── 12. Validate installation (scripts/validate.sh)
 ```
@@ -400,7 +399,9 @@ tests the files Claude edited. See [`claude-plugin/hooks/README.md`](claude-plug
 for what it runs and how to switch parts of it off.
 
 It is a plugin because that is how a hook gets registered. `make install` runs
-`claude plugin install` for you when the item is ticked.
+`claude plugin install` for you when the item is ticked. There is nothing to
+build or install: the hook is plain JavaScript on `node:` builtins, so `node`,
+`deno` and `bun` all run it as-is.
 
 Prompts and agents are not here. Reusable skills live in
 [tyom/skills](https://github.com/tyom/skills) so Codex gets them too, and

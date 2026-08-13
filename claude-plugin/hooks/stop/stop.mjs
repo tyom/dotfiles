@@ -1,4 +1,5 @@
-#!/usr/bin/env bun
+#!/usr/bin/env node
+// @ts-check
 /**
  * Stop Hook: lint, type check, format, then run tests.
  *
@@ -8,23 +9,30 @@
  *
  * Lint errors block before the tests run — a project that doesn't type check
  * has nothing to learn from a two-minute test run.
+ *
+ * Plain JS on node: builtins only, so node, deno and bun all run it as-is with
+ * nothing installed. The types are JSDoc: an editor checks them, and no
+ * dependency is needed to do it.
  */
 
-import { dirname, resolve, join, extname, relative, basename } from "path";
-import { spawnSync } from "child_process";
-import { existsSync } from "fs";
+import { dirname, resolve, join, extname, relative, basename } from "node:path";
+import { spawnSync } from "node:child_process";
+import { existsSync } from "node:fs";
+import { readFile, readdir } from "node:fs/promises";
 
-interface StopHookInput {
-  stop_hook_active?: boolean;
-  transcript_path?: string;
-}
+/**
+ * @typedef {object} StopHookInput
+ * @property {boolean} [stop_hook_active]
+ * @property {string} [transcript_path]
+ */
 
-type Framework = "vitest" | "jest" | "mocha" | "bun";
-type PackageManager = "bun" | "pnpm" | "yarn" | "npm";
+/** @typedef {"vitest" | "jest" | "mocha" | "bun"} Framework */
+/** @typedef {"bun" | "pnpm" | "yarn" | "npm"} PackageManager */
 
 // One list, three jobs: the project-root marker, the package-manager map, and
 // part of SKIP_BASENAMES below. Ordered — the first match names the manager.
-const LOCKFILES: [string, PackageManager][] = [
+/** @type {[string, PackageManager][]} */
+const LOCKFILES = [
   ["bun.lock", "bun"],
   ["bun.lockb", "bun"],
   ["pnpm-lock.yaml", "pnpm"],
@@ -92,37 +100,54 @@ const TEST_CONFIG_PATTERN =
   /(?:^|\/)(?:(?:vitest|jest|mocha|playwright|vite|babel|rollup|webpack|esbuild|tsup|swc)\.config\.[cm]?[jt]sx?|\.(?:babelrc|mocharc)(?:\.[a-z]+)?)$/;
 const TEST_FILE_PATTERN = /[._](?:test|spec)\.[jt]sx?$/;
 
+// Matched against a single directory listing rather than a glob, so there is no
+// pattern library to depend on. Anchored: `.eslintrc.json` counts, `my.eslintrc`
+// does not.
+const ESLINT_CONFIG_FILE = /^(?:eslint\.config\.|\.eslintrc)/;
+const PRETTIER_CONFIG_FILE = /^(?:prettier\.config\.|\.prettierrc)/;
+
 // One budget for the whole run, sitting under the timeout in hooks.json. A hook
 // the harness kills never writes its decision, so failing tests would read as a
 // clean stop — each tool gets what is actually left, not its own fixed slice.
 const DEADLINE = Date.now() + 140_000;
-const budget = (cap: number) =>
-  Math.min(cap, Math.max(1000, DEADLINE - Date.now()));
+/** @param {number} cap */
+const budget = (cap) => Math.min(cap, Math.max(1000, DEADLINE - Date.now()));
 
-interface TestSetup {
-  framework?: Framework;
-  binPath?: string;
-  fullSuiteCommand: string[];
-}
+/**
+ * @typedef {object} TestSetup
+ * @property {Framework} [framework]
+ * @property {string} [binPath]
+ * @property {string[]} fullSuiteCommand
+ */
 
-async function readJson(path: string): Promise<Record<string, any> | null> {
+/**
+ * @param {string} path
+ * @returns {Promise<Record<string, any> | null>}
+ */
+async function readJson(path) {
   try {
-    return await Bun.file(path).json();
+    return JSON.parse(await readFile(path, "utf8"));
   } catch {
     return null;
   }
 }
 
-const hasLockfile = (dir: string) =>
+/** @param {string} dir */
+const hasLockfile = (dir) =>
   LOCKFILES.some(([name]) => existsSync(join(dir, name)));
 
 // Walk up to the workspace root — the directory whose package.json sits beside a
 // lockfile, a .git, or a `workspaces` field. That is where node_modules/.bin
 // lives, so it is the only root both eslint and the test runner can be launched
 // from. Falls back to the nearest package.json.
-async function findProjectRoot(start: string): Promise<string | null> {
+/**
+ * @param {string} start
+ * @returns {Promise<string | null>}
+ */
+async function findProjectRoot(start) {
   let dir = start;
-  let nearest: string | null = null;
+  /** @type {string | null} */
+  let nearest = null;
 
   while (dir !== dirname(dir)) {
     const pkg = join(dir, "package.json");
@@ -141,28 +166,39 @@ async function findProjectRoot(start: string): Promise<string | null> {
   return nearest;
 }
 
+/**
+ * One transcript entry. Only the edit tool calls matter, and the rest of the
+ * shape is whatever the harness wrote, so everything is optional.
+ *
+ * @typedef {object} TranscriptEntry
+ * @property {{ content?: unknown }} [message]
+ */
+
 // Absolute paths Claude edited this session, still on disk. Files written and
 // later deleted must be dropped: eslint and prettier fatal-error on a missing path.
-async function getEditedFiles(
-  transcriptPath: string | undefined,
-  projectRoot: string,
-): Promise<string[]> {
+/**
+ * @param {string | undefined} transcriptPath
+ * @param {string} projectRoot
+ * @returns {Promise<string[]>}
+ */
+async function getEditedFiles(transcriptPath, projectRoot) {
   if (!transcriptPath || !existsSync(transcriptPath)) return [];
 
   const editTools = new Set(["Edit", "Write", "MultiEdit", "NotebookEdit"]);
-  const seen = new Set<string>();
+  /** @type {Set<string>} */
+  const seen = new Set();
 
-  for (const line of (await Bun.file(transcriptPath).text()).split("\n")) {
+  for (const line of (await readFile(transcriptPath, "utf8")).split("\n")) {
     if (!line.trim()) continue;
-    let entry: unknown;
+    /** @type {TranscriptEntry | null} */
+    let entry = null;
     try {
       entry = JSON.parse(line);
     } catch {
       continue;
     }
 
-    const content = (entry as { message?: { content?: unknown } })?.message
-      ?.content;
+    const content = entry?.message?.content;
     if (!Array.isArray(content)) continue;
 
     for (const block of content) {
@@ -173,8 +209,7 @@ async function getEditedFiles(
       ) {
         continue;
       }
-      const fp = (block.input as { file_path?: unknown } | undefined)
-        ?.file_path;
+      const fp = block.input?.file_path;
       if (typeof fp !== "string") continue;
       const abs = resolve(fp);
       if (
@@ -189,24 +224,30 @@ async function getEditedFiles(
   return [...seen].filter((p) => existsSync(p));
 }
 
-interface Categorized {
-  prettierFiles: string[];
-  // Every edited code file, and the targets for a related-tests run — not only
-  // the TS/JS ones. `vitest related` and `jest --findRelatedTests` resolve a
-  // stylesheet or a JSON fixture back to the tests that import it, so scoping
-  // by them beats falling through to the whole suite.
-  codeFiles: string[];
-  // The subset of codeFiles that are themselves test files.
-  testFiles: string[];
-  tsConfigChanged: boolean;
-  eslintConfigChanged: boolean;
-  packageJsonChanged: boolean;
-  testConfigChanged: boolean;
-  hasCode: boolean;
-}
+/**
+ * @typedef {object} Categorized
+ * @property {string[]} prettierFiles
+ * @property {string[]} codeFiles Every edited code file, and the targets for a
+ *   related-tests run — not only the TS/JS ones. `vitest related` and
+ *   `jest --findRelatedTests` resolve a stylesheet or a JSON fixture back to the
+ *   tests that import it, so scoping by them beats falling through to the whole
+ *   suite.
+ * @property {string[]} testFiles The subset of codeFiles that are themselves test files.
+ * @property {boolean} tsConfigChanged
+ * @property {boolean} eslintConfigChanged
+ * @property {boolean} packageJsonChanged
+ * @property {boolean} testConfigChanged
+ * @property {boolean} hasCode
+ */
 
-function categorize(files: string[], projectRoot: string): Categorized {
-  const c: Categorized = {
+/**
+ * @param {string[]} files
+ * @param {string} projectRoot
+ * @returns {Categorized}
+ */
+function categorize(files, projectRoot) {
+  /** @type {Categorized} */
+  const c = {
     prettierFiles: [],
     codeFiles: [],
     testFiles: [],
@@ -252,11 +293,13 @@ function categorize(files: string[], projectRoot: string): Categorized {
   return c;
 }
 
-function runCommand(
-  command: string[],
-  cwd: string,
-  timeoutMs: number,
-): { success: boolean; output: string; status: number | null } {
+/**
+ * @param {string[]} command
+ * @param {string} cwd
+ * @param {number} timeoutMs
+ * @returns {{ success: boolean; output: string; status: number | null }}
+ */
+function runCommand(command, cwd, timeoutMs) {
   const result = spawnSync(command[0], command.slice(1), {
     cwd,
     encoding: "utf-8",
@@ -278,30 +321,42 @@ function runCommand(
   };
 }
 
-function binPath(projectRoot: string, name: string): string | null {
+/**
+ * @param {string} projectRoot
+ * @param {string} name
+ * @returns {string | null}
+ */
+function binPath(projectRoot, name) {
   const path = resolve(projectRoot, "node_modules", ".bin", name);
   return existsSync(path) ? path : null;
 }
 
-// One glob per tool instead of a hand-kept list of every config filename.
-async function hasConfig(projectRoot: string, glob: string): Promise<boolean> {
-  for await (const _ of new Bun.Glob(glob).scan({
-    cwd: projectRoot,
-    dot: true,
-    onlyFiles: false,
-  })) {
-    return true;
+// One directory listing per tool instead of a hand-kept list of every config
+// filename.
+/**
+ * @param {string} projectRoot
+ * @param {RegExp} pattern
+ * @returns {Promise<boolean>}
+ */
+async function hasConfig(projectRoot, pattern) {
+  try {
+    return (await readdir(projectRoot)).some((name) => pattern.test(name));
+  } catch {
+    return false;
   }
-  return false;
 }
 
-async function lint(
-  projectRoot: string,
-  c: Categorized,
-  forceFull: boolean,
-): Promise<{ errors: string[]; warnings: string[] }> {
-  const errors: string[] = [];
-  const warnings: string[] = [];
+/**
+ * @param {string} projectRoot
+ * @param {Categorized} c
+ * @param {boolean} forceFull
+ * @returns {Promise<{ errors: string[]; warnings: string[] }>}
+ */
+async function lint(projectRoot, c, forceFull) {
+  /** @type {string[]} */
+  const errors = [];
+  /** @type {string[]} */
+  const warnings = [];
   // Lint only understands TS/JS, so it takes a narrower slice than the tests do.
   const tsJsFiles = c.codeFiles.filter((f) => TS_JS_EXTENSIONS.has(extname(f)));
 
@@ -326,10 +381,7 @@ async function lint(
 
   // ── ESLint (scoped to edited JS/TS unless config or package.json changed) ──
   const eslint = binPath(projectRoot, "eslint");
-  if (
-    eslint &&
-    (await hasConfig(projectRoot, "{eslint.config.*,.eslintrc*}"))
-  ) {
+  if (eslint && (await hasConfig(projectRoot, ESLINT_CONFIG_FILE))) {
     const targets =
       forceFull || c.eslintConfigChanged || c.packageJsonChanged
         ? ["."]
@@ -360,7 +412,7 @@ async function lint(
     c.prettierFiles.length > 0 ? binPath(projectRoot, "prettier") : null;
   const configured =
     !!prettier &&
-    ((await hasConfig(projectRoot, "{prettier.config.*,.prettierrc*}")) ||
+    ((await hasConfig(projectRoot, PRETTIER_CONFIG_FILE)) ||
       !!(await readJson(join(projectRoot, "package.json")))?.prettier);
 
   if (prettier && configured) {
@@ -378,17 +430,27 @@ async function lint(
   return { errors, warnings };
 }
 
-function detectPackageManager(dir: string): PackageManager {
+/**
+ * @param {string} dir
+ * @returns {PackageManager}
+ */
+function detectPackageManager(dir) {
   return LOCKFILES.find(([name]) => existsSync(join(dir, name)))?.[1] ?? "npm";
 }
 
-async function detectTestSetup(dir: string): Promise<TestSetup | null> {
+/**
+ * @param {string} dir
+ * @returns {Promise<TestSetup | null>}
+ */
+async function detectTestSetup(dir) {
   const pm = detectPackageManager(dir);
   const pkg = await readJson(join(dir, "package.json"));
 
-  let framework: Framework | undefined;
-  let bin: string | undefined;
-  for (const candidate of ["vitest", "jest", "mocha"] as const) {
+  /** @type {Framework | undefined} */
+  let framework = undefined;
+  /** @type {string | undefined} */
+  let bin = undefined;
+  for (const candidate of /** @type {const} */ (["vitest", "jest", "mocha"])) {
     if (!pkg?.dependencies?.[candidate] && !pkg?.devDependencies?.[candidate]) {
       continue;
     }
@@ -406,13 +468,14 @@ async function detectTestSetup(dir: string): Promise<TestSetup | null> {
   const hasTestScript =
     !!testScript && testScript !== 'echo "Error: no test specified" && exit 1';
 
-  let fullSuiteCommand: string[];
+  /** @type {string[]} */
+  let fullSuiteCommand;
   if (hasTestScript) {
     fullSuiteCommand = pm === "bun" ? ["bun", "run", "test"] : [pm, "test"];
-  } else if (framework === "vitest") {
-    fullSuiteCommand = [bin!, "run"];
-  } else if (framework) {
-    fullSuiteCommand = [bin!];
+  } else if (framework === "vitest" && bin) {
+    fullSuiteCommand = [bin, "run"];
+  } else if (framework && bin) {
+    fullSuiteCommand = [bin];
   } else if (pm === "bun") {
     fullSuiteCommand = ["bun", "test"];
   } else {
@@ -426,11 +489,13 @@ async function detectTestSetup(dir: string): Promise<TestSetup | null> {
   };
 }
 
-function buildTestCommand(
-  setup: TestSetup,
-  c: Categorized,
-  projectRoot: string,
-): string[] {
+/**
+ * @param {TestSetup} setup
+ * @param {Categorized} c
+ * @param {string} projectRoot
+ * @returns {string[]}
+ */
+function buildTestCommand(setup, c, projectRoot) {
   if (c.testConfigChanged || c.codeFiles.length === 0) {
     return setup.fullSuiteCommand;
   }
@@ -455,9 +520,24 @@ function buildTestCommand(
   return setup.fullSuiteCommand;
 }
 
-function block(reason: string): never {
+/**
+ * @param {string} reason
+ * @returns {never}
+ */
+function block(reason) {
   console.log(JSON.stringify({ decision: "block", reason }));
   process.exit(0);
+}
+
+// The harness always pipes the payload in. A TTY means someone ran this by hand,
+// and iterating stdin there would hang rather than fail.
+/** @returns {Promise<string>} */
+async function readStdin() {
+  if (process.stdin.isTTY) return "";
+  let data = "";
+  process.stdin.setEncoding("utf8");
+  for await (const chunk of process.stdin) data += chunk;
+  return data;
 }
 
 async function main() {
@@ -465,9 +545,10 @@ async function main() {
   const testsEnabled = process.env.RUN_TESTS_ON_STOP !== "false";
   if (!lintEnabled && !testsEnabled) process.exit(0);
 
-  let input: StopHookInput = {};
+  /** @type {StopHookInput} */
+  let input = {};
   try {
-    const stdin = await Bun.stdin.text();
+    const stdin = await readStdin();
     if (stdin.trim()) input = JSON.parse(stdin);
   } catch {
     // Continue with empty input

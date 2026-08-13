@@ -306,16 +306,15 @@ fi
 echo ""
 print_info "Checking Claude Code plugin..."
 
-# Whether the plugin's own code compiles is CI's job, and installing its
-# dependencies is setup.sh's. All this needs to answer is whether the plugin is
-# present and wired up.
+# Running the hook's own tests is CI's job. The plugin has no dependencies, so
+# all this needs to answer is whether it is present and has a runtime to run on.
 PLUGIN_DIR="$DOTFILES_DIR/claude-plugin"
 if [ -f "$PLUGIN_DIR/hooks/hooks.json" ]; then
   print_success "Claude Code plugin present"
-  if [ -d "$PLUGIN_DIR/node_modules" ]; then
-    print_success "Plugin dependencies installed"
+  if command -v node >/dev/null 2>&1; then
+    print_success "node available for the plugin hook"
   else
-    print_warning "Plugin dependencies not installed (run: cd claude-plugin && bun install)"
+    print_warning "node not found, the plugin hook will not run"
   fi
 else
   print_skip "Claude Code plugin not found, skipping"
