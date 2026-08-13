@@ -294,9 +294,9 @@ that is there now rather than who committed most.
 - default: a tree, each directory with its top authors
 - `-t [n]`: the other way round, top authors first and where their lines sit
 - `-i [name]`: a page about a person instead of a table, with their addresses,
-  lines, commits, the span they worked over and where their lines sit. Say no
-  name and it reports the biggest contributors instead, as many as `-t` asks for
-  and ten when it says nothing. With `gh` installed and logged in to a GitHub
+  lines, commits, the span they worked over and where their lines sit. With no
+  name it reports the biggest contributors instead: as many as `-t` asks for, or
+  ten if `-t` is absent. With `gh` installed and logged in to a GitHub
   remote it adds their profile, pull requests and reviews
 - `-d n` sets the depth, `-v` writes names out in full, and a path roots the
   tree somewhere else
