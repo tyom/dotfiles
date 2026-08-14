@@ -24,6 +24,10 @@ Use `main...HEAD`, then `HEAD~1`, when there is no upstream. Append
 this usually runs before the commit, so the uncommitted work is the point. An
 argument (PR number, branch, path) replaces the range.
 
+No diff carries an untracked file, and a whole new file is the most worth
+reading, so append each one from `git ls-files -o --exclude-standard` with
+`git diff --no-index /dev/null <path>`.
+
 ## Phase 1 — Review
 
 Review the patch against every angle below. Each angle gets its own verdict.
