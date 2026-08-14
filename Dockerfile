@@ -19,9 +19,10 @@ ENV HOME=/home/linuxbrew
 # script, so setup.sh's brew step finds everything present at test time and the
 # run takes seconds instead of ~4 minutes. Running the script rather than a copy
 # of its package list is the point: a copy drifts silently, and speed is the only
-# thing this layer delivers. Its three files are copied on their own so the layer
+# thing this layer delivers. Its four files are copied on their own so the layer
 # rebuilds when they change, not on every dotfile edit.
 COPY --chown=linuxbrew:linuxbrew scripts/vars.sh ${HOME}/.dotfiles/scripts/
+COPY --chown=linuxbrew:linuxbrew scripts/versions.sh ${HOME}/.dotfiles/scripts/
 COPY --chown=linuxbrew:linuxbrew shell/utils.sh ${HOME}/.dotfiles/shell/
 COPY --chown=linuxbrew:linuxbrew scripts/install/brew.sh ${HOME}/.dotfiles/scripts/install/
 WORKDIR ${HOME}/.dotfiles

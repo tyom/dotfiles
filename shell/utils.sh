@@ -1,3 +1,4 @@
+# shellcheck shell=bash
 # Checklist menu. Entries are "name|description|on/off" (on = pre-checked).
 # Toggle by number, Enter confirms, q quits. Checked names land in CHECKED.
 # YES_OVERRIDE checks everything, SELECT_OVERRIDE checks a named list, and with
@@ -119,9 +120,47 @@ function print_warning {
 # targets. Comparing to the whole path, not just the prefix: a prefix match
 # would also claim links into a sibling checkout such as <repo>-old.
 function links_into {
-  local dir
+  local dir raw
+  raw=$(readlink "$2") || return 1
+
+  # link.sh writes absolute targets. If one of those dangles, its unresolved path
+  # still proves ownership without claiming every foreign dangling link. Relative
+  # links need a live target because a moved checkout cannot be identified safely.
+  if [ ! -e "$2" ] && [[ "$raw" == /* ]]; then
+    [[ "$raw" == "$1"/* ]]
+    return
+  fi
+
   dir=$( (cd "$(dirname "$2")" && cd "$(dirname "$(readlink "$2")")" && pwd -P) 2>/dev/null)
   [[ "$dir" == "$1" || "$dir" == "$1"/* ]]
+}
+
+# Download a reviewed bootstrap script and reject any bytes that differ from the
+# checksum committed beside its pinned version. The caller decides how to run it.
+function download_verified {
+  local url="$1" expected="$2" output="$3" actual
+
+  if ! curl -fsSL "$url" -o "$output"; then
+    print_error "Download failed: $url"
+    rm -f "$output"
+    return 1
+  fi
+
+  if command -v shasum >/dev/null 2>&1; then
+    actual=$(shasum -a 256 "$output" | awk '{print $1}')
+  elif command -v sha256sum >/dev/null 2>&1; then
+    actual=$(sha256sum "$output" | awk '{print $1}')
+  else
+    print_error 'Cannot verify download: shasum or sha256sum is required'
+    rm -f "$output"
+    return 1
+  fi
+
+  if [ "$actual" != "$expected" ]; then
+    print_error "Checksum verification failed: $url"
+    rm -f "$output"
+    return 1
+  fi
 }
 
 function which_os {

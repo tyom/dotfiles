@@ -68,6 +68,12 @@ ln -s "$H4/elsewhere" "$H4/.vimrc"
 link "$H4"
 assert "a foreign link is left alone" "$(cat "$H4/.vimrc")" 'not yours'
 
+# A foreign link stays foreign even while its destination is temporarily absent.
+H7=$(fake_home h7)
+ln -s "$H7/temporarily-missing" "$H7/.vimrc"
+link "$H7"
+assert "a foreign dangling link is left alone" "$(readlink "$H7/.vimrc")" "$H7/temporarily-missing"
+
 # Opting out of the agent instructions leaves ~/.claude and ~/.codex untouched
 H5=$(fake_home h5)
 SKIP_AGENTS=true link "$H5"
@@ -101,5 +107,8 @@ assert "unlink removes the codex skill link" "$(kind "$H4/.codex/skills/simplify
 assert "unlink clears the directories it made" "$(kind "$H4/bin")" missing
 assert "including nested ones" "$(kind "$H4/.config")" missing
 assert "unlink leaves a foreign link alone" "$(cat "$H4/.vimrc")" 'not yours'
+
+HOME="$H7" bash "$DOTFILES_DIR/scripts/unlink.sh" >/dev/null 2>&1
+assert "unlink leaves a foreign dangling link alone" "$(readlink "$H7/.vimrc")" "$H7/temporarily-missing"
 
 exit $FAILED

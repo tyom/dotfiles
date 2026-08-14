@@ -18,9 +18,8 @@ while read -r file; do
   target="$HOME/$rel_path"
 
   [ -L "$target" ] || continue
-  # A live link elsewhere is the user's own, so leave it. A dangling one is ours
-  # from an install made before the repo moved.
-  [ -e "$target" ] && ! links_into "$REPO" "$target" && continue
+  # Remove only links whose live or unresolved target proves they are ours.
+  links_into "$REPO" "$target" || continue
 
   if rm "$target"; then
     print_info "unlinked $rel_path"
@@ -37,7 +36,7 @@ for skill in "$SRC_DIR"/.agents/skills/*/; do
   target="$HOME/$rel_path"
 
   [ -L "$target" ] || continue
-  [ -e "$target" ] && ! links_into "$REPO" "$target" && continue
+  links_into "$REPO" "$target" || continue
 
   if rm "$target"; then
     print_info "unlinked $rel_path"

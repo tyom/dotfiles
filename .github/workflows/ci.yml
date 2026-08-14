@@ -43,7 +43,7 @@ jobs:
         with:
           persist-credentials: false
 
-      - run: make test-links
+      - run: make test-scripts
 
   # The Docker tests only exercise the installer, so this is the only thing that
   # runs the hook's own test suite. The hook has no dependencies and nothing to

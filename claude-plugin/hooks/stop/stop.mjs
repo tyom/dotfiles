@@ -421,10 +421,10 @@ async function lint(projectRoot, c, forceFull) {
         projectRoot,
         budget(30_000),
       );
-      if (r.output) {
-        if (r.status === 1) errors.push(`ESLint errors:\n${r.output}`);
-        else if (r.status === 2) errors.push(`ESLint fatal:\n${r.output}`);
-        else if (r.status === 0) warnings.push(`ESLint warnings:\n${r.output}`);
+      if (!r.success) {
+        errors.push(`ESLint failed:\n${r.output || "No error output"}`);
+      } else if (r.output) {
+        warnings.push(`ESLint warnings:\n${r.output}`);
       }
     }
   }
@@ -580,6 +580,13 @@ async function main() {
     worthChecking(edited ?? gitChangedFiles(projectRoot)),
     projectRoot,
   );
+
+  // A broken manifest makes tool and script detection unreliable. Treat it as
+  // an actionable project error instead of collapsing it into "no test setup".
+  const packagePath = join(projectRoot, "package.json");
+  if (existsSync(packagePath) && !(await readJson(packagePath))) {
+    block("package.json must contain valid JSON before stopping.");
+  }
 
   // Nothing functional changed and nothing formattable was touched → skip.
   if (!lintFull && !testsFull && !c.hasCode && c.prettierFiles.length === 0) {

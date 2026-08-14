@@ -26,6 +26,9 @@ How it behaves:
   the last step runs over 30 checks, including that every symlink still points
   into this repo. CI installs all of it on Linux, once with Homebrew and once
   without.
+- Bootstrap scripts are pinned and checksum-verified before they run. Oh My Zsh
+  is fetched at a reviewed commit rather than whichever commit is current that
+  day.
 
 ## What's Included
 
@@ -327,9 +330,12 @@ merged, asking first and treating locked ones separately.
 
 ## Development
 
-Install into a container instead of your machine:
+Run the fast tests, or install into a container instead of your machine:
 
 ```bash
+# Installer, symlink, Git-tool and Stop-hook tests
+make check
+
 # Run setup and validation
 make docker-test
 
@@ -371,6 +377,20 @@ make docker-test-remote-local
 make docker-test-remote
 ```
 
+### Repinning Bootstrap Dependencies
+
+`scripts/versions.sh` records the reviewed Bun and Volta releases, the Oh My Zsh
+commit, and the Homebrew installer commit, with SHA-256 checksums for downloaded
+scripts. Refresh all of them explicitly:
+
+```bash
+make repin
+git diff -- scripts/versions.sh
+make check
+```
+
+Review the diff before committing it. Installation never changes these pins.
+
 ## Makefile Commands
 
 Run `make` to see all available commands:
@@ -379,6 +399,8 @@ Run `make` to see all available commands:
 | ------------------------------- | ----------------------------------------- |
 | `make install`                  | Install dotfiles on local machine         |
 | `make uninstall`                | Remove dotfiles symlinks                  |
+| `make check`                    | Run the fast local tests                  |
+| `make repin`                    | Refresh bootstrap versions and checksums  |
 | `make brew`                     | Install Homebrew packages                 |
 | `make docker-build`             | Build Docker test image                   |
 | `make docker-test`              | Run setup and validation in Docker        |

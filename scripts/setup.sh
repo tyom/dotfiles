@@ -1,6 +1,7 @@
 #!/bin/bash
 
 source scripts/vars.sh
+source scripts/versions.sh
 source shell/utils.sh
 
 # The menu needs a tty, so -y and --select are how a script or CI picks what to
@@ -79,12 +80,22 @@ fi
 if is_checked bun; then
   if ! command -v bun &>/dev/null; then
     print_step 'Installing Bun'
-    if curl -fsSL https://bun.com/install | bash; then
+    BUN_INSTALLER=$(mktemp)
+    if download_verified "$BUN_INSTALL_URL" "$BUN_INSTALL_SHA256" "$BUN_INSTALLER" &&
+      bash "$BUN_INSTALLER" "bun-v$BUN_VERSION"; then
+      rm -f "$BUN_INSTALLER"
       export BUN_INSTALL="$HOME/.bun"
       export PATH="$BUN_INSTALL/bin:$PATH"
-      SUMMARY+=('Bun: installed')
+      if command -v bun &>/dev/null; then
+        SUMMARY+=('Bun: installed')
+      else
+        print_error 'Bun installer completed but bun is not available'
+        exit 1
+      fi
     else
-      SUMMARY+=('Bun: install failed')
+      rm -f "$BUN_INSTALLER"
+      print_error 'Bun installation failed'
+      exit 1
     fi
   else
     print_info 'Bun already installed'
@@ -95,22 +106,36 @@ fi
 if is_checked node; then
   if ! command -v volta &>/dev/null; then
     print_step 'Installing Volta'
-    if curl -fsSL https://get.volta.sh | bash -s -- --skip-setup; then
+    VOLTA_INSTALLER=$(mktemp)
+    if download_verified "$VOLTA_INSTALL_URL" "$VOLTA_INSTALL_SHA256" "$VOLTA_INSTALLER" &&
+      bash "$VOLTA_INSTALLER" --version "$VOLTA_VERSION" --skip-setup; then
+      rm -f "$VOLTA_INSTALLER"
       export VOLTA_HOME="$HOME/.volta"
       export PATH="$VOLTA_HOME/bin:$PATH"
-      SUMMARY+=('Volta: installed')
+      if command -v volta &>/dev/null; then
+        SUMMARY+=('Volta: installed')
+      else
+        print_error 'Volta installer completed but volta is not available'
+        exit 1
+      fi
     else
-      SUMMARY+=('Volta: install failed')
+      rm -f "$VOLTA_INSTALLER"
+      print_error 'Volta installation failed'
+      exit 1
     fi
   else
     print_info 'Volta already installed'
     SUMMARY+=('Volta: already installed')
   fi
 
-  if command -v volta &>/dev/null && ! volta which node &>/dev/null; then
+  if ! volta which node &>/dev/null; then
     print_step 'Installing Node.js via Volta'
-    volta install node
-    SUMMARY+=('Node.js: installed via Volta')
+    if volta install node && volta which node &>/dev/null; then
+      SUMMARY+=('Node.js: installed via Volta')
+    else
+      print_error 'Node.js installation via Volta failed'
+      exit 1
+    fi
   else
     print_info 'Node.js already installed via Volta'
     SUMMARY+=('Node.js: already installed')

@@ -1,6 +1,7 @@
 #!/bin/bash
 
 source scripts/vars.sh
+source scripts/versions.sh
 source shell/utils.sh
 
 # Homebrew 6 asks before installing dependencies by default; the setup
@@ -33,8 +34,16 @@ fi
 # Check for Homebrew and install it if missing
 if ! exists brew; then
   if [ "$(which_os)" == "macos" ]; then
-    print_step "Installing Homebrew for macOS" &&
-      /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+    print_step "Installing Homebrew for macOS"
+    HOMEBREW_INSTALLER=$(mktemp)
+    if download_verified "$HOMEBREW_INSTALL_URL" "$HOMEBREW_INSTALL_SHA256" "$HOMEBREW_INSTALLER" &&
+      /bin/bash "$HOMEBREW_INSTALLER"; then
+      rm -f "$HOMEBREW_INSTALLER"
+    else
+      rm -f "$HOMEBREW_INSTALLER"
+      print_error 'Homebrew installation failed'
+      exit 1
+    fi
   else
     # Clone and PATH export are separate so a re-run (~/.linuxbrew already
     # cloned) still gets brew on PATH

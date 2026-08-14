@@ -48,6 +48,17 @@ function vitestFixture() {
   return dir;
 }
 
+// An eslint project whose local binary exists but cannot be launched.
+function brokenEslintFixture() {
+  const dir = tmpProject({ name: "fixture", devDependencies: { eslint: "*" } });
+  const bin = join(dir, "node_modules", ".bin", "eslint");
+  mkdirSync(dirname(bin), { recursive: true });
+  writeFileSync(bin, "#!/bin/sh\nexit 0\n");
+  writeFileSync(join(dir, "eslint.config.js"), "export default []\n");
+  chmodSync(bin, 0o644);
+  return dir;
+}
+
 // A vitest project that is also a git repo with one commit, so the working tree
 // is clean until a test dirties it.
 function gitFixture() {
@@ -108,10 +119,16 @@ function transcript(dir, files) {
  * @param {string} dir
  * @param {string[]} files
  */
-function runHook(dir, files, { withTranscript = true } = {}) {
-  for (const f of files) {
-    mkdirSync(dirname(join(dir, f)), { recursive: true });
-    writeFileSync(join(dir, f), "");
+function runHook(
+  dir,
+  files,
+  { withTranscript = true, writeFiles = true } = {},
+) {
+  if (writeFiles) {
+    for (const f of files) {
+      mkdirSync(dirname(join(dir, f)), { recursive: true });
+      writeFileSync(join(dir, f), "");
+    }
   }
   const proc = spawnSync(process.execPath, [HOOK], {
     cwd: dir,
@@ -132,6 +149,18 @@ function runHook(dir, files, { withTranscript = true } = {}) {
 test("a failing suite blocks when source was edited", () => {
   const out = runHook(fixture(), ["src/thing.ts"]);
   assert.equal(JSON.parse(out).decision, "block");
+});
+
+test("a malformed package.json blocks", () => {
+  const dir = tmpProject({ name: "fixture" });
+  writeFileSync(join(dir, "package.json"), "{broken");
+  const out = runHook(dir, ["package.json"], { writeFiles: false });
+  assert.match(JSON.parse(out).reason, /package\.json.*valid JSON/i);
+});
+
+test("an ESLint launch failure blocks", () => {
+  const out = runHook(brokenEslintFixture(), ["src/thing.js"]);
+  assert.match(JSON.parse(out).reason, /ESLint.*EACCES/is);
 });
 
 test("a docs-only edit runs nothing", () => {
