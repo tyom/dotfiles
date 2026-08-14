@@ -87,7 +87,8 @@ H6=$(fake_home h6)
 mkdir -p "$H6/.codex/skills"
 echo 'mine' >"$H6/.codex/skills/simplify"
 link "$H6"
-assert "a file at the codex skill target survives" "$(cat "$H6/.codex/skills/simplify")" mine
+assert "a file at the codex skill target stays a file" "$(kind "$H6/.codex/skills/simplify")" file
+assert "and its contents survive" "$(cat "$H6/.codex/skills/simplify")" mine
 
 # Codex reads only its own skills dir, so the shared skills are linked there too
 assert "the codex skill is linked" "$(kind "$H4/.codex/skills/simplify")" symlink
