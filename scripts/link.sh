@@ -120,8 +120,9 @@ if [ "$SKIP_AGENTS" != true ]; then
   for skill in "$SRC_DIR"/.agents/skills/*/; do
     [ -d "$skill" ] || continue
     target="$HOME/.codex/skills/$(basename "$skill")"
-    # ln -sfn drops the link inside a real directory instead of replacing it.
-    if [ -d "$target" ] && [ ! -L "$target" ]; then
+    # ln -sfn drops the link inside a real directory, and deletes a real file
+    # outright. Neither is ours to touch, so only a symlink is replaced here.
+    if [ -e "$target" ] && [ ! -L "$target" ]; then
       print_warning "Not ours, leaving it alone: $target"
       continue
     fi

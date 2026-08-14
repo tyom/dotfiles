@@ -80,6 +80,14 @@ assert "everything else still links" "$(kind "$H5/.vimrc")" symlink
 SKIP_AGENTS=true link "$H1"
 assert "opting out keeps an existing CLAUDE.md link" "$(kind "$H1/.claude/CLAUDE.md")" symlink
 assert "opting out keeps an existing AGENTS.md link" "$(kind "$H1/.codex/AGENTS.md")" symlink
+assert "opting out keeps an existing codex skill link" "$(readlink "$H1/.codex/skills/simplify")" "$DOTFILES_DIR/home/.agents/skills/simplify"
+
+# ln -sfn would delete a real file at the codex skill target, so it is left alone
+H6=$(fake_home h6)
+mkdir -p "$H6/.codex/skills"
+echo 'mine' >"$H6/.codex/skills/simplify"
+link "$H6"
+assert "a file at the codex skill target survives" "$(cat "$H6/.codex/skills/simplify")" mine
 
 # Codex reads only its own skills dir, so the shared skills are linked there too
 assert "the codex skill is linked" "$(kind "$H4/.codex/skills/simplify")" symlink
