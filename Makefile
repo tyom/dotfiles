@@ -21,18 +21,18 @@ uninstall: ## Remove dotfiles symlinks
 	./scripts/unlink.sh
 
 test-links: ## Check symlink conflict handling against a throwaway HOME
-	./scripts/test-link.sh
+	./test/link.sh
 
 test-brew: ## Check first-run Homebrew bootstrap for this platform
-	./scripts/test-brew.sh
+	./test/brew.sh
 
 test-scripts: test-links test-brew ## Check installers and shell tools against throwaway state
-	./scripts/test-aliases.sh
-	./scripts/test-setup.sh
-	./scripts/test-install.sh
-	./scripts/test-zsh.sh
-	./scripts/test-gw.sh
-	./scripts/test-repin.sh
+	./test/aliases.sh
+	./test/setup.sh
+	./test/install.sh
+	./test/zsh.sh
+	./test/gw.sh
+	./test/repin.sh
 
 test-plugin: ## Check the Stop hook
 	cd claude-plugin && node --test
