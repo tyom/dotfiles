@@ -87,6 +87,22 @@ ln -s "$DOTFILES_DIR/missing/../gone/.vimrc" "$H9/.vimrc"
 link "$H9"
 assert "a normalised owned dangling link is repointed" "$(cat "$H9/.vimrc")" "$(cat "$DOTFILES_DIR/home/.vimrc")"
 
+# A path that is textually inside the repo may leave it through a directory
+# symlink before reaching its missing suffix.
+ROUTED_REPO="$TMP/routed-repo"
+mkdir -p "$ROUTED_REPO/home" "$ROUTED_REPO/shell" "$TMP/routed-external"
+ROUTED_REPO=$(cd "$ROUTED_REPO" && pwd -P)
+cp "$DOTFILES_DIR/shell/utils.sh" "$ROUTED_REPO/shell/utils.sh"
+printf 'owned\n' >"$ROUTED_REPO/home/.vimrc"
+ln -s "$TMP/routed-external" "$ROUTED_REPO/external-route"
+H10=$(fake_home h10)
+routed_target="$ROUTED_REPO/external-route/missing/.vimrc"
+ln -s "$routed_target" "$H10/.vimrc"
+LINK_SCRIPT="$DOTFILES_DIR/scripts/link.sh"
+HOME="$H10" DOTFILES_DIR="$ROUTED_REPO" \
+  bash "$LINK_SCRIPT" >/dev/null 2>&1
+assert "a dangling link routed outside the repo is left alone" "$(readlink "$H10/.vimrc")" "$routed_target"
+
 # Opting out of the agent instructions leaves ~/.claude and ~/.codex untouched
 H5=$(fake_home h5)
 SKIP_AGENTS=true link "$H5"

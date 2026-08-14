@@ -142,16 +142,44 @@ function normalize_absolute_path {
   printf '%s\n' "${normalized:-/}"
 }
 
+function resolve_dangling_absolute_path {
+  local path="$1" prefix suffix='' segment physical
+  [[ "$path" == /* ]] || return 1
+  prefix=${path%/}
+  [ -n "$prefix" ] || prefix=/
+
+  while [ ! -d "$prefix" ]; do
+    # A non-directory component cannot lead to the missing suffix. A dangling
+    # symlink is also unsafe to infer through, so leave the link unclaimed.
+    if [ -e "$prefix" ] || [ -L "$prefix" ]; then
+      return 1
+    fi
+    [ "$prefix" != / ] || return 1
+
+    segment=${prefix##*/}
+    if [ -n "$suffix" ]; then
+      suffix="$segment/$suffix"
+    else
+      suffix=$segment
+    fi
+    prefix=${prefix%/*}
+    [ -n "$prefix" ] || prefix=/
+  done
+
+  physical=$(cd "$prefix" && pwd -P) || return 1
+  normalize_absolute_path "$physical${suffix:+/$suffix}"
+}
+
 function links_into {
   local dir raw repo target
   raw=$(readlink "$2") || return 1
 
-  # link.sh writes absolute targets. If one of those dangles, its unresolved path
-  # still proves ownership without claiming every foreign dangling link. Relative
-  # links need a live target because a moved checkout cannot be identified safely.
+  # link.sh writes absolute targets. For a dangling one, resolve its longest
+  # existing directory prefix before deciding ownership. Relative links need a
+  # live target because a moved checkout cannot be identified safely.
   if [ ! -e "$2" ] && [[ "$raw" == /* ]]; then
-    repo=$(normalize_absolute_path "$1") || return 1
-    target=$(normalize_absolute_path "$raw") || return 1
+    repo=$(cd "$1" && pwd -P) || return 1
+    target=$(resolve_dangling_absolute_path "$raw") || return 1
     [[ "$target" == "$repo" || "$target" == "$repo"/* ]]
     return
   fi
