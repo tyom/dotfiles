@@ -35,34 +35,30 @@ fi
 if ! exists brew; then
   if [ "$(which_os)" == "macos" ]; then
     print_step "Installing Homebrew for macOS"
-    HOMEBREW_INSTALLER=$(mktemp)
-    if download_verified "$HOMEBREW_INSTALL_URL" "$HOMEBREW_INSTALL_SHA256" "$HOMEBREW_INSTALLER" &&
-      /bin/bash "$HOMEBREW_INSTALLER"; then
-      rm -f "$HOMEBREW_INSTALLER"
-    else
-      rm -f "$HOMEBREW_INSTALLER"
-      print_error 'Homebrew installation failed'
-      exit 1
-    fi
-
-    # The official installer does not update the current process. Find its two
-    # documented macOS locations so the rest of this run can use it.
-    if ! exists brew; then
-      for brew_bin in /opt/homebrew/bin/brew /usr/local/bin/brew; do
-        if [ -x "$brew_bin" ]; then
-          export PATH="${brew_bin%/*}:$PATH"
-          break
-        fi
-      done
-    fi
   else
-    # Clone and PATH export are separate so a re-run (~/.linuxbrew already
-    # cloned) still gets brew on PATH
-    if [ ! -x "$HOME/.linuxbrew/bin/brew" ]; then
-      print_step "Installing Homebrew for Linux"
-      git clone --depth 1 https://github.com/Homebrew/brew.git ~/.linuxbrew
-    fi
-    export PATH="$HOME/.linuxbrew/bin:$PATH"
+    print_step "Installing Homebrew for Linux"
+  fi
+
+  HOMEBREW_INSTALLER=$(mktemp)
+  if download_verified "$HOMEBREW_INSTALL_URL" "$HOMEBREW_INSTALL_SHA256" "$HOMEBREW_INSTALLER" &&
+    /bin/bash "$HOMEBREW_INSTALLER"; then
+    rm -f "$HOMEBREW_INSTALLER"
+  else
+    rm -f "$HOMEBREW_INSTALLER"
+    print_error 'Homebrew installation failed'
+    exit 1
+  fi
+
+  # The official installer does not update the current process. Find its
+  # documented locations so the rest of this run can use it.
+  if ! exists brew; then
+    for brew_bin in /opt/homebrew/bin/brew /usr/local/bin/brew \
+      "$HOME/.linuxbrew/bin/brew" /home/linuxbrew/.linuxbrew/bin/brew; do
+      if [ -x "$brew_bin" ]; then
+        export PATH="${brew_bin%/*}:$PATH"
+        break
+      fi
+    done
   fi
 else
   print_info "Homebrew installed. Skipping."

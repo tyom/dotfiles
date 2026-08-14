@@ -55,3 +55,18 @@ if [ ! -e "$TMP/right-setup-ran" ]; then
 fi
 
 echo ' ✔ remote install accepts the expected existing Git checkout'
+
+rm -f "$TMP/right-setup-ran"
+if ! (cd "$TMP/run" && FAKE_REMOTE='git@github.com:tyom/dotfiles' \
+  DOTFILES_DIR="$TMP/dotfiles" PATH="$TMP/bin:/usr/bin:/bin" \
+  bash <"$ROOT/docs/install.sh" >/dev/null 2>&1); then
+  echo ' ✖ remote install rejects the expected suffixless SSH checkout'
+  exit 1
+fi
+
+if [ ! -e "$TMP/right-setup-ran" ]; then
+  echo ' ✖ remote install does not run setup from the suffixless SSH checkout'
+  exit 1
+fi
+
+echo ' ✔ remote install accepts the expected suffixless SSH checkout'

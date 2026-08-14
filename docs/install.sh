@@ -35,7 +35,9 @@ is_dotfiles_checkout() {
   local remote
   remote=$(git -C "$1" remote get-url origin 2>/dev/null) || return 1
   case "$remote" in
-  "$DOTFILES_REPO" | "$DOTFILES_REPO.git" | git@github.com:tyom/dotfiles.git | ssh://git@github.com/tyom/dotfiles.git) return 0 ;;
+  "$DOTFILES_REPO" | "$DOTFILES_REPO.git" | \
+    git@github.com:tyom/dotfiles | git@github.com:tyom/dotfiles.git | \
+    ssh://git@github.com/tyom/dotfiles | ssh://git@github.com/tyom/dotfiles.git) return 0 ;;
   *) return 1 ;;
   esac
 }

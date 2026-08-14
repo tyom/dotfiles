@@ -12,6 +12,7 @@ mkdir -p "$TMP/bin"
 cat >"$TMP/bin/docker" <<'EOF'
 #!/bin/bash
 if [ "$1" = images ]; then
+  [ "${DOCKER_IMAGES_FAIL:-}" = 1 ] && exit 23
   [ "${NO_DANGLING:-}" = 1 ] && exit 0
   if [[ " $* " == *' --quiet '* ]]; then
     printf '%s\n' sha256:first sha256:second
@@ -21,6 +22,10 @@ if [ "$1" = images ]; then
   exit 0
 fi
 printf '%s\n' "$*" >>"$DOCKER_LOG"
+if [ "${DOCKER_RMI_FAIL:-}" = 1 ] && [ "$2" = sha256:first ]; then
+  exit 24
+fi
+exit 0
 EOF
 chmod +x "$TMP/bin/docker"
 
@@ -47,3 +52,32 @@ if [ -s "$DOCKER_LOG" ]; then
 fi
 
 echo ' ✔ Docker cleanup is quiet when there are no dangling images'
+
+: >"$DOCKER_LOG"
+if DOCKER_LOG="$DOCKER_LOG" DOCKER_IMAGES_FAIL=1 PATH="$TMP/bin:/usr/bin:/bin" \
+  zsh -c 'source "$1"; docker-rm-unused-images' _ "$ROOT/shell/aliases.sh"; then
+  echo ' ✖ Docker cleanup succeeds when listing images fails'
+  exit 1
+fi
+
+if [ -s "$DOCKER_LOG" ]; then
+  echo ' ✖ Docker cleanup invokes docker rmi after listing images fails'
+  exit 1
+fi
+
+echo ' ✔ Docker cleanup propagates image-list failures'
+
+: >"$DOCKER_LOG"
+if DOCKER_LOG="$DOCKER_LOG" DOCKER_RMI_FAIL=1 PATH="$TMP/bin:/usr/bin:/bin" \
+  zsh -c 'source "$1"; docker-rm-unused-images' _ "$ROOT/shell/aliases.sh"; then
+  echo ' ✖ Docker cleanup succeeds when removing an image fails'
+  exit 1
+fi
+
+actual=$(cat "$DOCKER_LOG")
+if [ "$actual" != "$expected" ]; then
+  printf ' ✖ Docker cleanup stops after a failed removal:\n%s\n' "$actual"
+  exit 1
+fi
+
+echo ' ✔ Docker cleanup preserves removal failures and continues cleaning'

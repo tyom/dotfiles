@@ -54,10 +54,20 @@ url_sha256() {
   printf '%s\n' "$hash"
 }
 
+validate_release_version() {
+  local name="$1" version="$2"
+  [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || {
+    printf 'Malformed %s release version: %s\n' "$name" "$version" >&2
+    return 1
+  }
+}
+
 bun_tag=$(latest_tag oven-sh/bun)
 bun_version=${bun_tag#bun-v}
 volta_tag=$(latest_tag volta-cli/volta)
 volta_version=${volta_tag#v}
+validate_release_version Bun "$bun_version"
+validate_release_version Volta "$volta_version"
 volta_commit=$(tag_commit volta-cli/volta "$volta_tag")
 oh_my_zsh_commit=$(remote_ref ohmyzsh/ohmyzsh refs/heads/master)
 homebrew_commit=$(remote_ref Homebrew/install refs/heads/main)

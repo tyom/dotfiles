@@ -74,6 +74,19 @@ ln -s "$H7/temporarily-missing" "$H7/.vimrc"
 link "$H7"
 assert "a foreign dangling link is left alone" "$(readlink "$H7/.vimrc")" "$H7/temporarily-missing"
 
+# A textual repo prefix does not prove ownership when .. escapes the repo.
+H8=$(fake_home h8)
+escaped_target="$DOTFILES_DIR/missing/../../foreign-vimrc"
+ln -s "$escaped_target" "$H8/.vimrc"
+link "$H8"
+assert "a normalised foreign dangling link is left alone" "$(readlink "$H8/.vimrc")" "$escaped_target"
+
+# Lexical cleanup must still recognise a dangling target that remains inside.
+H9=$(fake_home h9)
+ln -s "$DOTFILES_DIR/missing/../gone/.vimrc" "$H9/.vimrc"
+link "$H9"
+assert "a normalised owned dangling link is repointed" "$(cat "$H9/.vimrc")" "$(cat "$DOTFILES_DIR/home/.vimrc")"
+
 # Opting out of the agent instructions leaves ~/.claude and ~/.codex untouched
 H5=$(fake_home h5)
 SKIP_AGENTS=true link "$H5"

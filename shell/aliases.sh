@@ -25,11 +25,14 @@ alias gria="git rebase -i --autosquash"
 # Docker
 alias docker-rm-exited-containers="docker ps --filter status=dead --filter status=exited -aq | xargs docker rm -v"
 docker-rm-unused-images() {
-  local image
-  docker images --filter dangling=true --quiet --no-trunc |
-    while IFS= read -r image; do
-      [ -n "$image" ] && docker rmi "$image"
-    done
+  local images image result=0
+  images=$(docker images --filter dangling=true --quiet --no-trunc) || return $?
+  while IFS= read -r image; do
+    if [ -n "$image" ] && ! docker rmi "$image"; then
+      result=1
+    fi
+  done <<<"$images"
+  return "$result"
 }
 alias docker-rm-unused-volumes="docker volume ls -qf dangling=true | xargs docker volume rm"
 

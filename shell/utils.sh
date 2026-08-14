@@ -119,15 +119,40 @@ function print_warning {
 # link's own directory, because installs made with GNU Stow wrote relative
 # targets. Comparing to the whole path, not just the prefix: a prefix match
 # would also claim links into a sibling checkout such as <repo>-old.
+function normalize_absolute_path {
+  local path="$1" segment normalized=
+  [[ "$path" == /* ]] || return 1
+  path=${path#/}
+
+  while [ -n "$path" ]; do
+    segment=${path%%/*}
+    if [ "$path" = "$segment" ]; then
+      path=
+    else
+      path=${path#*/}
+    fi
+
+    case "$segment" in
+    '' | .) ;;
+    ..) normalized=${normalized%/*} ;;
+    *) normalized="$normalized/$segment" ;;
+    esac
+  done
+
+  printf '%s\n' "${normalized:-/}"
+}
+
 function links_into {
-  local dir raw
+  local dir raw repo target
   raw=$(readlink "$2") || return 1
 
   # link.sh writes absolute targets. If one of those dangles, its unresolved path
   # still proves ownership without claiming every foreign dangling link. Relative
   # links need a live target because a moved checkout cannot be identified safely.
   if [ ! -e "$2" ] && [[ "$raw" == /* ]]; then
-    [[ "$raw" == "$1"/* ]]
+    repo=$(normalize_absolute_path "$1") || return 1
+    target=$(normalize_absolute_path "$raw") || return 1
+    [[ "$target" == "$repo" || "$target" == "$repo"/* ]]
     return
   fi
 

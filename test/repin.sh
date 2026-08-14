@@ -13,8 +13,8 @@ cat >"$TMP/bin/curl" <<'EOF'
 #!/bin/bash
 args="$*"
 case "$args" in
-*oven-sh/bun/releases/latest*) printf '%s' 'https://github.com/oven-sh/bun/releases/tag/bun-v9.8.7'; exit 0 ;;
-*volta-cli/volta/releases/latest*) printf '%s' 'https://github.com/volta-cli/volta/releases/tag/v6.5.4'; exit 0 ;;
+*oven-sh/bun/releases/latest*) printf '%s' "https://github.com/oven-sh/bun/releases/tag/${FAKE_BUN_TAG:-bun-v9.8.7}"; exit 0 ;;
+*volta-cli/volta/releases/latest*) printf '%s' "https://github.com/volta-cli/volta/releases/tag/${FAKE_VOLTA_TAG:-v6.5.4}"; exit 0 ;;
 esac
 
 output=
@@ -62,3 +62,32 @@ assert_line ': "${OH_MY_ZSH_COMMIT:=3333333333333333333333333333333333333333}"'
 assert_line 'HOMEBREW_INSTALL_SHA256=fbaa11d4ed7378e0c699a5546061e7b12d3ed6d7c5db8c2c07a5d96fcadcd957'
 
 echo ' ✔ repin writes complete version, commit and checksum pins'
+
+cp "$TMP/versions.sh" "$TMP/versions.before"
+if PATH="$TMP/bin:/usr/bin:/bin" VERSIONS_FILE="$TMP/versions.sh" \
+  FAKE_BUN_TAG='bun-v9.8.7;echo unsafe' \
+  bash "$ROOT/scripts/repin.sh" >/dev/null 2>&1; then
+  echo ' ✖ repin accepts a malformed Bun release tag'
+  exit 1
+fi
+
+if ! cmp -s "$TMP/versions.before" "$TMP/versions.sh"; then
+  echo ' ✖ repin changes versions.sh after a malformed Bun release tag'
+  exit 1
+fi
+
+echo ' ✔ repin rejects a malformed Bun release tag without changing versions.sh'
+
+if PATH="$TMP/bin:/usr/bin:/bin" VERSIONS_FILE="$TMP/versions.sh" \
+  FAKE_VOLTA_TAG='v6.5.4$(echo unsafe)' \
+  bash "$ROOT/scripts/repin.sh" >/dev/null 2>&1; then
+  echo ' ✖ repin accepts a malformed Volta release tag'
+  exit 1
+fi
+
+if ! cmp -s "$TMP/versions.before" "$TMP/versions.sh"; then
+  echo ' ✖ repin changes versions.sh after a malformed Volta release tag'
+  exit 1
+fi
+
+echo ' ✔ repin rejects a malformed Volta release tag without changing versions.sh'
