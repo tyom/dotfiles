@@ -1,12 +1,7 @@
-alias l='ls'          # default
-alias l.='ls -a'      # default + hidden
-alias ll='ls -l'      # vertical
-alias ll.='ls -al'    # vertical + hidden
-alias lls='ls -lSh .' # sort by size
-
-# change directory
-alias ..='cd ..'  # up
-alias -- -='cd -' # change to last directory
+alias l='ls'       # default
+alias l.='ls -a'   # default + hidden
+alias ll='ls -l'   # vertical
+alias ll.='ls -al' # vertical + hidden
 
 # git shortcuts
 alias g="git"
@@ -20,21 +15,21 @@ alias gc="git commit"
 alias gcf="git commit --fixup"
 alias gca="git commit --amend"
 alias gci="git ci"
-alias gp="git pull"
-alias gco="git checkout"
 # rebase
 alias gri="git rebase -i"
 alias grc="git rebase --continue"
 alias gra="git rebase --abort"
 alias gria="git rebase -i --autosquash"
-# local branches freshness
-alias gbr="gb -r"
-# see `bin/gb`
-# alias glb="git for-each-ref --sort=-committerdate refs/heads/ --format='%(refname): %(committerdate:relative), %(authorname) - %(subject)' | sed 's/refs\/heads\///g'"
 
 # Docker
 alias docker-rm-exited-containers="docker ps --filter status=dead --filter status=exited -aq | xargs docker rm -v"
-alias docker-rm-unused-images="docker images --no-trunc | grep '<none>' | awk '{ print $3 }' | xargs docker rmi"
+docker-rm-unused-images() {
+  local image
+  docker images --filter dangling=true --quiet --no-trunc |
+    while IFS= read -r image; do
+      [ -n "$image" ] && docker rmi "$image"
+    done
+}
 alias docker-rm-unused-volumes="docker volume ls -qf dangling=true | xargs docker volume rm"
 
 # Run local server for current directory on port 8000
@@ -46,18 +41,5 @@ alias diskspace="df -P -kHl"
 # Recursively delete `.DS_Store` files
 alias cleanup_dsstore="find . -name '*.DS_Store' -type f -ls -delete"
 
-# Requires Underscore CLI `npm install -g underscore-cli`
-# https://github.com/ddopson/underscore-cli
-alias pp="underscore print --color"
-alias _="underscore"
-alias _p="underscore process"
-
 # zshrc config
 alias reload="source ~/.zshrc && echo 'Shell config reloaded from ~/.zshrc'"
-
-# zsh.local config
-alias localrc="if [[ -a ~/.zsh.local ]]; then ${EDITOR} ~/.zsh.local; fi"
-
-# Chrome
-alias canary="/Applications/Google\ Chrome\ Canary.app/Contents/MacOS/Google\ Chrome\ Canary"
-alias canaryrd="canary --remote-debugging-port=9222"
