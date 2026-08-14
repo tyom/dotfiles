@@ -16,7 +16,7 @@ REPO=$(cd "$DOTFILES_DIR" && pwd -P)
 SKIP_AGENTS=${SKIP_AGENTS:-false}
 
 if [ "$SKIP_AGENTS" = true ]; then
-  print_skip 'Agent instructions not selected, leaving ~/.claude and ~/.codex alone'
+  print_skip 'Agent instructions not selected, leaving ~/.claude, ~/.codex and ~/.agents alone'
 fi
 
 link() {
@@ -33,7 +33,7 @@ while read -r file; do
   target="$HOME/$rel_path"
 
   if [ "$SKIP_AGENTS" = true ]; then
-    case "$rel_path" in .claude/CLAUDE.md | .codex/AGENTS.md) continue ;; esac
+    case "$rel_path" in .claude/CLAUDE.md | .codex/AGENTS.md | .agents/skills/*) continue ;; esac
   fi
 
   if [ -L "$target" ]; then
@@ -112,5 +112,21 @@ while read -r file; do
     ;;
   esac
 done < <(find "$SRC_DIR" -type f ! -name .DS_Store)
+
+# OpenCode and Pi read ~/.agents/skills themselves. Codex reads only its own
+# skills dir, and the loop above links files rather than directories, so each
+# shared skill needs its own link there.
+if [ "$SKIP_AGENTS" != true ]; then
+  for skill in "$SRC_DIR"/.agents/skills/*/; do
+    [ -d "$skill" ] || continue
+    target="$HOME/.codex/skills/$(basename "$skill")"
+    # ln -sfn drops the link inside a real directory instead of replacing it.
+    if [ -d "$target" ] && [ ! -L "$target" ]; then
+      print_warning "Not ours, leaving it alone: $target"
+      continue
+    fi
+    link "${skill%/}" "$target"
+  done
+fi
 
 print_success "Symlinks created"

@@ -73,6 +73,7 @@ H5=$(fake_home h5)
 SKIP_AGENTS=true link "$H5"
 assert "CLAUDE.md is not linked when opted out" "$(kind "$H5/.claude/CLAUDE.md")" missing
 assert "AGENTS.md is not linked when opted out" "$(kind "$H5/.codex/AGENTS.md")" missing
+assert "the codex skill link is not made when opted out" "$(kind "$H5/.codex/skills/simplify")" missing
 assert "everything else still links" "$(kind "$H5/.vimrc")" symlink
 
 # Opting out afterwards is a skip, not an uninstall: existing links stay
@@ -80,9 +81,14 @@ SKIP_AGENTS=true link "$H1"
 assert "opting out keeps an existing CLAUDE.md link" "$(kind "$H1/.claude/CLAUDE.md")" symlink
 assert "opting out keeps an existing AGENTS.md link" "$(kind "$H1/.codex/AGENTS.md")" symlink
 
+# Codex reads only its own skills dir, so the shared skills are linked there too
+assert "the codex skill is linked" "$(kind "$H4/.codex/skills/simplify")" symlink
+assert "and reads through to the repo" "$(kind "$H4/.codex/skills/simplify/SKILL.md")" file
+
 # unlink takes back its own links and leaves the user's alone
 HOME="$H4" bash "$DOTFILES_DIR/scripts/unlink.sh" >/dev/null 2>&1
 assert "unlink removes our links" "$(kind "$H4/.vimrc.bundles")" missing
+assert "unlink removes the codex skill link" "$(kind "$H4/.codex/skills/simplify")" missing
 assert "unlink clears the directories it made" "$(kind "$H4/bin")" missing
 assert "including nested ones" "$(kind "$H4/.config")" missing
 assert "unlink leaves a foreign link alone" "$(cat "$H4/.vimrc")" 'not yours'
