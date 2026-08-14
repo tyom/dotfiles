@@ -69,7 +69,7 @@ if ! exists brew; then
   exit 1
 fi
 
-# Set up Homebrew in PATH (macOS only; Linux path is set during clone above).
+# Add Homebrew to the current and future macOS login shells.
 if [ "$(which_os)" == "macos" ]; then
   BREW_BIN=$(command -v brew)
   BREW_SHELLENV="eval \"\$(${BREW_BIN} shellenv)\""

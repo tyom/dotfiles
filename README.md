@@ -25,10 +25,10 @@ How it behaves:
 - You can run it again any time. Each step skips what it has already done, and
   the last step runs over 30 checks, including that every symlink still points
   into this repo. CI installs all of it on Linux, once with Homebrew and once
-  without, and checks the first-run Homebrew path on macOS.
-- Bootstrap scripts are pinned and checksum-verified before they run. Oh My Zsh
-  is fetched at a reviewed commit rather than whichever commit is current that
-  day.
+  without, and checks the first-run Homebrew paths on Linux and macOS.
+- Third-party bootstrap inputs are pinned. The Bun, Volta and Homebrew installers
+  are checksum-verified before execution, and Oh My Zsh is checked out at a
+  reviewed commit.
 
 ## What's Included
 
@@ -122,7 +122,8 @@ dotfiles/
 ├── zsh/               # Zsh config + theme (sourced/symlinked)
 ├── shell/             # Shell modules
 ├── claude-plugin/     # Claude Code hook plugin
-└── scripts/           # Installation scripts
+├── scripts/           # Installation scripts
+└── test/              # Fast installer, shell and Git-tool tests
 ```
 
 To add a dotfile, put it under `home/` at the path it should have in your home
@@ -333,7 +334,7 @@ merged, asking first and treating locked ones separately.
 Run the fast tests, or install into a container instead of your machine:
 
 ```bash
-# Installer, symlink, Git-tool and Stop-hook tests
+# Fast installer, shell, Git-tool and Stop-hook tests
 make check
 
 # Run setup and validation
