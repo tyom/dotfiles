@@ -1,14 +1,14 @@
 // Drives the hook the way Claude Code does — transcript on stdin, decision on
 // stdout — against a throwaway project, so nothing here touches a real one.
 //
-// No lint bins are installed in the fixture, so tsc/eslint/prettier no-op and
-// what's under test is the part the merge rewrote: transcript → categorise →
-// pick a test command → block or stay quiet.
+// Tool-specific fixtures below install small executables so TypeScript, ESLint
+// and Prettier are exercised without downloading packages.
 
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
   mkdtempSync,
+  readFileSync,
   writeFileSync,
   mkdirSync,
   realpathSync,
@@ -48,6 +48,20 @@ function vitestFixture() {
   return dir;
 }
 
+// A TypeScript project whose compiler reports one stable diagnostic.
+function typescriptFixture() {
+  const dir = tmpProject({
+    name: "fixture",
+    devDependencies: { typescript: "*" },
+  });
+  const bin = join(dir, "node_modules", ".bin", "tsc");
+  mkdirSync(dirname(bin), { recursive: true });
+  writeFileSync(bin, '#!/bin/sh\necho "TS2322: fixture type error"\nexit 1\n');
+  writeFileSync(join(dir, "tsconfig.json"), "{}\n");
+  chmodSync(bin, 0o755);
+  return dir;
+}
+
 // An eslint project whose local binary exists but cannot be launched.
 function brokenEslintFixture() {
   const dir = tmpProject({ name: "fixture", devDependencies: { eslint: "*" } });
@@ -56,6 +70,34 @@ function brokenEslintFixture() {
   writeFileSync(bin, "#!/bin/sh\nexit 0\n");
   writeFileSync(join(dir, "eslint.config.js"), "export default []\n");
   chmodSync(bin, 0o644);
+  return dir;
+}
+
+// An ESLint project whose executable reports its public arguments and fails.
+function eslintFixture() {
+  const dir = tmpProject({ name: "fixture", devDependencies: { eslint: "*" } });
+  const bin = join(dir, "node_modules", ".bin", "eslint");
+  mkdirSync(dirname(bin), { recursive: true });
+  writeFileSync(bin, '#!/bin/sh\necho "eslint argv: $*"\nexit 1\n');
+  writeFileSync(join(dir, "eslint.config.js"), "export default []\n");
+  chmodSync(bin, 0o755);
+  return dir;
+}
+
+// A Prettier project whose executable rewrites its final path argument.
+function prettierFixture() {
+  const dir = tmpProject({
+    name: "fixture",
+    devDependencies: { prettier: "*" },
+  });
+  const bin = join(dir, "node_modules", ".bin", "prettier");
+  mkdirSync(dirname(bin), { recursive: true });
+  writeFileSync(
+    bin,
+    '#!/bin/sh\nfor target do :; done\nprintf "formatted\\n" >"$target"\nprintf "%s\\n" "$target"\n',
+  );
+  writeFileSync(join(dir, ".prettierrc"), "{}\n");
+  chmodSync(bin, 0o755);
   return dir;
 }
 
@@ -151,6 +193,13 @@ test("a failing suite blocks when source was edited", () => {
   assert.equal(JSON.parse(out).decision, "block");
 });
 
+test("a TypeScript failure blocks", () => {
+  const reason = JSON.parse(
+    runHook(typescriptFixture(), ["src/thing.ts"]),
+  ).reason;
+  assert.match(reason, /TypeScript errors.*TS2322: fixture type error/is);
+});
+
 test("a malformed package.json blocks", () => {
   const dir = tmpProject({ name: "fixture" });
   writeFileSync(join(dir, "package.json"), "{broken");
@@ -161,6 +210,24 @@ test("a malformed package.json blocks", () => {
 test("an ESLint launch failure blocks", () => {
   const out = runHook(brokenEslintFixture(), ["src/thing.js"]);
   assert.match(JSON.parse(out).reason, /ESLint.*EACCES/is);
+});
+
+test("an ESLint error blocks and names the edited file", () => {
+  const reason = JSON.parse(runHook(eslintFixture(), ["src/thing.js"])).reason;
+  assert.match(reason, /ESLint failed.*eslint argv:.*src\/thing\.js/is);
+});
+
+test("Prettier formats the edited file and reports it", () => {
+  const dir = prettierFixture();
+  const file = join(dir, "src", "thing.js");
+  mkdirSync(dirname(file), { recursive: true });
+  writeFileSync(file, "const value=1\n");
+
+  const message = JSON.parse(
+    runHook(dir, ["src/thing.js"], { writeFiles: false }),
+  ).systemMessage;
+  assert.match(message, /Prettier: auto-formatted.*src\/thing\.js/is);
+  assert.equal(readFileSync(file, "utf-8"), "formatted\n");
 });
 
 test("a docs-only edit runs nothing", () => {

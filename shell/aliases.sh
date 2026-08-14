@@ -1,3 +1,4 @@
+# shellcheck shell=bash
 alias l='ls'       # default
 alias l.='ls -a'   # default + hidden
 alias ll='ls -l'   # vertical

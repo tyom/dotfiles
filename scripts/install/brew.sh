@@ -44,6 +44,17 @@ if ! exists brew; then
       print_error 'Homebrew installation failed'
       exit 1
     fi
+
+    # The official installer does not update the current process. Find its two
+    # documented macOS locations so the rest of this run can use it.
+    if ! exists brew; then
+      for brew_bin in /opt/homebrew/bin/brew /usr/local/bin/brew; do
+        if [ -x "$brew_bin" ]; then
+          export PATH="${brew_bin%/*}:$PATH"
+          break
+        fi
+      done
+    fi
   else
     # Clone and PATH export are separate so a re-run (~/.linuxbrew already
     # cloned) still gets brew on PATH
@@ -57,18 +68,18 @@ else
   print_info "Homebrew installed. Skipping."
 fi
 
-# Set up Homebrew in PATH (macOS only - Linux path is set during clone above)
+if ! exists brew; then
+  print_error 'Homebrew installation completed but brew is not available'
+  exit 1
+fi
+
+# Set up Homebrew in PATH (macOS only; Linux path is set during clone above).
 if [ "$(which_os)" == "macos" ]; then
-  # Determine Homebrew prefix (Apple Silicon vs Intel)
-  if [ -d "/opt/homebrew" ]; then
-    BREW_PREFIX="/opt/homebrew"
-  else
-    BREW_PREFIX="/usr/local"
-  fi
-  BREW_SHELLENV="eval \"\$(${BREW_PREFIX}/bin/brew shellenv)\""
+  BREW_BIN=$(command -v brew)
+  BREW_SHELLENV="eval \"\$(${BREW_BIN} shellenv)\""
   grep -qxF "$BREW_SHELLENV" "$HOME/.zprofile" 2>/dev/null ||
     echo "$BREW_SHELLENV" >>"$HOME/.zprofile"
-  eval "$(${BREW_PREFIX}/bin/brew shellenv)"
+  eval "$("$BREW_BIN" shellenv)"
 fi
 
 print_step "Updating Homebrew" && brew update

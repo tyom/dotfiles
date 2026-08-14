@@ -23,7 +23,11 @@ uninstall: ## Remove dotfiles symlinks
 test-links: ## Check symlink conflict handling against a throwaway HOME
 	./scripts/test-link.sh
 
-test-scripts: test-links ## Check installers and shell tools against throwaway state
+test-brew: ## Check first-run Homebrew bootstrap for this platform
+	./scripts/test-brew.sh
+
+test-scripts: test-links test-brew ## Check installers and shell tools against throwaway state
+	./scripts/test-aliases.sh
 	./scripts/test-setup.sh
 	./scripts/test-install.sh
 	./scripts/test-zsh.sh
@@ -65,4 +69,4 @@ docker-test-remote-local: ## Test remote install using local HTTP server
 	docker build -f Dockerfile.remote-test -t $(IMAGE_NAME)-remote .
 	docker run --rm $(IMAGE_NAME)-remote remote-test-local
 
-.PHONY: help install uninstall test-links test-scripts test-plugin check repin brew docker-build docker-test docker-shell docker-setup docker-clean docker-test-remote docker-test-remote-local
+.PHONY: help install uninstall test-links test-brew test-scripts test-plugin check repin brew docker-build docker-test docker-shell docker-setup docker-clean docker-test-remote docker-test-remote-local

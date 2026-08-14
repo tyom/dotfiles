@@ -25,7 +25,7 @@ How it behaves:
 - You can run it again any time. Each step skips what it has already done, and
   the last step runs over 30 checks, including that every symlink still points
   into this repo. CI installs all of it on Linux, once with Homebrew and once
-  without.
+  without, and checks the first-run Homebrew path on macOS.
 - Bootstrap scripts are pinned and checksum-verified before they run. Oh My Zsh
   is fetched at a reviewed commit rather than whichever commit is current that
   day.

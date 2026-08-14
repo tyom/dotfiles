@@ -45,6 +45,17 @@ jobs:
 
       - run: make test-scripts
 
+  macos-bootstrap:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+
+      # Uses controlled curl, Git and brew executables. It covers first-run
+      # dispatch and PATH setup without installing packages on the runner.
+      - run: make test-brew
+
   # The Docker tests only exercise the installer, so this is the only thing that
   # runs the hook's own test suite. The hook has no dependencies and nothing to
   # build, so there is no install step to run first.
