@@ -94,6 +94,20 @@ else
   print_skip "agent instructions not installed, skipping"
 fi
 
+# Shared skills are opt-in as well. OpenCode and Pi read ~/.agents/skills, which
+# link.sh fills file by file like everything else. The Codex link is the one
+# worth checking: it is a directory link made outside that loop, and a skill
+# Codex cannot see fails by simply never being offered.
+for skill in "$REPO"/home/.agents/skills/*/; do
+  [ -d "$skill" ] || continue
+  SKILL_NAME=$(basename "$skill")
+  if [ -L "$HOME/.agents/skills/$SKILL_NAME/SKILL.md" ]; then
+    check_symlink "$HOME/.codex/skills/$SKILL_NAME" "codex $SKILL_NAME skill"
+  else
+    print_skip "$SKILL_NAME skill not installed, skipping"
+  fi
+done
+
 # Ghostty can check its own config, which catches typos in option names that it
 # would otherwise ignore in silence. The CLI lives inside the app bundle on macOS.
 echo ""
