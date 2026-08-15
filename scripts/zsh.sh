@@ -1,6 +1,7 @@
 #!/bin/bash
 
 source "$(dirname "${BASH_SOURCE[0]}")/vars.sh"
+source "$DOTFILES_DIR/scripts/versions.sh"
 source "$DOTFILES_DIR/shell/utils.sh"
 
 install_zsh() {
@@ -35,10 +36,21 @@ fi
 
 # Install Oh My Zsh if it isn't already present
 if [[ ! -d $HOME/.oh-my-zsh/ ]]; then
-  # RUNZSH=no: Don't start zsh after install
-  # KEEP_ZSHRC=yes: Don't overwrite .zshrc
-  # CHSH=no: Don't prompt to change shell (user can do this manually)
-  RUNZSH=no KEEP_ZSHRC=yes CHSH=no sh -c "$(curl -fsSL https://raw.githubusercontent.com/robbyrussell/oh-my-zsh/master/tools/install.sh)"
+  OMZ_TMP=$(mktemp -d "$HOME/.oh-my-zsh.install.XXXXXX")
+  if git -C "$OMZ_TMP" init -q &&
+    git -C "$OMZ_TMP" remote add origin "$OH_MY_ZSH_REMOTE" &&
+    git -C "$OMZ_TMP" fetch -q --depth 1 origin "$OH_MY_ZSH_COMMIT" &&
+    git -C "$OMZ_TMP" checkout -q -B master FETCH_HEAD &&
+    [ "$(git -C "$OMZ_TMP" rev-parse HEAD)" = "$OH_MY_ZSH_COMMIT" ]; then
+    git -C "$OMZ_TMP" config oh-my-zsh.remote origin
+    git -C "$OMZ_TMP" config oh-my-zsh.branch master
+    mv "$OMZ_TMP" "$HOME/.oh-my-zsh"
+    print_success 'Oh My Zsh installed at the reviewed commit'
+  else
+    rm -rf "$OMZ_TMP"
+    print_error 'Oh My Zsh installation failed'
+    exit 1
+  fi
 else
   print_info 'oh-my-zsh is already installed. Skipping.'
 fi

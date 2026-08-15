@@ -25,7 +25,10 @@ How it behaves:
 - You can run it again any time. Each step skips what it has already done, and
   the last step runs over 30 checks, including that every symlink still points
   into this repo. CI installs all of it on Linux, once with Homebrew and once
-  without.
+  without, and checks the first-run Homebrew paths on Linux and macOS.
+- Third-party bootstrap inputs are pinned. The Bun, Volta and Homebrew installers
+  are checksum-verified before execution, and Oh My Zsh is checked out at a
+  reviewed commit.
 
 ## What's Included
 
@@ -119,7 +122,8 @@ dotfiles/
 ├── zsh/               # Zsh config + theme (sourced/symlinked)
 ├── shell/             # Shell modules
 ├── claude-plugin/     # Claude Code hook plugin
-└── scripts/           # Installation scripts
+├── scripts/           # Installation scripts
+└── test/              # Fast installer, shell and Git-tool tests
 ```
 
 To add a dotfile, put it under `home/` at the path it should have in your home
@@ -327,9 +331,12 @@ merged, asking first and treating locked ones separately.
 
 ## Development
 
-Install into a container instead of your machine:
+Run the fast tests, or install into a container instead of your machine:
 
 ```bash
+# Fast installer, shell, Git-tool and Stop-hook tests
+make check
+
 # Run setup and validation
 make docker-test
 
@@ -371,6 +378,20 @@ make docker-test-remote-local
 make docker-test-remote
 ```
 
+### Repinning Bootstrap Dependencies
+
+`scripts/versions.sh` records the reviewed Bun and Volta releases, the Oh My Zsh
+commit, and the Homebrew installer commit, with SHA-256 checksums for downloaded
+scripts. Refresh all of them explicitly:
+
+```bash
+make repin
+git diff -- scripts/versions.sh
+make check
+```
+
+Review the diff before committing it. Installation never changes these pins.
+
 ## Makefile Commands
 
 Run `make` to see all available commands:
@@ -379,6 +400,8 @@ Run `make` to see all available commands:
 | ------------------------------- | ----------------------------------------- |
 | `make install`                  | Install dotfiles on local machine         |
 | `make uninstall`                | Remove dotfiles symlinks                  |
+| `make check`                    | Run the fast local tests                  |
+| `make repin`                    | Refresh bootstrap versions and checksums  |
 | `make brew`                     | Install Homebrew packages                 |
 | `make docker-build`             | Build Docker test image                   |
 | `make docker-test`              | Run setup and validation in Docker        |

@@ -21,7 +21,26 @@ uninstall: ## Remove dotfiles symlinks
 	./scripts/unlink.sh
 
 test-links: ## Check symlink conflict handling against a throwaway HOME
-	./scripts/test-link.sh
+	./test/link.sh
+
+test-brew: ## Check first-run Homebrew bootstrap for this platform
+	./test/brew.sh
+
+test-scripts: test-links test-brew ## Check installers and shell tools against throwaway state
+	./test/aliases.sh
+	./test/setup.sh
+	./test/install.sh
+	./test/zsh.sh
+	./test/gw.sh
+	./test/repin.sh
+
+test-plugin: ## Check the Stop hook
+	cd claude-plugin && node --test
+
+check: test-scripts test-plugin ## Run the fast local verification suite
+
+repin: ## Refresh reviewed installer versions, commits and checksums
+	./scripts/repin.sh
 
 brew: ## Install Homebrew packages
 	./scripts/install/brew.sh
@@ -50,4 +69,4 @@ docker-test-remote-local: ## Test remote install using local HTTP server
 	docker build -f Dockerfile.remote-test -t $(IMAGE_NAME)-remote .
 	docker run --rm $(IMAGE_NAME)-remote remote-test-local
 
-.PHONY: help install uninstall test-links brew docker-build docker-test docker-shell docker-setup docker-clean docker-test-remote docker-test-remote-local
+.PHONY: help install uninstall test-links test-brew test-scripts test-plugin check repin brew docker-build docker-test docker-shell docker-setup docker-clean docker-test-remote docker-test-remote-local

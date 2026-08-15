@@ -37,9 +37,9 @@ while read -r file; do
   fi
 
   if [ -L "$target" ]; then
-    # Ours to refresh if it already points into this repo, or if it dangles
-    # because the repo moved. A link the user made elsewhere still resolves.
-    if [ ! -e "$target" ] || links_into "$REPO" "$target"; then
+    # Refresh only a link whose live or unresolved target proves it is ours.
+    # A foreign dangling link may be temporary and must keep its destination.
+    if links_into "$REPO" "$target"; then
       link "$file" "$target"
     else
       print_warning "Links outside this repo, leaving it alone: $target"

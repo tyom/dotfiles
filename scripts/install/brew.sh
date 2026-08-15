@@ -1,6 +1,7 @@
 #!/bin/bash
 
 source scripts/vars.sh
+source scripts/versions.sh
 source shell/utils.sh
 
 # Homebrew 6 asks before installing dependencies by default; the setup
@@ -33,33 +34,48 @@ fi
 # Check for Homebrew and install it if missing
 if ! exists brew; then
   if [ "$(which_os)" == "macos" ]; then
-    print_step "Installing Homebrew for macOS" &&
-      /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+    print_step "Installing Homebrew for macOS"
   else
-    # Clone and PATH export are separate so a re-run (~/.linuxbrew already
-    # cloned) still gets brew on PATH
-    if [ ! -x "$HOME/.linuxbrew/bin/brew" ]; then
-      print_step "Installing Homebrew for Linux"
-      git clone --depth 1 https://github.com/Homebrew/brew.git ~/.linuxbrew
-    fi
-    export PATH="$HOME/.linuxbrew/bin:$PATH"
+    print_step "Installing Homebrew for Linux"
+  fi
+
+  HOMEBREW_INSTALLER=$(mktemp)
+  if download_verified "$HOMEBREW_INSTALL_URL" "$HOMEBREW_INSTALL_SHA256" "$HOMEBREW_INSTALLER" &&
+    /bin/bash "$HOMEBREW_INSTALLER"; then
+    rm -f "$HOMEBREW_INSTALLER"
+  else
+    rm -f "$HOMEBREW_INSTALLER"
+    print_error 'Homebrew installation failed'
+    exit 1
+  fi
+
+  # The official installer does not update the current process. Find its
+  # documented locations so the rest of this run can use it.
+  if ! exists brew; then
+    for brew_bin in /opt/homebrew/bin/brew /usr/local/bin/brew \
+      "$HOME/.linuxbrew/bin/brew" /home/linuxbrew/.linuxbrew/bin/brew; do
+      if [ -x "$brew_bin" ]; then
+        export PATH="${brew_bin%/*}:$PATH"
+        break
+      fi
+    done
   fi
 else
   print_info "Homebrew installed. Skipping."
 fi
 
-# Set up Homebrew in PATH (macOS only - Linux path is set during clone above)
+if ! exists brew; then
+  print_error 'Homebrew installation completed but brew is not available'
+  exit 1
+fi
+
+# Add Homebrew to the current and future macOS login shells.
 if [ "$(which_os)" == "macos" ]; then
-  # Determine Homebrew prefix (Apple Silicon vs Intel)
-  if [ -d "/opt/homebrew" ]; then
-    BREW_PREFIX="/opt/homebrew"
-  else
-    BREW_PREFIX="/usr/local"
-  fi
-  BREW_SHELLENV="eval \"\$(${BREW_PREFIX}/bin/brew shellenv)\""
+  BREW_BIN=$(command -v brew)
+  BREW_SHELLENV="eval \"\$(${BREW_BIN} shellenv)\""
   grep -qxF "$BREW_SHELLENV" "$HOME/.zprofile" 2>/dev/null ||
     echo "$BREW_SHELLENV" >>"$HOME/.zprofile"
-  eval "$(${BREW_PREFIX}/bin/brew shellenv)"
+  eval "$("$BREW_BIN" shellenv)"
 fi
 
 print_step "Updating Homebrew" && brew update

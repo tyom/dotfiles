@@ -43,18 +43,13 @@ function which-port {
 }
 
 # show top 10 most used shell commands
-function top_commands {
+function top-commands {
   history | awk '{ a[$2]++ } END { for(i in a ) { print a[i] " " i } }' | sort -rn | head
 }
 
 # Show top n biggest files
-function largest_files {
+function largest-files {
   du -k "$@" | sort -rn | head -n 20 | perl -ne '($s,$f)=split(/\t/,$_,2);for(qw(K M G T)){if($s<1024){$x=($s<10?"%.1f":"%3d");printf("$x$_\t%s",$s,$f);last};$s/=1024}'
-}
-
-# find shorthand
-function f {
-  find . -name "$1" 2>/dev/null
 }
 
 # cd into whatever is the forefront Finder window.
@@ -86,18 +81,6 @@ function webmify {
 
 # git worktree helpers
 
-# Wrap the gw script so `gw switch <branch>` can cd (a child process can't
-# change this shell's directory). Everything else passes through.
-function gw {
-  if [ "$1" = "switch" ]; then
-    local dir
-    dir=$(command gw switch "$2") || return 1
-    cd "$dir"
-  else
-    command gw "$@"
-  fi
-}
-
 function _repo_toplevel {
   git rev-parse --show-toplevel 2>/dev/null
 }
@@ -110,9 +93,12 @@ function gwa {
     return 1
   fi
   local toplevel
-  toplevel=$(_repo_toplevel) || { echo "Not a git repository"; return 1; }
-  git worktree add "$toplevel/.worktrees/$branch" "$branch" 2>/dev/null \
-    || git worktree add -b "$branch" "$toplevel/.worktrees/$branch"
+  toplevel=$(_repo_toplevel) || {
+    echo "Not a git repository"
+    return 1
+  }
+  git worktree add "$toplevel/.worktrees/$branch" "$branch" 2>/dev/null ||
+    git worktree add -b "$branch" "$toplevel/.worktrees/$branch"
 }
 
 function gwd {
@@ -123,7 +109,10 @@ function gwd {
     return 1
   fi
   local toplevel
-  toplevel=$(_repo_toplevel) || { echo "Not a git repository"; return 1; }
+  toplevel=$(_repo_toplevel) || {
+    echo "Not a git repository"
+    return 1
+  }
   git worktree remove "$toplevel/.worktrees/$branch"
 }
 

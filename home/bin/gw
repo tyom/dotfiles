@@ -22,9 +22,40 @@ nl=$'\n'
 
 truncate() { ((${#1} > $2)) && printf '%s…' "${1:0:$2}" || printf '%s' "$1"; }
 
-# Base branch to test "merged" against (main, else master).
-base=main
-git show-ref --verify --quiet refs/heads/main || base=master
+# Resolve the repository's declared default first. Prefer its local branch so a
+# merge made locally counts before it is pushed, then fall back without guessing.
+resolve_base() {
+  local remote name
+  if remote=$(git symbolic-ref -q --short refs/remotes/origin/HEAD); then
+    name=${remote#origin/}
+    if git show-ref --verify --quiet "refs/heads/$name"; then
+      printf '%s\t%s\n' "$name" "$name"
+      return
+    fi
+    if git show-ref --verify --quiet "refs/remotes/$remote"; then
+      printf '%s\t%s\n' "$name" "$remote"
+      return
+    fi
+    return 1
+  fi
+
+  for name in main master; do
+    if git show-ref --verify --quiet "refs/heads/$name"; then
+      printf '%s\t%s\n' "$name" "$name"
+      return
+    fi
+  done
+
+  name=$(git symbolic-ref -q --short HEAD) || return 1
+  git show-ref --verify --quiet "refs/heads/$name" || return 1
+  printf '%s\t%s\n' "$name" "$name"
+}
+
+base_info=$(resolve_base) || {
+  echo 'gw: cannot determine the repository default branch' >&2
+  exit 1
+}
+IFS=$'\t' read -r base base_ref <<<"$base_info"
 
 this_wt=$(git rev-parse --show-toplevel 2>/dev/null)
 
@@ -44,13 +75,18 @@ records=$(git worktree list --porcelain 2>/dev/null | awk -v s="$sep" '
 first_record=${records%%$'\n'*}
 repo_dir=${first_record%%"$sep"*}
 
+declare -a heads=()
+while read -r sha; do
+  [[ -n "$sha" ]] && heads+=("$sha")
+done < <(printf '%s\n' "$records" | cut -d"$sep" -f3 | sort -u)
+
 # One git log for all worktree HEADs, subject last so it can hold anything.
 commit_info=$(git log --no-walk=unsorted --date=format:'%d %b %Y' \
   --pretty=format:"%H$sep%ct$sep%cr$sep%cd$sep%an$sep%s" \
-  $(printf '%s\n' "$records" | cut -d"$sep" -f3 | sort -u) 2>/dev/null) || commit_info=""
+  "${heads[@]}" 2>/dev/null) || commit_info=""
 
 # Branches merged into base, one call instead of one merge-base per worktree.
-merged_set="$nl$(git for-each-ref --merged="$base" --format='%(refname:short)' refs/heads 2>/dev/null)$nl"
+merged_set="$nl$(git for-each-ref --merged="$base_ref" --format='%(refname:short)' refs/heads 2>/dev/null)$nl"
 
 # Attach commit timestamp for sorting.
 declare -a rows=()

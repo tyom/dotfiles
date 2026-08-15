@@ -29,6 +29,19 @@ DOTFILES_BRANCH="${DOTFILES_BRANCH:-master}"
 # the interactive defaults instead.
 SETUP_ARGS=("$@")
 
+is_dotfiles_checkout() {
+  [ -x "$1/scripts/setup.sh" ] || return 1
+
+  local remote
+  remote=$(git -C "$1" remote get-url origin 2>/dev/null) || return 1
+  case "$remote" in
+  "$DOTFILES_REPO" | "$DOTFILES_REPO.git" | \
+    git@github.com:tyom/dotfiles | git@github.com:tyom/dotfiles.git | \
+    ssh://git@github.com/tyom/dotfiles | ssh://git@github.com/tyom/dotfiles.git) return 0 ;;
+  *) return 1 ;;
+  esac
+}
+
 # Detect if running from within an existing dotfiles repo
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 if [ -f "$SCRIPT_DIR/../scripts/setup.sh" ]; then
@@ -51,6 +64,10 @@ else
 
   if command -v git >/dev/null 2>&1; then
     if [ -d "$DOTFILES_DIR/.git" ]; then
+      if ! is_dotfiles_checkout "$DOTFILES_DIR"; then
+        echo "Error: $DOTFILES_DIR is a Git checkout, but not this dotfiles repository."
+        exit 1
+      fi
       echo "Dotfiles already cloned. Pulling latest changes..."
       git -C "$DOTFILES_DIR" pull
     else
