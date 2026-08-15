@@ -46,7 +46,7 @@ usage() {
   cat <<'USAGE'
 git-who - line ownership per directory, top contributors first
 
-Usage: git who [-d n] [-t [n]] [-i [name]] [-v] [-c] [-h] [path]
+Usage: git who [-d n] [-t [n]] [-i [name]] [-a] [-v] [-c] [-h] [path]
 
 Options:
   -d, --depth n  how deep to descend, in directories below the starting point
@@ -68,6 +68,8 @@ Options:
                  busiest stretch rather than a fixed number. With gh installed
                  and logged in to a GitHub remote it also says who they are
                  there, and their pull requests and reviews
+  -a, --all      every name on a row rather than the leading five, and every
+                 directory under --top, however wide that runs
   -v, --verbose  write names out in full, with the address most of an author's
                  lines carry. Names are shortened to fit otherwise
   -c, --clear    throw the cached counts away first, so the run blames the lot
@@ -90,6 +92,7 @@ USAGE
 topn=
 depth=2
 clear=
+all=
 verbose=
 detail=
 is=
@@ -105,6 +108,7 @@ while (($#)); do
     -d*)        depth=${1#-d} ;;
     -i | --is) detail=1
                [[ -n ${2:-} && ${2:0:1} != - ]] && { is=$2; shift; } ;;
+    -a | --all) all=1 ;;
     -c | --clear) clear=1 ;;
     -v | --verbose) verbose=1 ;;
     -h | --help) usage && exit 0 ;;
@@ -437,7 +441,12 @@ awk_common='
 # Fold per-file counts into every directory above the file, then keep each
 # directory's top few authors, or with --top each author's top few directories.
 # Chunks go out as "<colour digit>Name<US>42%<US>1.2k"
-awk -F'\t' -v prefix="$prefix" -v maxdepth="$depth" -v top=5 -v label="$label" \
+# Five to a row, or the lot with --all. A number rather than "no limit", so the
+# loops that stop at it need no second case
+per=5
+[[ -n $all ]] && per=1000000
+
+awk -F'\t' -v prefix="$prefix" -v maxdepth="$depth" -v top="$per" -v label="$label" \
     -v topn="$topn" -v verbose="$verbose" -v lowsep="$lowsep" -v unitsep="$unitsep" \
     -v ispat="$is" -v detail="$detail" -v logfile="$work/log" -v ghfile="$work/gh" \
     -v esc="$esc" -v cols="$cols" "$awk_common"'
@@ -700,10 +709,17 @@ awk -F'\t' -v prefix="$prefix" -v maxdepth="$depth" -v top=5 -v label="$label" \
           nb = ranked(blist[who[j]], bkt, who[j], bv, top)
           out[j] = ""
           mm = (nb < top ? nb : top)
-          for (r = 1; r <= mm; r++)
+          rest = cnt["." SUBSEP who[j]]
+          for (r = 1; r <= mm; r++) {
             out[j] = out[j] chunk((bv[r] in dcol ? dcol[bv[r]] : 9),
                                   (bv[r] == "." ? "<root>" : bv[r] "/"),
                                   bkt[who[j] SUBSEP bv[r]], cnt["." SUBSEP who[j]])
+            rest -= bkt[who[j] SUBSEP bv[r]]
+          }
+          # What the row left out, so the shares add up to the whole
+          if (rest > 0)
+            out[j] = out[j] chunk(9, sprintf("+%d more", nb - mm), rest,
+                                  cnt["." SUBSEP who[j]])
         }
         # The rank is the sort key, so the order survives the sort below. The
         # share beside the count is of the whole tree, where the shares out in
@@ -728,9 +744,14 @@ awk -F'\t' -v prefix="$prefix" -v maxdepth="$depth" -v top=5 -v label="$label" \
         na = ranked(alist[d], cnt, d, av, top)
         out[j] = ""
         m = (na < top ? na : top)
-        for (r = 1; r <= m; r++)
+        rest = tot[d]
+        for (r = 1; r <= m; r++) {
           out[j] = out[j] chunk((av[r] in colr ? colr[av[r]] : 9), person(av[r]),
                                 cnt[d SUBSEP av[r]], tot[d])
+          rest -= cnt[d SUBSEP av[r]]
+        }
+        if (rest > 0)
+          out[j] = out[j] chunk(9, sprintf("+%d more", na - m), rest, tot[d])
       }
       # Names pad to the widest here, so the last stage can print as it reads.
       # The sort key takes a low byte for the slash, else a sibling like "a-b"
@@ -748,7 +769,7 @@ else
 
   # Colour the names and fit as many as the terminal has room for
   awk -F'\t' -v cols="$cols" -v esc="$esc" -v unitsep="$unitsep" -v topn="$topn" \
-      "$awk_common"'
+      -v all="$all" "$awk_common"'
     {
       printf "%s  %s%s%s  ", $2, dim, $3, reset
       used = dlen($2) + dlen($3) + 4
@@ -759,7 +780,8 @@ else
         # author rows carry the lines as well, being a tally of one persons work
         tail = (topn ? field[2] " " field[3] : field[2])
         width = dlen(field[1]) + dlen(tail) + 1
-        if (i > 4 && used + width + 2 > cols) break
+        # --all asked for the lot, so the row runs on and less wraps it
+        if (!all && i > 4 && used + width + 2 > cols) break
         printf "%s%s%s%s %s%s%s", (i > 4 ? "  " : ""), \
           (c in pal ? pal[c] : grey), field[1], reset, dim, tail, reset
         used += width + 2
