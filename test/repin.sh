@@ -27,7 +27,7 @@ while [ $# -gt 0 ]; do
   shift
 done
 case "$url" in
-https://bun.com/install) printf 'bun installer\n' >"$output" ;;
+*oven-sh/bun/bun-v9.8.7/src/cli/install.sh) printf 'bun installer\n' >"$output" ;;
 *volta-cli/volta/2222222222222222222222222222222222222222/*) printf 'volta installer\n' >"$output" ;;
 *Homebrew/install/4444444444444444444444444444444444444444/*) printf 'homebrew installer\n' >"$output" ;;
 *) exit 22 ;;
@@ -55,6 +55,7 @@ assert_line() {
 }
 
 assert_line 'BUN_VERSION=9.8.7'
+assert_line 'BUN_INSTALL_URL=https://raw.githubusercontent.com/oven-sh/bun/bun-v9.8.7/src/cli/install.sh'
 assert_line 'BUN_INSTALL_SHA256=fe408834856dae38ed3c8e84f13fede38f2ff103af194fd666545207458f163d'
 assert_line 'VOLTA_VERSION=6.5.4'
 assert_line 'VOLTA_INSTALL_SHA256=7b6223760a0ab34f9cee039db6cc773c7d7342a32c133f9f12009ad6079523a1'

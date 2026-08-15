@@ -1,6 +1,6 @@
 # Reviewed bootstrap inputs. Update safely with `make repin`.
 BUN_VERSION=1.3.14
-BUN_INSTALL_URL=https://bun.com/install
+BUN_INSTALL_URL=https://raw.githubusercontent.com/oven-sh/bun/bun-v1.3.14/src/cli/install.sh
 BUN_INSTALL_SHA256=bab8acfb046aac8c72407bdcce903957665d655d7acaa3e11c7c4616beae68dd
 
 VOLTA_VERSION=2.0.2

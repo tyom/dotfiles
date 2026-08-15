@@ -72,7 +72,7 @@ volta_commit=$(tag_commit volta-cli/volta "$volta_tag")
 oh_my_zsh_commit=$(remote_ref ohmyzsh/ohmyzsh refs/heads/master)
 homebrew_commit=$(remote_ref Homebrew/install refs/heads/main)
 
-bun_url=https://bun.com/install
+bun_url="https://raw.githubusercontent.com/oven-sh/bun/$bun_tag/src/cli/install.sh"
 volta_url="https://raw.githubusercontent.com/volta-cli/volta/$volta_commit/dev/unix/volta-install.sh"
 homebrew_url="https://raw.githubusercontent.com/Homebrew/install/$homebrew_commit/install.sh"
 
