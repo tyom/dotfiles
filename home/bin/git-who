@@ -53,8 +53,9 @@ Options:
                  (default 2). Under --top it sets how finely directories are
                  named, so -d 1 says modules/ where -d 3 says modules/ui/fields/
   -t, --top [n]  turn it around: the top n authors (default 10), largest first,
-                 and for each the directories their lines sit in, with the share
-                 of their own work each one holds rather than their share of it
+                 their lines and what share of the tree that is, and for each
+                 the directories their lines sit in, with the share of their own
+                 work each one holds rather than their share of it
   -i, --is [name]
                  everything known about the contributors whose name or address
                  starts with name: addresses, lines, commits, merges, the span
@@ -704,9 +705,13 @@ awk -F'\t' -v prefix="$prefix" -v maxdepth="$depth" -v top=5 -v label="$label" \
                                   (bv[r] == "." ? "<root>" : bv[r] "/"),
                                   bkt[who[j] SUBSEP bv[r]], cnt["." SUBSEP who[j]])
         }
-        # The rank is the sort key, so the order survives the sort below
+        # The rank is the sort key, so the order survives the sort below. The
+        # share beside the count is of the whole tree, where the shares out in
+        # the row are of their own work
         for (j = 1; j <= m; j++)
-          printf "%06d\t%s\t%7s%s\n", j, pad(lbl[j], w), human(cnt["." SUBSEP who[j]]), out[j]
+          printf "%06d\t%s\t%7s %4s%s\n", j, pad(lbl[j], w),
+                 human(cnt["." SUBSEP who[j]]), share(cnt["." SUBSEP who[j]], tot["."]),
+                 out[j]
         exit
       }
 
