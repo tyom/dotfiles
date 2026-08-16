@@ -74,11 +74,16 @@ function brokenEslintFixture() {
 }
 
 // An ESLint project whose executable reports its public arguments and fails.
-function eslintFixture() {
+// In `ignored` mode it succeeds instead and mimics real ESLint on an ignored
+// path: the "File ignored" notice unless --no-warn-ignored was passed.
+function eslintFixture({ ignored = false } = {}) {
   const dir = tmpProject({ name: "fixture", devDependencies: { eslint: "*" } });
   const bin = join(dir, "node_modules", ".bin", "eslint");
   mkdirSync(dirname(bin), { recursive: true });
-  writeFileSync(bin, '#!/bin/sh\necho "eslint argv: $*"\nexit 1\n');
+  const script = ignored
+    ? '#!/bin/sh\necho "eslint argv: $*"\ncase " $* " in\n  *" --no-warn-ignored "*) ;;\n  *) echo "warning  File ignored because of a matching ignore pattern" ;;\nesac\nexit 0\n'
+    : '#!/bin/sh\necho "eslint argv: $*"\nexit 1\n';
+  writeFileSync(bin, script);
   writeFileSync(join(dir, "eslint.config.js"), "export default []\n");
   chmodSync(bin, 0o755);
   return dir;
@@ -221,8 +226,12 @@ test("an ESLint error blocks and names the edited file", () => {
 // ignores, so an ignored file reports "File ignored" on exit 0 and would
 // otherwise surface as a warning.
 test("ESLint is told not to warn about ignored files", () => {
-  const reason = JSON.parse(runHook(eslintFixture(), ["src/thing.js"])).reason;
-  assert.match(reason, /eslint argv:.*--no-warn-ignored/is);
+  const message = JSON.parse(
+    runHook(eslintFixture({ ignored: true }), ["src/thing.js"]),
+  ).systemMessage;
+  assert.match(message, /eslint argv:.*src\/thing\.js/is);
+  assert.match(message, /eslint argv:.*--no-warn-ignored/is);
+  assert.doesNotMatch(message, /File ignored/i);
 });
 
 test("Prettier formats the edited file and reports it", () => {
