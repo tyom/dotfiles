@@ -217,6 +217,14 @@ test("an ESLint error blocks and names the edited file", () => {
   assert.match(reason, /ESLint failed.*eslint argv:.*src\/thing\.js/is);
 });
 
+// A scoped run hands over edited files without consulting the project's
+// ignores, so an ignored file reports "File ignored" on exit 0 and would
+// otherwise surface as a warning.
+test("ESLint is told not to warn about ignored files", () => {
+  const reason = JSON.parse(runHook(eslintFixture(), ["src/thing.js"])).reason;
+  assert.match(reason, /eslint argv:.*--no-warn-ignored/is);
+});
+
 test("Prettier formats the edited file and reports it", () => {
   const dir = prettierFixture();
   const file = join(dir, "src", "thing.js");

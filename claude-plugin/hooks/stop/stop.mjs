@@ -416,6 +416,11 @@ async function lint(projectRoot, c, forceFull) {
           "--format",
           "stylish",
           "--no-error-on-unmatched-pattern",
+          // Scoped runs pass edited files blind to the project's ignores, so a
+          // repo with an ignored subtree (a standalone package with its own
+          // tooling, say) reports "File ignored" on exit 0 — which lands in
+          // warnings. Only silences that notice; real warnings still surface.
+          "--no-warn-ignored",
           ...targets,
         ],
         projectRoot,
