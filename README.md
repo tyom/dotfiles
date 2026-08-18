@@ -338,28 +338,35 @@ What a coding agent loads when it opens a repo, and where that comes from. Run
 it in any directory:
 
 ```text
-this repo                                    always   on demand  items
-  project skills                                412      12,004      3
-  CLAUDE.md                                     118           -      -
+this repo                           always  on trigger     on read  items
+  CLAUDE.md                            450           -           -      -
 
-inherited                                    always   on demand  items
-  plugin posthog skills                      18,210   1,707,481    137
-  plugin vercel skills                        2,036     316,767     30
-  user skills                                 2,178     876,151     34
-  ────────────────────────────────────────────────────────────────────
-  total  █           11% of 200k             22,954   2,912,403    204
+inherited                           always  on trigger     on read  items
+  user skills                        2,178      50,990     825,150     34
+  plugin vercel skills               2,036      94,651     222,111     30
+  plugin figma skills                1,477      48,972     330,228     12
+  plugin impeccable skills             716      29,812       7,772     18
+  ───────────────────────────────────────────────────────────────────────
+  total  ▌           5% of 200k     10,359     294,003   1,462,906    155
 ```
 
-**always** is what is resident before you type: memory files in full, and the
-`description` of every skill, command and agent. **on demand** is everything
-else in those directories, the bytes a single skill can pull in. Both are
-estimates at four bytes a token.
+Three columns, because a skill costs its context in three stages. **always** is
+what is resident before you type: memory files, and the `description` of every
+skill, command and agent. A memory file counts for what survives its load, which
+under Claude means without its frontmatter or any HTML comment standing on its
+own, and under Codex means every byte. **on trigger** is the rest of that entry file,
+what one skill costs when it actually fires. **on read** is everything below it,
+the references the agent only pays for if it opens them. All three are estimates
+at four bytes a token.
+
+The gap between the last two is the point: most trees are mostly **on read**, so
+a large group is far cheaper in practice than one number would suggest.
 
 The totals row draws **always** as the [status line](#status-line) does, ten
 cells over the window and the same colours by absolute count, so the two read
 the same way. `-w` sets the window, `200k` by default: `-w 1m` for a long
-context model, or any token count. Only **always** gets a bar, because **on
-demand** is a ceiling nobody reaches.
+context model, or any token count. Only **always** gets a bar, because the other
+two are ceilings nobody reaches.
 
 Below the table it names the hooks that fire per event and the MCP servers in
 play. Server tool schemas ship on every request and are usually the largest
@@ -369,20 +376,25 @@ add them up.
 Pass part of a group name to open it up, biggest first:
 
 ```text
-$ agent-ctx posthog
-plugin posthog skills                        always   on demand
-  instrument-integration                         63     386,654
-  querying-posthog-data                         206      65,143
+$ agent-ctx 'user skills'
+user skills                         always  on trigger     on read
+  fallow                               252       9,185      42,627
+  improve                              130       3,643       7,288
+  explainer                             20       3,250         735
 ```
 
 `-a` picks the agent, Claude Code by default:
 
-- `-a claude` reads `~/.claude` and the repo's `.claude`, `CLAUDE.md` and
-  `.mcp.json`, with plugins from `installed_plugins.json` minus the ones turned
-  off in `settings.json`
-- `-a codex` reads `$CODEX_HOME` or `~/.codex` and the repo's `.codex` and
-  `AGENTS.md`, with servers and plugins from `config.toml` minus anything marked
-  `enabled = false`
+- `-a claude` reads `~/.claude` and the repo's `.claude` and `.mcp.json`, with
+  plugins from `installed_plugins.json` minus the ones turned off in
+  `settings.json`. `CLAUDE.md`, `CLAUDE.local.md` and `AGENTS.md` are found in
+  every directory from the cwd up to just below `/`, and one above the repo
+  counts as inherited, because it loads in every project under it
+- `-a codex` reads `$CODEX_HOME` or `~/.codex` and the repo's `.codex`, with
+  servers and plugins from `config.toml` minus anything marked `enabled = false`.
+  Codex reads an `AGENTS.md` from the repo root down to the directory it started
+  in, so every one of those counts, and `AGENTS.override.md` takes the place of
+  `AGENTS.md` in its own directory
 
 Symlinked skills are followed, so a skill kept in another repo counts where it
 is used. Nothing is started and nothing is written. Requires `jq`, which the
