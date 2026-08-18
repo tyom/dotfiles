@@ -32,6 +32,7 @@ test-scripts: test-links test-brew ## Check installers and shell tools against t
 	./test/install.sh
 	./test/zsh.sh
 	./test/gw.sh
+	./test/agent-ctx.sh
 	./test/repin.sh
 
 test-plugin: ## Check the Stop hook
