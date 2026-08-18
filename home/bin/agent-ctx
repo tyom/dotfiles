@@ -187,7 +187,10 @@ discover_claude() {
   local user="$HOME/.claude" f style dir name disabled root section settings=() mcp_files=()
 
   strip_memory=1
+  # one percent of the window, and never less than a token of it, the way claude
+  # floors its own budget
   listing_cap=$((window / 100))
+  ((listing_cap)) || listing_cap=1
   add_tree 1 project "$repo/.claude"
 
   # CLAUDE.md, its .local companion and AGENTS.md are discovered together, in

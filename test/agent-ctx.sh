@@ -79,12 +79,14 @@ run() { (cd "$TMP/repo" && HOME="$TMP/home" "$ROOT/home/bin/agent-ctx" "$@" | se
 
 # The same repo seen by Codex: TOML config, its own memory file and plugin layout
 codex="$TMP/home/.codex"
-mkdir -p "$codex/plugins/cache/store/gamma/9f3c" "$codex/plugins/cache/store/delta/1a2b"
+mkdir -p "$codex/plugins/cache/store/gamma/9f3c" "$codex/plugins/cache/store/delta/1a2b" \
+  "$codex/plugins/cache/gone/epsilon/7b8d"
 printf 'codex memory\n' >"$codex/AGENTS.md"
 printf 'repo memory for codex\n' >"$TMP/repo/AGENTS.md"
 skill "$codex/skills/local" local
 skill "$codex/plugins/cache/store/gamma/9f3c/skills/from-plugin" from-plugin
 skill "$codex/plugins/cache/store/delta/1a2b/skills/off" off
+skill "$codex/plugins/cache/gone/epsilon/7b8d/skills/orphaned" orphaned
 cat >"$codex/config.toml" <<'TOML'
 model = "gpt-5.6-sol"
 
@@ -103,6 +105,15 @@ enabled = true
 
 [plugins."delta@store"]
 enabled = false
+
+# Enabled, unpacked, and from a marketplace that is no longer registered below,
+# which is how a plugin stays on disk long after Codex stopped loading it
+[plugins."epsilon@gone"]
+enabled = true
+
+[marketplaces.store]
+source_type = "local"
+source = "/dev/null"
 TOML
 
 
@@ -111,15 +122,15 @@ output=$(run)
 # The description is the only part of a skill that ships every session
 desc_bytes=$(printf 'description: %s\n%s\n' "$desc_line1" "$desc_line2" | wc -c)
 skill_bytes=$(cat "$TMP/repo/.claude/skills/proj/SKILL.md" | wc -c)
-always=$((desc_bytes / 4))
-on_demand=$((skill_bytes / 4 - always))
+always=$((desc_bytes / 3))
+on_trigger=$((skill_bytes / 3 - always))
 
-if ! grep -qE "^  project skills +$always +$on_demand +1$" <<<"$output"; then
-  fail "project skills should be $always always and $on_demand on demand"
+if ! grep -qE "^  project skills +$always +$on_trigger +- +1$" <<<"$output"; then
+  fail "project skills should be $always always and $on_trigger on trigger"
 fi
 
 memory_bytes=$(cat "$TMP/repo/CLAUDE.md" | wc -c)
-if ! grep -qE "^  CLAUDE.md +$((memory_bytes / 4)) +- +-$" <<<"$output"; then
+if ! grep -qE "^  CLAUDE.md +$((memory_bytes / 3)) +- +- +-$" <<<"$output"; then
   fail "the repo CLAUDE.md should be counted in full"
 fi
 
@@ -130,7 +141,7 @@ grep -q '1.0.0' <<<"$output" && fail 'a stale plugin version in the cache should
 grep -q 'plugin beta' <<<"$output" && fail 'a plugin disabled in settings should not be counted'
 
 # Two skills, and the loose file beside them is not a third
-if ! grep -qE "^  plugin alpha skills +$((always * 2)) +[0-9,]+ +2$" <<<"$output"; then
+if ! grep -qE "^  plugin alpha skills +$((always * 2)) +[0-9,]+ +[0-9,]+ +2$" <<<"$output"; then
   fail 'the installed plugin should show its two skills and their descriptions'
 fi
 
@@ -148,8 +159,14 @@ widths=$(sed 's/█/#/g; s/▌/+/g' <<<"$output" |
   fail 'the totals row should be as wide as the rows above it'
 
 # Ten cells over the window, clamped at both ends
-grep -qE '^  total  #{10}  100% of 100' <<<"$(run -w 100 | sed 's/█/#/g')" ||
+grep -qE '^  total  #{10}  100% of 10' <<<"$(run -w 10 | sed 's/█/#/g')" ||
   fail 'a window smaller than the total should fill the bar'
+
+# Claude reserves one percent of the window for skill and command descriptions,
+# and never less than one token of it: a window too small to round up should
+# tighten the cap rather than turn it off
+grep -qE "^  of $((always * 3)) in skill and command descriptions only 1 fits the listing$" <<<"$(run -w 10)" ||
+  fail 'a window too small for one percent should still cap the listing'
 grep -qE '^  total {14}0% of 9m' <<<"$(run -w 9m)" ||
   fail 'a window far larger than the total should leave the bar empty'
 (cd "$TMP/repo" && HOME="$TMP/home" "$ROOT/home/bin/agent-ctx" -w 1.5m) >/dev/null 2>&1 &&
@@ -167,6 +184,8 @@ grep -qE '^  AGENTS.md ' <<<"$output" || fail 'codex should count the repo AGENT
 grep -q 'CLAUDE.md' <<<"$output" && fail 'codex does not read CLAUDE.md'
 grep -q 'plugin gamma skills' <<<"$output" || fail 'an enabled codex plugin should be counted'
 grep -q 'plugin delta' <<<"$output" && fail 'a codex plugin disabled in config.toml should not be counted'
+grep -q 'plugin epsilon' <<<"$output" &&
+  fail 'a codex plugin whose marketplace is no longer registered should not be counted'
 grep -qE 'mcp servers|live' <<<"$output" || fail 'a server in config.toml should be named'
 grep -q 'parked' <<<"$output" && fail 'a server disabled in config.toml should not be named'
 grep -q 'live.env' <<<"$output" && fail 'a nested TOML table is not a server'
