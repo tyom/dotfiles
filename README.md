@@ -336,7 +336,7 @@ merged, asking first and treating locked ones separately.
 What a coding agent loads when it opens a repo, and where that comes from. Run
 it in any directory:
 
-```
+```text
 this repo                                    always   on demand  items
   project skills                                412      12,004      3
   CLAUDE.md                                     118           -      -
@@ -345,8 +345,8 @@ inherited                                    always   on demand  items
   plugin posthog skills                      18,210   1,707,481    137
   plugin vercel skills                        2,036     316,767     30
   user skills                                 2,178     876,151     34
-  ───────────────────────────────────────────────────────────────────
-  total  █           14% of 200k             28,209   3,467,226    299
+  ────────────────────────────────────────────────────────────────────
+  total  █           11% of 200k             22,954   2,912,403    204
 ```
 
 **always** is what is resident before you type: memory files in full, and the
@@ -367,7 +367,7 @@ add them up.
 
 Pass part of a group name to open it up, biggest first:
 
-```
+```text
 $ agent-ctx posthog
 plugin posthog skills                        always   on demand
   instrument-integration                         63     386,654
