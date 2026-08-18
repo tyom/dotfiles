@@ -348,7 +348,7 @@ inherited                              always  on trigger     on read  items
   ~/.codex/AGENTS.md                      973           -           -      -
   ──────────────────────────────────────────────────────────────────────────
   total  ▌           2% of 200k         4,935     392,922   1,932,435    141
-  of 9,802 in skill and command descriptions only 2,000 fits the listing
+  ∟ 9,802 in skill and command descriptions, capped at 2,000 by the listing budget
 ```
 
 Three columns, because a skill costs its context in three stages. **always** is
@@ -356,10 +356,10 @@ what is resident before you type: memory files, and the `description` of every
 skill, command and agent. A memory file counts for what survives its load, which
 under Claude means without its frontmatter or any HTML comment standing on its
 own, and under Codex means every byte. A skill the model cannot invoke is left
-out, because its description never reaches the listing. **on trigger** is the rest of that entry file,
-what one skill costs when it actually fires. **on read** is everything below it,
-the references the agent only pays for if it opens them. All three are estimates
-at four bytes a token.
+out, because its description never reaches the listing. **on trigger** is the
+rest of that entry file, what one skill costs when it actually fires. **on read**
+is everything below it, the references the agent only pays for if it opens them.
+All three are estimates at three bytes a token.
 
 The gap between the last two is the point: most trees are mostly **on read**, so
 a large group is far cheaper in practice than one number would suggest.

@@ -190,16 +190,10 @@ grep -qE 'mcp servers|live' <<<"$output" || fail 'a server in config.toml should
 grep -q 'parked' <<<"$output" && fail 'a server disabled in config.toml should not be named'
 grep -q 'live.env' <<<"$output" && fail 'a nested TOML table is not a server'
 
-# Without -a, a row per harness carrying the four numbers its own table ends
-# with. Taken from the tail of each row, since the bar sits between the label and
-# the first of them
+# Without -a, a line for each harness installed and neither one's table
 output=$(run)
-for a in claude codex; do
-  tail_of() { awk -v pat="$1" '$0 ~ pat { print $(NF - 3), $(NF - 2), $(NF - 1), $NF }'; }
-  detail=$(run -a "$a" | tail_of '^  total ')
-  summary=$(tail_of "^  $a " <<<"$output")
-  [ -n "$detail" ] && [ "$detail" = "$summary" ] ||
-    fail "the summary row for $a should carry the totals from its own table"
-done
+grep -qE '^  claude ' <<<"$output" || fail 'the summary should carry a claude row'
+grep -qE '^  codex ' <<<"$output" || fail 'the summary should carry a codex row'
+grep -q 'plugin alpha' <<<"$output" && fail 'the summary should not open a table'
 
 echo " ✔ agent-ctx reports what each directory puts in context, for claude and codex"

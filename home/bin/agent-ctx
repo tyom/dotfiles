@@ -55,11 +55,10 @@ args=()
 for arg in "$@"; do
   case $arg in
     --prompt) show_prompt=1 ;;
-    --verbose) verbose=1 ;;
     *) args+=("$arg") ;;
   esac
 done
-set -- ${args[@]+"${args[@]}"}
+set -- "${args[@]}"
 
 while getopts ':a:w:hv' opt; do
   case $opt in
@@ -184,7 +183,7 @@ toml_sections() { # prefix file
 }
 
 discover_claude() {
-  local user="$HOME/.claude" f style dir name disabled root section settings=() mcp_files=()
+  local user="$HOME/.claude" f style dir name disabled section settings=() mcp_files=()
 
   strip_memory=1
   # one percent of the window, and never less than a token of it, the way claude
@@ -196,16 +195,13 @@ discover_claude() {
   # CLAUDE.md, its .local companion and AGENTS.md are discovered together, in
   # every directory from the cwd up to just below /. One above the repo loads in
   # every project under it, which makes it inherited rather than this repo's
-  dir=$(cd "$repo" && pwd -P)
-  root=$(git -C "$repo" rev-parse --show-toplevel 2>/dev/null) || root=$dir
-  base=$root
   while read -r dir; do
     section=2
     [[ $dir == "$root" || $dir == "$root"/* ]] && section=1
     add_memory "$section" "$dir/CLAUDE.md"
     add_memory "$section" "$dir/CLAUDE.local.md"
     add_memory "$section" "$dir/AGENTS.md"
-  done < <(memory_dirs "$dir" "")
+  done < <(memory_dirs "$cwd" "")
   [[ -f "$repo/.mcp.json" ]] && mcp_files+=("$repo/.mcp.json")
   for f in "$repo/.claude/settings.json" "$repo/.claude/settings.local.json" "$user/settings.json"; do
     [[ -f $f ]] || continue
@@ -258,25 +254,21 @@ discover_claude() {
 }
 
 discover_codex() {
-  local user="${CODEX_HOME:-$HOME/.codex}" entry name market dir root markets
+  local user="${CODEX_HOME:-$HOME/.codex}" entry name market dir markets
 
   skill_locator=1
   add_tree 1 project "$repo/.codex"
 
   # Codex reads an AGENTS.md from the repo root down to the directory it was
   # started in, so a nested one counts too, and AGENTS.override.md takes the
-  # place of AGENTS.md in its own directory. Physical paths, so a symlinked cwd
-  # still meets the root git reports and the walk stops there
-  dir=$(cd "$repo" && pwd -P)
-  root=$(git -C "$repo" rev-parse --show-toplevel 2>/dev/null) || root=$dir
-  base=$root
+  # place of AGENTS.md in its own directory
   while read -r dir; do
     if [[ -f "$dir/AGENTS.override.md" ]]; then
       add_memory 1 "$dir/AGENTS.override.md"
     else
       add_memory 1 "$dir/AGENTS.md"
     fi
-  done < <(memory_dirs "$dir" "$root")
+  done < <(memory_dirs "$cwd" "$root")
 
   add_tree 2 user "$user"
   # skills kept for whatever agent is running, which Codex reads directly and
@@ -323,7 +315,12 @@ servers=
 strip_memory=0
 listing_cap=0
 skill_locator=0
-base=$repo
+
+# Where the memory walk starts and stops, for both agents. Physical paths, so a
+# symlinked cwd still meets the root git reports and the walk stops there
+cwd=$(cd "$repo" && pwd -P)
+root=$(git -C "$repo" rev-parse --show-toplevel 2>/dev/null) || root=$cwd
+base=$root
 
 case $1 in
   claude)
@@ -438,9 +435,10 @@ rows=$(
 )
 }
 
-# The four numbers under a table, from its rows: skills and commands share one
-# budget and are capped together, everything else is resident whatever else is
-# loaded. Prints what the listing wanted and what fits too
+# The four numbers under a table, from its rows, for the table and the summary
+# line alike: skills and commands share one budget and are capped together,
+# everything else is resident whatever else is loaded. Prints what the listing
+# wanted and what fits too
 totals() { # listing_cap
   awk -F'\t' -v cap="$1" '
     NF < 6 { next }
@@ -522,7 +520,7 @@ fi
 
 # Without -a there is no one harness to break down, so each one installed here
 # gets the line its own table ends with
-if ((agent_set == 0)) && [[ -z $filter ]]; then
+if ((agent_set == 0 && verbose == 0)) && [[ -z $filter ]]; then
   summary=$(
     for a in claude codex; do
       installed "$a" || continue
@@ -604,9 +602,13 @@ grep -q '^1	' <<<"$rows" || rows=$'1\t-\t-\t0\t0\t0\n'$rows
 detail=$(awk -F'\t' 'NF >= 6 && $3 != "-"' <<<"$rows" |
   sort -t$'\t' -k1,1 -k2,2 -k4,4nr -k5,5nr)
 
+IFS=$'\t' read -r always trigger demand items listing shown \
+  < <(totals "$listing_cap" <<<"$rows")
+
 awk -F'\t' -v b="$BRIGHT" -v g="$GRAY" -v gr="$GREEN" -v y="$YELLOW" -v r="$RESET" -v note="$repo_note" \
   -v w=30 -v rd="$RED" -v bg="$BG" -v window="$window" -v wlabel="$window_label" \
-  -v cap="$listing_cap" -v verbose="$verbose" \
+  -v verbose="$verbose" -v always="$always" -v trigger="$trigger" -v demand="$demand" \
+  -v items="$items" -v listing="$listing" -v shown="$shown" \
   "$commify$width$bar"'
   # first file is the items, kept in print order under the row they belong to
   FNR == NR {
@@ -627,10 +629,6 @@ awk -F'\t' -v b="$BRIGHT" -v g="$GRAY" -v gr="$GREEN" -v y="$YELLOW" -v r="$RESE
           "always", "on trigger", "on read", (verbose ? "" : sprintf("  %5s", "items")), r
       }
       if (lab[i] == "-") { print "  " note; continue }
-      # skills and commands share one budget, everything else is resident
-      # whatever else is loaded
-      if (lab[i] ~ /(skills|commands)$/) listing += va[i]; else always += va[i]
-      trigger += vt[i]; demand += vd[i]; items += vi[i]
       printf "  %-*s %s%9s%s  %s%10s%s  %s%10s%s%s\n", w, fit(lab[i]),
         gr, commify(va[i]), r, y, (vt[i] ? commify(vt[i]) : "-"), r,
         y, (vd[i] ? commify(vd[i]) : "-"), r,
@@ -647,9 +645,6 @@ awk -F'\t' -v b="$BRIGHT" -v g="$GRAY" -v gr="$GREEN" -v y="$YELLOW" -v r="$RESE
           y, (c[4] ? commify(c[4]) : "-"), r
       }
     }
-
-    shown = (cap && listing > cap) ? cap : listing
-    always += shown
 
     for (i = 0; i < w + (verbose ? 34 : 41); i++) rule = rule "─"
     printf "  %s%s%s\n", g, rule, r
