@@ -46,8 +46,8 @@ How it behaves:
   several coding agents in one terminal, and the rest of
   [scripts/install/brew.sh](./scripts/install/brew.sh)
 - **Node**: Volta, and Node installed through it. Bun if you tick it.
-- **Scripts on your PATH**: [`gl`, `gb`, `gw` and `git who`](#git-tools) for
-  logs, branches, worktrees and line ownership,
+- **[Scripts on your PATH](#scripts-on-your-path)**: `gl`, `gb`, `gw` and
+  `git who` for logs, branches, worktrees and line ownership,
   [`agent-ctx`](#agent-ctx) for what an agent loads in a repo, plus
   `color-test` and two of my tools from Homebrew:
   [`ungit`](https://github.com/tyom/ungit) reads a GitHub repo or subdirectory
@@ -124,7 +124,7 @@ dotfiles/
 ├── shell/             # Shell modules
 ├── claude-plugin/     # Claude Code hook plugin
 ├── scripts/           # Installation scripts
-└── test/              # Fast installer, shell and Git-tool tests
+└── test/              # Fast installer, shell and PATH-script tests
 ```
 
 To add a dotfile, put it under `home/` at the path it should have in your home
@@ -285,10 +285,11 @@ Git configuration is handled separately (not symlinked):
 
 </details>
 
-## Git tools
+## Scripts on your PATH
 
-Four scripts on your PATH. `git who`, `gb` and `gw` explain themselves with
-`-h`.
+Five scripts, installed with the rest of `home/`. The first four are about the
+repository you are in, the last about the agent reading it. `git who`, `gb`,
+`gw` and `agent-ctx` explain themselves with `-h`.
 
 ### `git who`
 
@@ -330,12 +331,68 @@ changes to one, by branch name or by sha prefix, which is how a detached
 worktree is reached. `gw prune` removes the worktrees whose branches are
 merged, asking first and treating locked ones separately.
 
+### `agent-ctx`
+
+What a coding agent loads when it opens a repo, and where that comes from. Run
+it in any directory:
+
+```
+this repo                                    always   on demand  items
+  project skills                                412      12,004      3
+  CLAUDE.md                                     118           -      -
+
+inherited                                    always   on demand  items
+  plugin posthog skills                      18,210   1,707,481    137
+  plugin vercel skills                        2,036     316,767     30
+  user skills                                 2,178     876,151     34
+  ───────────────────────────────────────────────────────────────────
+  total  █           14% of 200k             28,209   3,467,226    299
+```
+
+**always** is what is resident before you type: memory files in full, and the
+`description` of every skill, command and agent. **on demand** is everything
+else in those directories, the bytes a single skill can pull in. Both are
+estimates at four bytes a token.
+
+The totals row draws **always** as the [status line](#status-line) does, ten
+cells over the window and the same colours by absolute count, so the two read
+the same way. `-w` sets the window, `200k` by default: `-w 1m` for a long
+context model, or any token count. Only **always** gets a bar, because **on
+demand** is a ceiling nobody reaches.
+
+Below the table it names the hooks that fire per event and the MCP servers in
+play. Server tool schemas ship on every request and are usually the largest
+single cost, but nothing on disk records their size, so only a live session can
+add them up.
+
+Pass part of a group name to open it up, biggest first:
+
+```
+$ agent-ctx posthog
+plugin posthog skills                        always   on demand
+  instrument-integration                         63     386,654
+  querying-posthog-data                         206      65,143
+```
+
+`-a` picks the agent, Claude Code by default:
+
+- `-a claude` reads `~/.claude` and the repo's `.claude`, `CLAUDE.md` and
+  `.mcp.json`, with plugins from `installed_plugins.json` minus the ones turned
+  off in `settings.json`
+- `-a codex` reads `$CODEX_HOME` or `~/.codex` and the repo's `.codex` and
+  `AGENTS.md`, with servers and plugins from `config.toml` minus anything marked
+  `enabled = false`
+
+Symlinked skills are followed, so a skill kept in another repo counts where it
+is used. Nothing is started and nothing is written. Requires `jq`, which the
+Homebrew step installs.
+
 ## Development
 
 Run the fast tests, or install into a container instead of your machine:
 
 ```bash
-# Fast installer, shell, Git-tool and Stop-hook tests
+# Fast installer, shell, PATH-script and Stop-hook tests
 make check
 
 # Run setup and validation
@@ -432,62 +489,6 @@ Prompts and agents are not here. Reusable skills live in
 [tyom/skills](https://github.com/tyom/skills) so Codex gets them too, and
 anything Claude Code ships built in (`/code-review`, `/simplify`) is not worth
 reimplementing.
-
-### `agent-ctx`
-
-What a coding agent loads when it opens a repo, and where that comes from. Run
-it in any directory:
-
-```
-this repo                                    always   on demand  items
-  project skills                                412      12,004      3
-  CLAUDE.md                                     118           -      -
-
-inherited                                    always   on demand  items
-  plugin posthog skills                      18,210   1,707,481    137
-  plugin vercel skills                        2,036     316,767     30
-  user skills                                 2,178     876,151     34
-  ───────────────────────────────────────────────────────────────────
-  total  █           14% of 200k             28,209   3,467,226    299
-```
-
-**always** is what is resident before you type: memory files in full, and the
-`description` of every skill, command and agent. **on demand** is everything
-else in those directories, the bytes a single skill can pull in. Both are
-estimates at four bytes a token.
-
-The totals row draws **always** as the status line does, ten cells over the
-window and the same colours by absolute count, so the two read the same way.
-`-w` sets the window, `200k` by default: `-w 1m` for a long context model, or
-any token count. Only **always** gets a bar, because **on demand** is a ceiling
-nobody reaches.
-
-Below the table it names the hooks that fire per event and the MCP servers in
-play. Server tool schemas ship on every request and are usually the largest
-single cost, but nothing on disk records their size, so only a live session can
-add them up.
-
-Pass part of a group name to open it up, biggest first:
-
-```
-$ agent-ctx posthog
-plugin posthog skills                        always   on demand
-  instrument-integration                         63     386,654
-  querying-posthog-data                         206      65,143
-```
-
-`-a` picks the agent, Claude Code by default:
-
-- `-a claude` reads `~/.claude` and the repo's `.claude`, `CLAUDE.md` and
-  `.mcp.json`, with plugins from `installed_plugins.json` minus the ones turned
-  off in `settings.json`
-- `-a codex` reads `$CODEX_HOME` or `~/.codex` and the repo's `.codex` and
-  `AGENTS.md`, with servers and plugins from `config.toml` minus anything marked
-  `enabled = false`
-
-Symlinked skills are followed, so a skill kept in another repo counts where it
-is used. Nothing is started and nothing is written. Requires `jq`, which the
-Homebrew step installs.
 
 ### Status line
 
