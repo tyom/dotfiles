@@ -117,7 +117,7 @@ source = "/dev/null"
 TOML
 
 
-output=$(run)
+output=$(run -a claude)
 
 # The description is the only part of a skill that ships every session
 desc_bytes=$(printf 'description: %s\n%s\n' "$desc_line1" "$desc_line2" | wc -c)
@@ -159,15 +159,15 @@ widths=$(sed 's/█/#/g; s/▌/+/g' <<<"$output" |
   fail 'the totals row should be as wide as the rows above it'
 
 # Ten cells over the window, clamped at both ends
-grep -qE '^  total  #{10}  100% of 10' <<<"$(run -w 10 | sed 's/█/#/g')" ||
+grep -qE '^  total  #{10}  100% of 10' <<<"$(run -a claude -w 10 | sed 's/█/#/g')" ||
   fail 'a window smaller than the total should fill the bar'
 
 # Claude reserves one percent of the window for skill and command descriptions,
 # and never less than one token of it: a window too small to round up should
 # tighten the cap rather than turn it off
-grep -qE "^  of $((always * 3)) in skill and command descriptions only 1 fits the listing$" <<<"$(run -w 10)" ||
+grep -qE "^  ∟ $((always * 3)) in skill and command descriptions, capped at 1 by the listing budget$" <<<"$(run -a claude -w 10)" ||
   fail 'a window too small for one percent should still cap the listing'
-grep -qE '^  total {14}0% of 9m' <<<"$(run -w 9m)" ||
+grep -qE '^  total {14}0% of 9m' <<<"$(run -a claude -w 9m)" ||
   fail 'a window far larger than the total should leave the bar empty'
 (cd "$TMP/repo" && HOME="$TMP/home" "$ROOT/home/bin/agent-ctx" -w 1.5m) >/dev/null 2>&1 &&
   fail 'a window that is not a token count should be rejected'
@@ -189,5 +189,17 @@ grep -q 'plugin epsilon' <<<"$output" &&
 grep -qE 'mcp servers|live' <<<"$output" || fail 'a server in config.toml should be named'
 grep -q 'parked' <<<"$output" && fail 'a server disabled in config.toml should not be named'
 grep -q 'live.env' <<<"$output" && fail 'a nested TOML table is not a server'
+
+# Without -a, a row per harness carrying the four numbers its own table ends
+# with. Taken from the tail of each row, since the bar sits between the label and
+# the first of them
+output=$(run)
+for a in claude codex; do
+  tail_of() { awk -v pat="$1" '$0 ~ pat { print $(NF - 3), $(NF - 2), $(NF - 1), $NF }'; }
+  detail=$(run -a "$a" | tail_of '^  total ')
+  summary=$(tail_of "^  $a " <<<"$output")
+  [ -n "$detail" ] && [ "$detail" = "$summary" ] ||
+    fail "the summary row for $a should carry the totals from its own table"
+done
 
 echo " ✔ agent-ctx reports what each directory puts in context, for claude and codex"

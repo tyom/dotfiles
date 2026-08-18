@@ -2,7 +2,8 @@
 
 # Where a coding agent's context goes in this repo: what the repo itself adds,
 # what it inherits from the agent's home and its plugins, and how much of that is
-# resident before you type anything. -a picks the agent, an argument opens a group
+# resident before you type anything. On its own it puts a line up for each
+# harness installed, -a opens one of them, a further argument opens a group
 
 set -e
 
@@ -34,7 +35,8 @@ usage() {
   cat <<'USAGE'
 usage: agent-ctx [-a claude|codex] [-w window] [--prompt] [group]
 
-  no argument   what each directory puts in context, biggest first
+  no argument   one line per harness installed here
+  -a            that harness in full: what each directory puts in context
   group         part of a group name from that table, to list its items
   -w            window the always total is drawn against, default 200k
   --prompt      block by block, what codex would send from here
@@ -83,18 +85,12 @@ window=${window//[mM]/000000}
 }
 filter=${1:-}
 repo=$PWD
-# what a memory path is shown relative to, widened when an agent reads files from
-# above the directory it was started in
-base=$repo
 
-# section|label|kind|dir. kind is how an item maps to files: under skills an item
-# is a directory holding SKILL.md, elsewhere each .md file is its own item
-targets=()
-memory=()
-hook_files=()
-extra_events=()
-servers=
-
+# targets is section|label|kind|dir. kind is how an item maps to files: under
+# skills an item is a directory holding SKILL.md, elsewhere each .md file is its
+# own item. base is what a memory path is shown relative to, widened when an
+# agent reads files from above the directory it was started in. collect() resets
+# both, and everything else discovery fills in
 add_target() { [[ -d $4 ]] && targets+=("$1|$2|$3|$4"); return 0; }
 
 add_tree() { # section label_prefix dir
@@ -303,7 +299,29 @@ discover_codex() {
   servers=$(toml_sections 'mcp_servers.' "$user/config.toml" | grep -v '\.') || true
 }
 
-case $agent in
+# A harness counts as installed here if it has somewhere to read from: its own
+# directory in $HOME, or one in this repo
+installed() { # agent
+  case $1 in
+    claude) [[ -d "$HOME/.claude" || -d "$repo/.claude" ]] ;;
+    codex) [[ -d "${CODEX_HOME:-$HOME/.codex}" || -d "$repo/.codex" ]] ;;
+  esac
+}
+
+# Everything one agent puts in context, as rows. Called once per agent, so what
+# discovery collects is reset each time rather than added to
+collect() { # agent
+targets=()
+memory=()
+hook_files=()
+extra_events=()
+servers=
+strip_memory=0
+listing_cap=0
+skill_locator=0
+base=$repo
+
+case $1 in
   claude)
     discover_claude
     repo_note='nothing: no CLAUDE.md, .claude/ or .mcp.json'
@@ -313,7 +331,7 @@ case $agent in
     repo_note='nothing: no AGENTS.md or .codex/'
     ;;
   *)
-    printf 'unknown agent %s. Supported: claude, codex\n' "$agent" >&2
+    printf 'unknown agent %s. Supported: claude, codex\n' "$1" >&2
     exit 1
     ;;
 esac
@@ -414,12 +432,42 @@ rows=$(
     }
   ' "${files[@]}"; fi
 )
+}
+
+# The four numbers under a table, from its rows: skills and commands share one
+# budget and are capped together, everything else is resident whatever else is
+# loaded. Prints what the listing wanted and what fits too
+totals() { # listing_cap
+  awk -F'\t' -v cap="$1" '
+    NF < 6 { next }
+    { if ($2 ~ /(skills|commands)$/) listing += $4; else always += $4
+      trigger += $5; demand += $6; if ($3 != "-") items++ }
+    END {
+      shown = (cap && listing > cap) ? cap : listing
+      printf "%d\t%d\t%d\t%d\t%d\t%d\n", always + shown, trigger, demand, items, listing, shown
+    }
+  '
+}
 
 # The label column is as wide as the longest name in the table, so one long
 # plugin name widens the table instead of shifting its row. Between 30 and 44,
 # past which an absolute path outside $HOME keeps its tail and loses its head
 width='function width(s,   n) { n = length(s) > 44 ? 44 : length(s); return n > w ? n : w }
 function fit(s) { return length(s) <= w ? s : "..." substr(s, length(s) - w + 4) }'
+
+# Ten cells over the window, a half block from 5% of a cell, coloured by absolute
+# tokens the way the status line does: green to 100k, then yellow, then red past
+# 600k. Only always is ever drawn — on read is a ceiling nobody reaches, so a bar
+# over it would say nothing
+bar='function bar(v,   p, full, half, i, s) {
+  p = pct(v); full = int(p / 10); half = (full < 10 && p - full * 10 >= 5)
+  for (i = 0; i < full; i++) s = s "█"
+  if (half) s = s "▌"
+  for (i = full + half; i < 10; i++) s = s " "
+  return s
+}
+function pct(v) { return v * 100 / window > 100 ? 100 : v * 100 / window }
+function heat(v) { return v <= 100000 ? gr : (v <= 600000 ? y : rd) }'
 
 commify='function commify(n,   s, out) {
   s = sprintf("%d", n); out = ""
@@ -467,6 +515,50 @@ if ((show_prompt)); then
   exit 0
 fi
 
+# Without -a there is no one harness to break down, so each one installed here
+# gets the line its own table ends with
+if ((agent_set == 0)) && [[ -z $filter ]]; then
+  summary=$(
+    for a in claude codex; do
+      installed "$a" || continue
+      collect "$a"
+      printf '%s\t%s\n' "$a" "$(totals "$listing_cap" <<<"$rows")"
+    done
+  )
+  [[ -n $summary ]] || {
+    printf 'no claude or codex directory here or in %s\n' "$HOME" >&2
+    exit 1
+  }
+  # the flags name the harnesses actually found, so the hint never offers one
+  # that is not installed here
+  hint=$(awk -F'\t' -v c="$CYAN" -v g="$GRAY" \
+    '{ h = h (n++ ? g " or " : "") c "-a " $1 } END { print h }' <<<"$summary")
+  printf '%s%s%s\n%sestimated tokens at 3 bytes each. %s%s breaks one down%s\n\n' \
+    "$BRIGHT" "$repo" "$RESET" "$GRAY" "$hint" "$GRAY" "$RESET"
+  awk -F'\t' -v b="$BRIGHT" -v g="$GRAY" -v gr="$GREEN" -v y="$YELLOW" -v r="$RESET" -v rd="$RED" \
+    -v bg="$BG" -v window="$window" -v wlabel="$window_label" \
+    "$commify$bar"'
+    { n++; a[n] = $1; va[n] = $2; vt[n] = $3; vd[n] = $4; vi[n] = $5; li[n] = $6; sh[n] = $7 }
+    END {
+      printf "  %s%-8s %-10s  %-14s %9s  %10s  %10s  %5s%s\n", g,
+        "harness", "", "", "always", "on trigger", "on read", "items", r
+      for (i = 1; i <= n; i++) {
+        fill = sprintf("%.0f%% of %s", pct(va[i]), wlabel)
+        printf "  %s%-8s%s %s%s%s%s  %s%-14s%s %s%9s%s  %s%10s%s  %s%10s%s  %5s\n",
+          b, a[i], r, heat(va[i]), bg, bar(va[i]), r, g, fill, r,
+          b heat(va[i]), commify(va[i]), r, b y, commify(vt[i]), r,
+          b y, commify(vd[i]), r, vi[i]
+        if (sh[i] < li[i])
+          printf "  %s∟ %s in skill and command descriptions, capped at %s by the listing budget%s\n",
+            g, commify(li[i]), commify(sh[i]), r
+      }
+    }
+  ' <<<"$summary"
+  exit 0
+fi
+
+collect "$agent"
+
 if [[ -n $filter ]]; then
   # a filter can match several groups, so keep each one together and labelled
   matched=$(awk -F'\t' -v f="$filter" 'index($2, f) && $3 != "-"' <<<"$rows" |
@@ -508,7 +600,7 @@ awk -F'\t' 'NF < 6 { next }
   awk -F'\t' -v b="$BRIGHT" -v g="$GRAY" -v gr="$GREEN" -v y="$YELLOW" -v r="$RESET" -v note="$repo_note" \
     -v w=30 -v rd="$RED" -v bg="$BG" -v window="$window" -v wlabel="$window_label" \
     -v cap="$listing_cap" \
-    "$commify$width"'
+    "$commify$width$bar"'
     { n++; sec[n] = $1; lab[n] = $2; va[n] = $3; vt[n] = $4; vd[n] = $5; vi[n] = $6
       if ($2 != "-") w = width($2) }
     END {
@@ -536,30 +628,18 @@ awk -F'\t' 'NF < 6 { next }
       for (i = 0; i < w + 41; i++) rule = rule "─"
       printf "  %s%s%s\n", g, rule, r
 
-      # Ten cells over the window, a half block from 5% of a cell, coloured by
-      # absolute tokens the way the status line does: green to 100k, then yellow,
-      # then red past 600k. Only always is drawn — on demand is a ceiling nobody
-      # reaches, so a bar over it would say nothing
-      pct = always * 100 / window
-      if (pct > 100) pct = 100
-      full = int(pct / 10)
-      half = (full < 10 && pct - full * 10 >= 5)
-      for (i = 0; i < full; i++) bar = bar "█"
-      if (half) bar = bar "▌"
-      for (i = full + half; i < 10; i++) bar = bar " "
-      fill = sprintf("%.0f%% of %s", pct, wlabel)
-      color = always <= 100000 ? gr : (always <= 600000 ? y : rd)
+      fill = sprintf("%.0f%% of %s", pct(always), wlabel)
 
       # Padded by cells rather than by %-38s: under LC_ALL=C a block is three
       # bytes, so awk would count the bar as thirty columns wide
       pad = w - 18 - length(fill); if (pad < 1) pad = 1
       printf "  total  %s%s%s%s  %s%s%s%*s%s%9s%s  %s%10s%s  %s%10s%s  %5s\n",
-        color, bg, bar, r, g, fill, r, pad, "",
-        b color, commify(always), r, b y, commify(trigger), r,
+        heat(always), bg, bar(always), r, g, fill, r, pad, "",
+        b heat(always), commify(always), r, b y, commify(trigger), r,
         b y, commify(demand), r, items + 0
 
       if (shown < listing)
-        printf "  %sof %s in skill and command descriptions only %s fits the listing%s\n",
+        printf "  %s∟ %s in skill and command descriptions, capped at %s by the listing budget%s\n",
           g, commify(listing), commify(shown), r
     }
   '
