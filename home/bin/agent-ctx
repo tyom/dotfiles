@@ -46,6 +46,7 @@ USAGE
 
 agent=claude
 window=200k
+agents=(claude codex)
 
 # getopts is short options only, so this one is taken out of the way first
 show_prompt=0
@@ -91,9 +92,7 @@ repo=$PWD
 
 # targets is section|label|kind|dir. kind is how an item maps to files: under
 # skills an item is a directory holding SKILL.md, elsewhere each .md file is its
-# own item. base is what a memory path is shown relative to, widened when an
-# agent reads files from above the directory it was started in. collect() resets
-# both, and everything else discovery fills in
+# own item. collect() resets it, and everything else discovery fills it in
 add_target() { [[ -d $4 ]] && targets+=("$1|$2|$3|$4"); return 0; }
 
 add_tree() { # section label_prefix dir
@@ -157,7 +156,8 @@ memory_dirs() { # innermost outermost
   while [[ $dir != / ]]; do
     out=("$dir" "${out[@]}")
     [[ $dir == "$2" ]] && break
-    dir=$(dirname "$dir")
+    dir=${dir%/*}
+    [[ -n $dir ]] || dir=/
   done
   printf '%s\n' "${out[@]}"
 }
@@ -183,7 +183,8 @@ toml_sections() { # prefix file
 }
 
 discover_claude() {
-  local user="$HOME/.claude" f style dir name disabled section settings=() mcp_files=()
+  local user f style dir name disabled section settings=() mcp_files=()
+  user=$(agent_home claude)
 
   strip_memory=1
   # one percent of the window, and never less than a token of it, the way claude
@@ -254,7 +255,8 @@ discover_claude() {
 }
 
 discover_codex() {
-  local user="${CODEX_HOME:-$HOME/.codex}" entry name market dir markets
+  local user entry name market dir markets
+  user=$(agent_home codex)
 
   skill_locator=1
   add_tree 1 project "$repo/.codex"
@@ -295,13 +297,22 @@ discover_codex() {
   servers=$(toml_sections 'mcp_servers.' "$user/config.toml" | grep -v '\.') || true
 }
 
+# Where a harness keeps its own files, written down once so the summary and the
+# breakdown can never disagree about which directory that is
+agent_home() { # agent
+  case $1 in
+    claude) printf '%s\n' "$HOME/.claude" ;;
+    codex) printf '%s\n' "${CODEX_HOME:-$HOME/.codex}" ;;
+    *) return 1 ;;
+  esac
+}
+
 # A harness counts as installed here if it has somewhere to read from: its own
 # directory in $HOME, or one in this repo
 installed() { # agent
-  case $1 in
-    claude) [[ -d "$HOME/.claude" || -d "$repo/.claude" ]] ;;
-    codex) [[ -d "${CODEX_HOME:-$HOME/.codex}" || -d "$repo/.codex" ]] ;;
-  esac
+  local home
+  home=$(agent_home "$1") || return 1
+  [[ -d $home || -d "$repo/.$1" ]]
 }
 
 # Everything one agent puts in context, as rows. Called once per agent, so what
@@ -320,7 +331,6 @@ skill_locator=0
 # symlinked cwd still meets the root git reports and the walk stops there
 cwd=$(cd "$repo" && pwd -P)
 root=$(git -C "$repo" rev-parse --show-toplevel 2>/dev/null) || root=$cwd
-base=$root
 
 case $1 in
   claude)
@@ -332,7 +342,7 @@ case $1 in
     repo_note='nothing: no AGENTS.md or .codex/'
     ;;
   *)
-    printf 'unknown agent %s. Supported: claude, codex\n' "$1" >&2
+    printf 'unknown agent %s. Supported: %s\n' "$1" "${agents[*]}" >&2
     exit 1
     ;;
 esac
@@ -357,7 +367,7 @@ done
 rows=$(
   for entry in "${memory[@]}"; do
     path=${entry#*|}
-    label=${path#"$base"/}
+    label=${path#"$root"/}
     printf '%s\t%s\t-\t%d\t0\t0\n' "${entry%%|*}" "${label/#$HOME/\~}" "$(memory_tokens "$path")"
   done
   if ((${#files[@]})); then awk -v b="$BYTES_PER_TOKEN" -v locator="$skill_locator" \
@@ -478,6 +488,20 @@ commify='function commify(n,   s, out) {
   return s out
 }'
 
+# The three token columns every table shares, and the note under a table whose
+# listing ran over its budget. A dash rather than a zero: nothing to load reads
+# differently from something that loads for free
+cols='function cols(va, vt, vd) {
+  return sprintf("%s%9s%s  %s%10s%s  %s%10s%s", gr, commify(va), r,
+    y, (vt ? commify(vt) : "-"), r, y, (vd ? commify(vd) : "-"), r)
+}'
+
+capnote='function capnote(want, fits) {
+  if (fits < want)
+    printf "  %s∟ %s in skill and command descriptions, capped at %s by the listing budget%s\n",
+      g, commify(want), commify(fits), r
+}'
+
 # The disk says nothing about the instructions an agent writes for itself, and
 # codex will render the prompt it would send from here, which is the one place
 # those blocks can be measured
@@ -522,7 +546,7 @@ fi
 # gets the line its own table ends with
 if ((agent_set == 0 && verbose == 0)) && [[ -z $filter ]]; then
   summary=$(
-    for a in claude codex; do
+    for a in "${agents[@]}"; do
       installed "$a" || continue
       collect "$a"
       printf '%s\t%s\n' "$a" "$(totals "$listing_cap" <<<"$rows")"
@@ -540,7 +564,7 @@ if ((agent_set == 0 && verbose == 0)) && [[ -z $filter ]]; then
     "$BRIGHT" "$repo" "$RESET" "$GRAY" "$hint" "$GRAY" "$RESET"
   awk -F'\t' -v b="$BRIGHT" -v g="$GRAY" -v gr="$GREEN" -v y="$YELLOW" -v r="$RESET" -v rd="$RED" \
     -v bg="$BG" -v window="$window" -v wlabel="$window_label" \
-    "$commify$bar"'
+    "$commify$bar$capnote"'
     { n++; a[n] = $1; va[n] = $2; vt[n] = $3; vd[n] = $4; vi[n] = $5; li[n] = $6; sh[n] = $7 }
     END {
       printf "  %s%-8s %-10s  %-14s %9s  %10s  %10s  %5s%s\n", g,
@@ -551,9 +575,7 @@ if ((agent_set == 0 && verbose == 0)) && [[ -z $filter ]]; then
           b, a[i], r, heat(va[i]), bg, bar(va[i]), r, g, fill, r,
           b heat(va[i]), commify(va[i]), r, b y, commify(vt[i]), r,
           b y, commify(vd[i]), r, vi[i]
-        if (sh[i] < li[i])
-          printf "  %s∟ %s in skill and command descriptions, capped at %s by the listing budget%s\n",
-            g, commify(li[i]), commify(sh[i]), r
+        capnote(li[i], sh[i])
       }
     }
   ' <<<"$summary"
@@ -571,7 +593,7 @@ if [[ -n $filter ]]; then
     exit 1
   fi
   awk -F'\t' -v b="$BRIGHT" -v g="$GRAY" -v gr="$GREEN" -v y="$YELLOW" -v r="$RESET" -v w=30 \
-    "$commify$width"'
+    "$commify$width$cols"'
     { n++; grp[n] = $2; lab[n] = $3; va[n] = $4; vt[n] = $5; vd[n] = $6; w = width($3) }
     END {
       for (i = 1; i <= n; i++) {
@@ -581,9 +603,7 @@ if [[ -n $filter ]]; then
           printf "%s%-*s%s%s%9s  %10s  %10s%s\n", b, w + 3, group, r, g,
             "always", "on trigger", "on read", r
         }
-        printf "  %-*s %s%9s%s  %s%10s%s  %s%10s%s\n", w, fit(lab[i]),
-          gr, commify(va[i]), r, y, (vt[i] ? commify(vt[i]) : "-"), r,
-          y, (vd[i] ? commify(vd[i]) : "-"), r
+        printf "  %-*s %s\n", w, fit(lab[i]), cols(va[i], vt[i], vd[i])
       }
     }
   ' <<<"$matched"
@@ -599,7 +619,8 @@ grep -q '^1	' <<<"$rows" || rows=$'1\t-\t-\t0\t0\t0\n'$rows
 # With -v a group also lists what is in it, heaviest first, so the table says
 # which skill the tokens went to rather than only which directory. The count of
 # items is what the items themselves are standing in for, so that column goes
-detail=$(awk -F'\t' 'NF >= 6 && $3 != "-"' <<<"$rows" |
+detail=
+((verbose)) && detail=$(awk -F'\t' 'NF >= 6 && $3 != "-"' <<<"$rows" |
   sort -t$'\t' -k1,1 -k2,2 -k4,4nr -k5,5nr)
 
 IFS=$'\t' read -r always trigger demand items listing shown \
@@ -609,7 +630,7 @@ awk -F'\t' -v b="$BRIGHT" -v g="$GRAY" -v gr="$GREEN" -v y="$YELLOW" -v r="$RESE
   -v w=30 -v rd="$RED" -v bg="$BG" -v window="$window" -v wlabel="$window_label" \
   -v verbose="$verbose" -v always="$always" -v trigger="$trigger" -v demand="$demand" \
   -v items="$items" -v listing="$listing" -v shown="$shown" \
-  "$commify$width$bar"'
+  "$commify$width$bar$cols$capnote"'
   # first file is the items, kept in print order under the row they belong to
   FNR == NR {
     if (NF < 4 || !verbose) next
@@ -629,9 +650,7 @@ awk -F'\t' -v b="$BRIGHT" -v g="$GRAY" -v gr="$GREEN" -v y="$YELLOW" -v r="$RESE
           "always", "on trigger", "on read", (verbose ? "" : sprintf("  %5s", "items")), r
       }
       if (lab[i] == "-") { print "  " note; continue }
-      printf "  %-*s %s%9s%s  %s%10s%s  %s%10s%s%s\n", w, fit(lab[i]),
-        gr, commify(va[i]), r, y, (vt[i] ? commify(vt[i]) : "-"), r,
-        y, (vd[i] ? commify(vd[i]) : "-"), r,
+      printf "  %-*s %s%s\n", w, fit(lab[i]), cols(va[i], vt[i], vd[i]),
         (verbose ? "" : sprintf("  %5s", vi[i] ? vi[i] : "-"))
       if (!verbose) continue
       m = split(item[sec[i] SUBSEP lab[i]], it, "\n")
@@ -639,10 +658,9 @@ awk -F'\t' -v b="$BRIGHT" -v g="$GRAY" -v gr="$GREEN" -v y="$YELLOW" -v r="$RESE
         split(it[j], c, "\t")
         # the connector is printed outside the padded field: under LC_ALL=C it
         # is three bytes, and awk would pad it as three columns
-        printf "  %s%s %-*s%s %s%9s%s  %s%10s%s  %s%10s%s\n",
+        printf "  %s%s %-*s%s %s\n",
           g, (j == m - 1 ? "└" : "├"), w - 2, fit(c[1], w - 2), r,
-          gr, commify(c[2]), r, y, (c[3] ? commify(c[3]) : "-"), r,
-          y, (c[4] ? commify(c[4]) : "-"), r
+          cols(c[2], c[3], c[4])
       }
     }
 
@@ -659,9 +677,7 @@ awk -F'\t' -v b="$BRIGHT" -v g="$GRAY" -v gr="$GREEN" -v y="$YELLOW" -v r="$RESE
       b heat(always), commify(always), r, b y, commify(trigger), r,
       b y, commify(demand), r, (verbose ? "" : sprintf("  %5s", items + 0))
 
-    if (shown < listing)
-      printf "  %s∟ %s in skill and command descriptions, capped at %s by the listing budget%s\n",
-        g, commify(listing), commify(shown), r
+    capnote(listing, shown)
   }
 ' <(printf '%s\n' "$detail") \
   <(awk -F'\t' 'NF < 6 { next }
