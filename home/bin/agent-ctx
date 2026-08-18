@@ -285,6 +285,8 @@ rows=$(
   ' "${files[@]}"; fi
 )
 
+rule=$(printf '─%.0s' {1..67})
+
 commify='function commify(n,   s, out) {
   s = sprintf("%d", n); out = ""
   while (length(s) > 3) { out = "," substr(s, length(s) - 2) out; s = substr(s, 1, length(s) - 3) }
@@ -322,6 +324,7 @@ awk -F'\t' 'NF < 5 { next }
   END { for (k in a) printf "%s\t%d\t%d\t%d\n", k, a[k], d[k], n[k] }' <<<"$rows" |
   sort -t$'\t' -k1,1 -k3,3nr -k4,4nr |
   awk -F'\t' -v b="$BRIGHT" -v g="$GRAY" -v gr="$GREEN" -v y="$YELLOW" -v r="$RESET" -v note="$repo_note" \
+    -v rule="$rule" \
     "$commify"'
     $1 != section {
       if (section != "") print ""
@@ -336,7 +339,8 @@ awk -F'\t' 'NF < 5 { next }
         y, ($4 ? commify($4) : "-"), r, ($5 ? $5 : "-")
     }
     END {
-      printf "\n  %-38s %s%9s%s  %s%10s%s  %5s\n", "total", b gr, commify(always), r,
+      printf "  %s%s%s\n", g, rule, r
+      printf "  %-38s %s%9s%s  %s%10s%s  %5s\n", "total", b gr, commify(always), r,
         b y, commify(demand), r, items + 0
     }
   '
