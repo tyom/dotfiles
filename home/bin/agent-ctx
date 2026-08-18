@@ -20,21 +20,27 @@ BRIGHT=$'\033[1m'
 GRAY=$'\033[90m'
 GREEN=$'\033[32m'
 YELLOW=$'\033[33m'
+RED=$'\033[31m'
 CYAN=$'\033[36m'
+# Cells sit on a dim background so the half block has no gap on its right
+BG=$'\033[48;5;236m'
 
 usage() {
   cat <<'USAGE'
-usage: agent-ctx [-a claude|codex] [group]
+usage: agent-ctx [-a claude|codex] [-w window] [group]
 
   no argument   what each directory puts in context, biggest first
   group         part of a group name from that table, to list its items
+  -w            window the always total is drawn against, default 200k
 USAGE
 }
 
 agent=claude
-while getopts ':a:h' opt; do
+window=200k
+while getopts ':a:w:h' opt; do
   case $opt in
     a) agent=$OPTARG ;;
+    w) window=$OPTARG ;;
     h)
       usage
       exit 0
@@ -46,6 +52,16 @@ while getopts ':a:h' opt; do
   esac
 done
 shift $((OPTIND - 1))
+
+# 200k and 1m are easier to type than the digits and easier to read back, so the
+# bar is labelled with what was typed and measured against what it expands to
+window_label=$window
+window=${window//[kK]/000}
+window=${window//[mM]/000000}
+[[ $window =~ ^[0-9]+$ ]] && ((window > 0)) || {
+  printf 'unreadable window %s. Try 200k, 1m, or a token count\n' "$window_label" >&2
+  exit 1
+}
 filter=${1:-}
 repo=$PWD
 
@@ -298,7 +314,7 @@ awk -F'\t' 'NF < 5 { next }
   END { for (k in a) printf "%s\t%d\t%d\t%d\n", k, a[k], d[k], n[k] }' <<<"$rows" |
   sort -t$'\t' -k1,1 -k3,3nr -k4,4nr |
   awk -F'\t' -v b="$BRIGHT" -v g="$GRAY" -v gr="$GREEN" -v y="$YELLOW" -v r="$RESET" -v note="$repo_note" \
-    -v rule="$rule" \
+    -v rule="$rule" -v rd="$RED" -v bg="$BG" -v window="$window" -v wlabel="$window_label" \
     "$commify"'
     $1 != section {
       if (section != "") print ""
@@ -314,8 +330,27 @@ awk -F'\t' 'NF < 5 { next }
     }
     END {
       printf "  %s%s%s\n", g, rule, r
-      printf "  %-38s %s%9s%s  %s%10s%s  %5s\n", "total", b gr, commify(always), r,
-        b y, commify(demand), r, items + 0
+
+      # Ten cells over the window, a half block from 5% of a cell, coloured by
+      # absolute tokens the way the status line does: green to 100k, then yellow,
+      # then red past 600k. Only always is drawn — on demand is a ceiling nobody
+      # reaches, so a bar over it would say nothing
+      pct = always * 100 / window
+      if (pct > 100) pct = 100
+      full = int(pct / 10)
+      half = (full < 10 && pct - full * 10 >= 5)
+      for (i = 0; i < full; i++) bar = bar "█"
+      if (half) bar = bar "▌"
+      for (i = full + half; i < 10; i++) bar = bar " "
+      fill = sprintf("%.0f%% of %s", pct, wlabel)
+      color = always <= 100000 ? gr : (always <= 600000 ? y : rd)
+
+      # Padded by cells rather than by %-38s: under LC_ALL=C a block is three
+      # bytes, so awk would count the bar as thirty columns wide
+      pad = 20 - length(fill); if (pad < 1) pad = 1
+      printf "  total  %s%s%s%s  %s%s%s%*s%s%9s%s  %s%10s%s  %5s\n",
+        color, bg, bar, r, g, fill, r, pad, "",
+        b color, commify(always), r, b y, commify(demand), r, items + 0
     }
   '
 

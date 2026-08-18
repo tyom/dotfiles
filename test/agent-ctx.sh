@@ -130,6 +130,21 @@ fi
 grep -q 'Stop' <<<"$output" || fail 'a hook in settings should be listed by its event'
 grep -q 'repo-server' <<<"$output" || fail 'a server in the repo .mcp.json should be named'
 
+# The bar goes in the label column, so the totals row has to stay as wide as the
+# rows above it. A block is three bytes, the easy way to knock the columns out
+widths=$(sed 's/█/#/g; s/▌/+/g' <<<"$output" |
+  awk '/^  (total|plugin alpha skills) / { print length($0) }' | sort -u)
+[ "$(printf '%s\n' "$widths" | wc -l)" -eq 1 ] ||
+  fail 'the totals row should be as wide as the rows above it'
+
+# Ten cells over the window, clamped at both ends
+grep -qE '^  total  #{10}  100% of 100' <<<"$(run -w 100 | sed 's/█/#/g')" ||
+  fail 'a window smaller than the total should fill the bar'
+grep -qE '^  total {14}0% of 9m' <<<"$(run -w 9m)" ||
+  fail 'a window far larger than the total should leave the bar empty'
+(cd "$TMP/repo" && HOME="$TMP/home" "$ROOT/home/bin/agent-ctx" -w 1.5m) >/dev/null 2>&1 &&
+  fail 'a window that is not a token count should be rejected'
+
 # The skill carrying references is the heavier one to open
 output=$(run alpha)
 if [ "$(grep -c '^  ' <<<"$output")" -ne 2 ] || [[ "$(grep '^  ' <<<"$output" | head -1)" != *one* ]]; then

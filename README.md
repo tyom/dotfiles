@@ -447,12 +447,20 @@ inherited                                    always   on demand  items
   plugin posthog skills                      18,210   1,707,481    137
   plugin vercel skills                        2,036     316,767     30
   user skills                                 2,178     876,151     34
+  ───────────────────────────────────────────────────────────────────
+  total  █           14% of 200k             28,209   3,467,226    299
 ```
 
 **always** is what is resident before you type: memory files in full, and the
 `description` of every skill, command and agent. **on demand** is everything
 else in those directories, the bytes a single skill can pull in. Both are
 estimates at four bytes a token.
+
+The totals row draws **always** as the status line does, ten cells over the
+window and the same colours by absolute count, so the two read the same way.
+`-w` sets the window, `200k` by default: `-w 1m` for a long context model, or
+any token count. Only **always** gets a bar, because **on demand** is a ceiling
+nobody reaches.
 
 Below the table it names the hooks that fire per event and the MCP servers in
 play. Server tool schemas ship on every request and are usually the largest
