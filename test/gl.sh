@@ -27,6 +27,7 @@ git -C "$TMP/repo" -c user.name=test -c user.email=test@example.com \
   commit -qm 'base' --no-gpg-sign
 git -C "$TMP/repo" tag v1
 git -C "$TMP/repo" branch merged
+git -C "$TMP/repo" update-ref refs/remotes/origin/topic HEAD
 git -C "$TMP/repo" switch -qc pending
 echo 'pending' >>"$TMP/repo/file"
 git -C "$TMP/repo" add file
@@ -38,10 +39,12 @@ output=$(cd "$TMP/repo" && PATH="$TMP/bin:/usr/bin:/bin" "$ROOT/home/bin/gl" --a
 current_block=$'\033[30;42m topic \033[m'
 merged_branch=$'\033[32m✓ merged\033[37m'
 unmerged_branch=$'\033[32m✓ pending\033[37m'
+remote_branch=$'\033[32morigin/topic\033[37m'
 
 [[ "$output" == *"$current_block"* && "$output" != *HEAD* && \
   "$output" == *'tag: v1'* && "$output" == *"$merged_branch"* && \
-  "$output" != *"$unmerged_branch"* ]] || fail 'gl branch decorations are wrong'
+  "$output" != *"$unmerged_branch"* && "$output" == *"$remote_branch"* ]] ||
+  fail 'gl branch decorations are wrong'
 
 git -C "$TMP/repo" checkout -q --detach
 output=$(cd "$TMP/repo" && PATH="$TMP/bin:/usr/bin:/bin" "$ROOT/home/bin/gl" --max-count=1)
