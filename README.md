@@ -339,15 +339,16 @@ it in any directory:
 
 ```text
 this repo                              always  on trigger     on read  items
-  CLAUDE.md                               601           -           -      -
+  nothing: no CLAUDE.md, .claude/ or .mcp.json
 
 inherited                              always  on trigger     on read  items
   plugin vercel skills                  2,725     126,199     296,152     30
   user skills                           1,999      68,901   1,100,203     34
   plugin figma skills                   1,974      65,292     440,308     12
   ~/.codex/AGENTS.md                      973           -           -      -
+  ...
   ──────────────────────────────────────────────────────────────────────────
-  total  ▌           2% of 200k         4,935     392,922   1,932,435    141
+  total  ▌           2% of 200k         4,334     392,922   1,932,435    141
   ∟ 9,802 in skill and command descriptions, capped at 2,000 by the listing budget
 ```
 

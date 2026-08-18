@@ -67,12 +67,16 @@ cat >"$user/settings.json" <<'JSON'
 }
 JSON
 
-printf 'user memory\n' >"$user/CLAUDE.md"
+printf '@../../shared/AGENTS.md\nuser memory\n' >"$user/CLAUDE.md"
 
 # The repo: a memory file importing a second one, its own skill, its own server
 printf '@../shared/AGENTS.md\n\nproject memory\n' >"$TMP/repo/CLAUDE.md"
-printf 'shared instructions\n' >"$TMP/shared/AGENTS.md"
+memory_fixture=$'---\nname: memory\n---\n<!-- hidden -->\nvisible memory\n'
+printf '%s' "$memory_fixture" >"$TMP/shared/AGENTS.md"
 skill "$TMP/repo/.claude/skills/proj" proj
+mkdir -p "$TMP/repo/.claude/skills/hidden"
+printf -- '---\nname: hidden\ndescription: %s\n%s\ndisable-model-invocation: true\n---\n\n# hidden\n' \
+  "$desc_line1" "$desc_line2" >"$TMP/repo/.claude/skills/hidden/SKILL.md"
 printf '{ "mcpServers": { "repo-server": { "command": "true" } } }\n' >"$TMP/repo/.mcp.json"
 
 run() { (cd "$TMP/repo" && HOME="$TMP/home" "$ROOT/home/bin/agent-ctx" "$@" | sed 's/\x1b\[[0-9;]*m//g'); }
@@ -81,8 +85,9 @@ run() { (cd "$TMP/repo" && HOME="$TMP/home" "$ROOT/home/bin/agent-ctx" "$@" | se
 codex="$TMP/home/.codex"
 mkdir -p "$codex/plugins/cache/store/gamma/9f3c" "$codex/plugins/cache/store/delta/1a2b" \
   "$codex/plugins/cache/gone/epsilon/7b8d"
-printf 'codex memory\n' >"$codex/AGENTS.md"
-printf 'repo memory for codex\n' >"$TMP/repo/AGENTS.md"
+printf '%s' "$memory_fixture" >"$codex/AGENTS.md"
+printf '%s' "$memory_fixture" >"$TMP/repo/AGENTS.md"
+printf 'repo override for codex\n' >"$TMP/repo/AGENTS.override.md"
 skill "$codex/skills/local" local
 skill "$codex/plugins/cache/store/gamma/9f3c/skills/from-plugin" from-plugin
 skill "$codex/plugins/cache/store/delta/1a2b/skills/off" off
@@ -118,16 +123,15 @@ TOML
 
 
 output=$(run -a claude)
+claude_output=$output
 
-# The description is the only part of a skill that ships every session
+# A disabled skill is still available on demand, but its description is not in
+# the listing sent every session
 desc_bytes=$(printf 'description: %s\n%s\n' "$desc_line1" "$desc_line2" | wc -c)
-skill_bytes=$(cat "$TMP/repo/.claude/skills/proj/SKILL.md" | wc -c)
 always=$((desc_bytes / 3))
-on_trigger=$((skill_bytes / 3 - always))
 
-if ! grep -qE "^  project skills +$always +$on_trigger +- +1$" <<<"$output"; then
-  fail "project skills should be $always always and $on_trigger on trigger"
-fi
+grep -qE "^  project skills +$always +[0-9,]+ +- +2$" <<<"$output" ||
+  fail 'a skill disabled for model invocation should add no description to always'
 
 memory_bytes=$(cat "$TMP/repo/CLAUDE.md" | wc -c)
 if ! grep -qE "^  CLAUDE.md +$((memory_bytes / 3)) +- +- +-$" <<<"$output"; then
@@ -135,6 +139,8 @@ if ! grep -qE "^  CLAUDE.md +$((memory_bytes / 3)) +- +- +-$" <<<"$output"; then
 fi
 
 grep -q 'shared/AGENTS.md' <<<"$output" || fail 'an @import in a memory file should be followed'
+[ "$(grep -c 'shared/AGENTS.md' <<<"$output")" -eq 1 ] ||
+  fail 'the same memory file imported twice should only be counted once'
 
 # The stale cached version and the disabled plugin are not in play
 grep -q '1.0.0' <<<"$output" && fail 'a stale plugin version in the cache should not be counted'
@@ -172,15 +178,22 @@ grep -qE '^  total {14}0% of 9m' <<<"$(run -a claude -w 9m)" ||
 (cd "$TMP/repo" && HOME="$TMP/home" "$ROOT/home/bin/agent-ctx" -w 1.5m) >/dev/null 2>&1 &&
   fail 'a window that is not a token count should be rejected'
 
-# The skill carrying references is the heavier one to open
-output=$(run alpha)
-if [ "$(grep -c '^  ' <<<"$output")" -ne 2 ] || [[ "$(grep '^  ' <<<"$output" | head -1)" != *one* ]]; then
-  fail 'drilling into a group should list its skills, heaviest to open first'
-fi
+# A filtered group uses the same resident-first weight order as the verbose
+# table: proj has a listed description, while hidden has none
+output=$(run 'project skills')
+[[ "$(grep '^  ' <<<"$output" | head -1)" == *proj* ]] ||
+  fail 'a filtered group should order items by resident weight first'
 
 output=$(run -a codex)
 
-grep -qE '^  AGENTS.md ' <<<"$output" || fail 'codex should count the repo AGENTS.md'
+grep -qE '^  AGENTS\.override\.md +8 +- +- +-$' <<<"$output" ||
+  fail 'codex should use AGENTS.override.md instead of AGENTS.md in one directory'
+memory_costs=$(
+  sed -nE 's/^  .*shared\/AGENTS\.md +([0-9]+).*/\1/p' <<<"$claude_output"
+  sed -nE 's/^  ~\/\.codex\/AGENTS\.md +([0-9]+).*/\1/p' <<<"$output"
+)
+grep -qE $'^5\n17$' <<<"$memory_costs" ||
+  fail 'claude should strip memory metadata and comments that codex keeps'
 grep -q 'CLAUDE.md' <<<"$output" && fail 'codex does not read CLAUDE.md'
 grep -q 'plugin gamma skills' <<<"$output" || fail 'an enabled codex plugin should be counted'
 grep -q 'plugin delta' <<<"$output" && fail 'a codex plugin disabled in config.toml should not be counted'

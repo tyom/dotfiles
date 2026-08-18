@@ -140,11 +140,18 @@ memory_tokens() { # file
 # too. One level of import is as far as this looks
 add_memory() { # section file
   [[ -f $2 ]] || return 0
+  local import seen
+  for seen in "${memory[@]}"; do
+    [[ ${seen#*|} -ef $2 ]] && return 0
+  done
   memory+=("$1|$2")
-  local import
   while read -r import; do
     import=$(cd "$(dirname "$2")" && cd "$(dirname "$import")" 2>/dev/null && pwd)/$(basename "$import")
-    [[ -f $import ]] && memory+=("$1|$import")
+    [[ -f $import ]] || continue
+    for seen in "${memory[@]}"; do
+      [[ ${seen#*|} -ef $import ]] && continue 2
+    done
+    memory+=("$1|$import")
   done < <(grep -o '^@[^ ]*' "$2" 2>/dev/null | cut -c2-)
   return 0
 }
@@ -412,10 +419,13 @@ rows=$(
       return "" SUBSEP "other" SUBSEP path
     }
     BEGIN {
-      n = split(targets, t, ";")
-      for (i = 1; i <= n; i++) {
+      count = split(targets, t, ";")
+      n = 0
+      for (i = 1; i <= count; i++) {
         split(t[i], f, "|")
-        sect[i] = f[1]; lab[i] = f[2]; kind[i] = f[3]; dir[i] = f[4]
+        if (f[4] == "") continue
+        n++
+        sect[n] = f[1]; lab[n] = f[2]; kind[n] = f[3]; dir[n] = f[4]
       }
     }
     FNR == 1 { key = classify(FILENAME); fm = 0; in_desc = 0 }
@@ -587,7 +597,7 @@ collect "$agent"
 if [[ -n $filter ]]; then
   # a filter can match several groups, so keep each one together and labelled
   matched=$(awk -F'\t' -v f="$filter" 'index($2, f) && $3 != "-"' <<<"$rows" |
-    sort -t$'\t' -k2,2 -k5,5nr -k6,6nr)
+    sort -t$'\t' -k2,2 -k4,4nr -k5,5nr)
   if [[ -z $matched ]]; then
     printf 'no %s group matching %s. Run agent-ctx with no argument to list them\n' "$agent" "$filter" >&2
     exit 1
