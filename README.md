@@ -315,7 +315,8 @@ changed. `-c` starts the cache over.
 ### `gl`
 
 Git log, one commit per line, with any refs on a continuation line underneath.
-Takes the usual `git log` options.
+The current branch is a block and merged local branches carry a tick. Takes the
+usual `git log` options.
 
 ### `gb`
 

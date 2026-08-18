@@ -9,14 +9,25 @@
 white='%x1b[37m'
 green='%x1b[32m'
 
+current_branch=$(git symbolic-ref -q --short HEAD 2>/dev/null)
+merged_branches=$(git for-each-ref --merged=HEAD \
+  --format='%(refname:short)' refs/heads 2>/dev/null | tr '\n' '\034')
+
 # The date column arrives between two %x1f markers as timestamp|stamp|relative,
 # git cannot pick between them itself
 git log --color=always --abbrev=8 --date=format:'%d %b %Y' \
   --pretty=format:"%C(yellow)%h %C(59)%x1f%ct|%cd|%cr%x1f%C(white)%an → %C(245)%s%+(decorate:prefix=       ∟ $green,pointer=$white -> $green,separator=$white%x2C $green,suffix=$white ————————————————————)%C(auto)" \
   "$@" |
-  awk -v now="$(date +%s)" '
+  awk -v now="$(date +%s)" \
+    -v merged="$merged_branches" -v current="$current_branch" '
     # (days + 15) / 30 is how git itself rounds months, so the two agree
-    BEGIN { sep = sprintf("%c", 31) }
+    BEGIN {
+      sep = sprintf("%c", 31)
+      esc = sprintf("%c", 27)
+      green = esc "[32m"
+      white = esc "[37m"
+      branch_count = split(merged, branches, sprintf("%c", 28))
+    }
     {
       a = index($0, sep)
       if (a) {
@@ -26,13 +37,28 @@ git log --color=always --abbrev=8 --date=format:'%d %b %Y' \
         when = days > 730 ? f[2] : (days >= 30 ? int((days + 15) / 30) " months ago" : f[3])
         $0 = substr($0, 1, a - 1) sprintf("%-15s", when) substr($0, b + 1)
       }
+      for (i = 1; i <= branch_count; i++) {
+        if (branches[i] != "" && branches[i] != current) {
+          needle = green branches[i] white
+          if (at = index($0, needle)) {
+            $0 = substr($0, 1, at - 1) green "✓ " branches[i] white \
+              substr($0, at + length(needle))
+          }
+        }
+      }
       print
     }
   ' |
-  sed $'s/∟ \033\\[32mHEAD/∟ \033[30;42m HEAD \033[m/' |
-  less -RFX # -F skips the pager when it all fits, -X keeps that output on screen
+  sed $'s/\033\\[32mHEAD\033\\[37m -> \033\\[32m\\([^\033]*\\)\033\\[37m/\033[30;42m \\1 \033[m\033[37m/' |
+  less -RFX --lesskey-content='#command;q quit x'
+
+statuses=("${PIPESTATUS[@]}")
+
+# q returns 120 so the next prompt can replace one whole entry instead of
+# scrolling the first entry away. -F still leaves short output untouched.
+((statuses[3] == 120)) && printf '\033[2A\r\033[J'
 
 # Report git's own failures, less exiting first is not one of them
-status=${PIPESTATUS[0]}
+status=${statuses[0]}
 ((status == 141)) && status=0
 exit "$status"
