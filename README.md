@@ -478,7 +478,8 @@ plugin posthog skills                        always   on demand
   `enabled = false`
 
 Symlinked skills are followed, so a skill kept in another repo counts where it
-is used. Nothing is started and nothing is written.
+is used. Nothing is started and nothing is written. Requires `jq`, which the
+Homebrew step installs.
 
 ### Status line
 

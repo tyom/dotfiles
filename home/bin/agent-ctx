@@ -10,6 +10,11 @@ set -e
 # asset sitting in a skill directory
 export LC_ALL=C
 
+command -v jq >/dev/null || {
+  printf 'agent-ctx needs jq to read settings and plugin files. Install it with: brew install jq\n' >&2
+  exit 1
+}
+
 RESET=$'\033[0m'
 BRIGHT=$'\033[1m'
 GRAY=$'\033[90m'
@@ -74,43 +79,6 @@ add_memory() { # section file
   return 0
 }
 
-# The keys directly inside a named JSON object, without a JSON tool. `path` is
-# the parent keys joined by a unit separator, empty for the top level. Quoted
-# strings are skipped whole, so a brace inside a value does not shift the depth.
-# Depth carries across lines rather than slurping the file: ~/.claude.json is a
-# few hundred KB and scanning it as one record costs a second on its own. The
-# cost of that is a key whose colon is on the next line, which nothing writes
-json_keys() { # path file...
-  [[ $# -gt 1 ]] || return 0
-  awk -v target="$1" 'BEGIN { SEP = sprintf("%c", 31) } {
-    n = length($0)
-    for (i = 1; i <= n; i++) {
-      c = substr($0, i, 1)
-      if (c == "\"") {
-        j = i + 1; s = ""
-        while (j <= n) {
-          d = substr($0, j, 1)
-          if (d == "\\") { j += 2; continue }
-          if (d == "\"") break
-          s = s d; j++
-        }
-        k = j + 1
-        while (k <= n && substr($0, k, 1) ~ /[ \t\r\n]/) k++
-        if (substr($0, k, 1) == ":") {
-          parent = ""
-          for (v = 1; v < depth; v++) parent = parent (v > 1 ? SEP : "") name[v]
-          if (parent == target) print s
-          name[depth] = s
-        }
-        i = j
-        continue
-      }
-      if (c == "{" || c == "[") depth++
-      else if (c == "}" || c == "]") depth--
-    }
-  }' "${@:2}"
-}
-
 # TOML section names under a prefix, dropping any the file switches off. Codex
 # uses these for both its servers and its plugins
 toml_sections() { # prefix file
@@ -151,7 +119,7 @@ discover_claude() {
   # An output style rewrites the system prompt, so the active one is resident and
   # the rest of the directory is not
   for f in "${settings[@]}"; do
-    style=$(grep -o '"outputStyle": *"[^"]*"' "$f" | sed 's/.*: *"//;s/"//') || true
+    style=$(jq -r '.outputStyle // empty' "$f" 2>/dev/null) || true
     [[ -n $style ]] || continue
     for dir in "$repo/.claude/output-styles" "$user/output-styles"; do
       add_memory 2 "$dir/$style.md"
@@ -159,11 +127,13 @@ discover_claude() {
   done
 
   # installed_plugins.json names the version actually installed. The cache keeps
-  # older versions beside it, so globbing the cache counts each one again
-  # /dev/null so a machine with no settings file yet leaves grep reading a file
-  # rather than the terminal
-  disabled=$(grep -ho '"[^"]*@[^"]*": *false' "${settings[@]}" /dev/null |
-    sed 's/"\([^@"]*\)@.*/\1/') || true
+  # older versions beside it, so globbing the cache counts each one again.
+  # One file per jq, so a settings file someone has broken costs only its own
+  # entries rather than every file after it
+  disabled=$(for f in "${settings[@]}"; do
+    jq -r '.enabledPlugins // {} | to_entries[] |
+      select(.value == false) | .key | split("@")[0]' "$f" 2>/dev/null
+  done) || true
   while read -r dir; do
     [[ -d $dir ]] || continue
     name=$(basename "$(dirname "$dir")")
@@ -172,20 +142,16 @@ discover_claude() {
     [[ -f "$dir/.mcp.json" ]] && mcp_files+=("$dir/.mcp.json")
     [[ -f "$dir/mcp.json" ]] && mcp_files+=("$dir/mcp.json")
     [[ -f "$dir/hooks/hooks.json" ]] && hook_files+=("plugin $name|$dir/hooks/hooks.json")
-  done < <(grep -o '"installPath": "[^"]*"' "$user/plugins/installed_plugins.json" 2>/dev/null |
-    sed 's/.*: "//;s/"$//')
+  done < <(jq -r '.plugins[][].installPath' "$user/plugins/installed_plugins.json" 2>/dev/null)
 
-  local sep=$'\037'
   servers=$(
     # a .mcp.json may wrap its servers in mcpServers or list them at the top level
-    for f in "${mcp_files[@]}"; do
-      if grep -q '"mcpServers"' "$f"; then json_keys mcpServers "$f"; else json_keys "" "$f"; fi
-    done
+    for f in "${mcp_files[@]}"; do jq -r '(.mcpServers // .) | keys[]' "$f" 2>/dev/null; done
     # settings only ever wrap them, and .claude.json also scopes some to one repo
     for f in "${settings[@]}" "$HOME/.claude.json"; do
       [[ -f $f ]] || continue
-      json_keys mcpServers "$f"
-      json_keys "projects$sep$repo${sep}mcpServers" "$f"
+      jq -r --arg repo "$repo" \
+        '[.mcpServers, .projects[$repo].mcpServers] | add // {} | keys[]' "$f" 2>/dev/null
     done
   ) || true
 }
@@ -355,7 +321,7 @@ awk -F'\t' 'NF < 5 { next }
 
 events=$(
   for entry in "${hook_files[@]}"; do
-    json_keys hooks "${entry#*|}" | sed "s|\$|\t${entry%%|*}|"
+    jq -r '.hooks // {} | keys[]' "${entry#*|}" 2>/dev/null | sed "s|\$|\t${entry%%|*}|"
   done
   if ((${#extra_events[@]})); then printf '%s\n' "${extra_events[@]}"; fi
 ) || true
