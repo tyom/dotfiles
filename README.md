@@ -408,7 +408,9 @@ user skills                             always  on trigger     on read
   servers and plugins from `config.toml` minus anything marked `enabled = false`.
   Codex reads an `AGENTS.md` from the repo root down to the directory it started
   in, so every one of those counts, and `AGENTS.override.md` takes the place of
-  `AGENTS.md` in its own directory
+  `AGENTS.md` in its own directory. Its listing names the file each skill came
+  from, so that line is counted with the description; a plugin whose marketplace
+  is no longer registered is not counted at all, because Codex does not load it
 
 Symlinked skills are followed, so a skill kept in another repo counts where it
 is used. Nothing is started and nothing is written. Requires `jq`, which the

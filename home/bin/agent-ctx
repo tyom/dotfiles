@@ -101,6 +101,9 @@ strip_memory=0
 # listing runs over. Codex has a budget of its own but does not say how large
 listing_cap=0
 
+# Codex names the file each skill came from in its listing, Claude does not
+skill_locator=0
+
 memory_tokens() { # file
   ((strip_memory)) || {
     printf '%d\n' "$(($(wc -c <"$1") / BYTES_PER_TOKEN))"
@@ -240,6 +243,7 @@ discover_claude() {
 discover_codex() {
   local user="${CODEX_HOME:-$HOME/.codex}" entry name market dir root markets
 
+  skill_locator=1
   add_tree 1 project "$repo/.codex"
 
   # Codex reads an AGENTS.md from the repo root down to the directory it was
@@ -320,10 +324,11 @@ rows=$(
     label=${path#"$base"/}
     printf '%s\t%s\t-\t%d\t0\t0\n' "${entry%%|*}" "${label/#$HOME/\~}" "$(memory_tokens "$path")"
   done
-  if ((${#files[@]})); then awk -v b="$BYTES_PER_TOKEN" -v targets="$(printf '%s;' "${targets[@]}")" '
+  if ((${#files[@]})); then awk -v b="$BYTES_PER_TOKEN" -v locator="$skill_locator" \
+    -v targets="$(printf '%s;' "${targets[@]}")" '
     # An item is a skill directory, or a single command or agent file. Only its
     # entry file carries the description that ships on every session
-    function classify(path,   i, rest, cut, tail) {
+    function classify(path,   i, rest, cut, tail, disp, plug) {
       for (i = 1; i <= n; i++) {
         if (index(path, dir[i] "/") != 1) continue
         rest = substr(path, length(dir[i]) + 2)
@@ -337,6 +342,20 @@ rows=$(
             if (index(tail, "/")) cut = cut "/" substr(tail, 1, index(tail, "/") - 1)
           }
           is_entry = (rest == cut "/SKILL.md")
+          # Codex writes each skill into its listing as
+          # "- <plugin:>name: description (file: <path>)", and the name and the
+          # path are as resident as the description is
+          if (is_entry && locator) {
+            disp = cut
+            sub(/^.*\//, "", disp)
+            if (lab[i] ~ /^plugin /) {
+              plug = lab[i]
+              sub(/^plugin /, "", plug)
+              sub(/ skills$/, "", plug)
+              disp = plug ":" disp
+            }
+            over[sect[i] SUBSEP lab[i] SUBSEP cut] = length(path) + length(disp) + 14
+          }
           return sect[i] SUBSEP lab[i] SUBSEP cut
         }
         is_entry = (rest ~ /\.md$/)
@@ -368,9 +387,12 @@ rows=$(
     END {
       for (key in bytes) {
         split(key, p, SUBSEP)
-        always = off[key] ? 0 : int(desc[key] / b)
-        printf "%s\t%s\t%s\t%d\t%d\t%d\n", p[1], p[2], p[3], always,
-          int(ent[key] / b) - always, int((bytes[key] - ent[key]) / b)
+        # the listing costs the description and the line it sits on, the entry
+        # file costs whatever is left of itself
+        shown = off[key] ? 0 : int(desc[key] / b)
+        printf "%s\t%s\t%s\t%d\t%d\t%d\n", p[1], p[2], p[3],
+          shown ? shown + int(over[key] / b) : 0,
+          int(ent[key] / b) - shown, int((bytes[key] - ent[key]) / b)
       }
     }
   ' "${files[@]}"; fi
