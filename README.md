@@ -397,6 +397,29 @@ user skills                             always  on trigger     on read
   explainer                                  0       4,361         981
 ```
 
+The table covers what your files put in context, never what an agent writes for
+itself. Codex will render the prompt it would send, which is the one place those
+blocks can be counted, so `--prompt` asks it:
+
+```text
+$ agent-ctx --prompt
+block                                       chars      tokens
+  skills_instructions                       14,636       4,878
+  permissions instructions                   6,101       2,033
+  AGENTS.md instructions                     2,970         990
+  You are `/root`, the primary agent i       2,264         754
+  recommended_plugins                        1,896         632
+  ...
+  ────────────────────────────────────────────────────────────
+  total                                     30,640      10,213
+```
+
+Two of those come from disk and match the table: the skills block against the
+skill descriptions plus the `(file: …)` line under each, and `AGENTS.md`
+instructions against the memory row. The rest is Codex describing itself, and
+about half of that grows with the plugins you install. Claude Code has no
+equivalent outside a session, where `/context` breaks down the same thing.
+
 `-a` picks the agent, Claude Code by default:
 
 - `-a claude` reads `~/.claude` and the repo's `.claude` and `.mcp.json`, with

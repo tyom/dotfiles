@@ -32,19 +32,33 @@ BG=$'\033[48;5;236m'
 
 usage() {
   cat <<'USAGE'
-usage: agent-ctx [-a claude|codex] [-w window] [group]
+usage: agent-ctx [-a claude|codex] [-w window] [--prompt] [group]
 
   no argument   what each directory puts in context, biggest first
   group         part of a group name from that table, to list its items
   -w            window the always total is drawn against, default 200k
+  --prompt      block by block, what codex would send from here
 USAGE
 }
 
 agent=claude
 window=200k
+
+# getopts is short options only, so this one is taken out of the way first
+show_prompt=0
+agent_set=0
+args=()
+for arg in "$@"; do
+  case $arg in
+    --prompt) show_prompt=1 ;;
+    *) args+=("$arg") ;;
+  esac
+done
+set -- ${args[@]+"${args[@]}"}
+
 while getopts ':a:w:h' opt; do
   case $opt in
-    a) agent=$OPTARG ;;
+    a) agent=$OPTARG agent_set=1 ;;
     w) window=$OPTARG ;;
     h)
       usage
@@ -409,6 +423,46 @@ commify='function commify(n,   s, out) {
   while (length(s) > 3) { out = "," substr(s, length(s) - 2) out; s = substr(s, 1, length(s) - 3) }
   return s out
 }'
+
+# The disk says nothing about the instructions an agent writes for itself, and
+# codex will render the prompt it would send from here, which is the one place
+# those blocks can be measured
+if ((show_prompt)); then
+  ((agent_set)) || agent=codex
+  [[ $agent == codex ]] || {
+    printf 'only codex can render its prompt outside a session. In Claude Code, /context breaks down the same thing\n' >&2
+    exit 1
+  }
+  command -v codex >/dev/null || {
+    printf 'agent-ctx --prompt needs the codex binary on PATH\n' >&2
+    exit 1
+  }
+  blocks=$(codex debug prompt-input 2>/dev/null |
+    jq -r '[.. | objects | .text? | select(type == "string")]
+      | map({ n: ((capture("^[ \n]*<(?<t>[a-z_ ]+)>").t)? // (sub("^[ \n]+"; "") | split("\n")[0] | sub("^#+ +"; "") | .[0:36])), c: length })
+      | sort_by(-.c)[] | [.n, .c] | @tsv') || true
+  [[ -n $blocks ]] || {
+    printf 'codex debug prompt-input returned nothing to measure\n' >&2
+    exit 1
+  }
+  printf '%s%s%s %s(codex) what it would send from here, before you type%s\n\n' \
+    "$BRIGHT" "$repo" "$RESET" "$GRAY" "$RESET"
+  awk -F'\t' -v b="$BYTES_PER_TOKEN" -v g="$GRAY" -v gr="$GREEN" -v y="$YELLOW" -v r="$RESET" \
+    -v bt="$BRIGHT" "$commify"'
+    { n++; lab[n] = $1; c[n] = $2; total += $2 }
+    END {
+      printf "%s%-38s%11s  %10s%s\n", g, "block", "chars", "tokens", r
+      for (i = 1; i <= n; i++)
+        printf "  %-36s %s%11s%s  %s%10s%s\n", substr(lab[i], 1, 36),
+          gr, commify(c[i]), r, y, commify(int(c[i] / b)), r
+      for (i = 0; i < 60; i++) rule = rule "─"
+      printf "  %s%s%s\n", g, rule, r
+      printf "  %-36s %s%11s%s  %s%10s%s\n", "total",
+        bt gr, commify(total), r, bt y, commify(int(total / b)), r
+    }
+  ' <<<"$blocks"
+  exit 0
+fi
 
 if [[ -n $filter ]]; then
   # a filter can match several groups, so keep each one together and labelled
