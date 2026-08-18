@@ -67,24 +67,41 @@ cat >"$user/settings.json" <<'JSON'
 }
 JSON
 
-printf 'user memory\n' >"$user/CLAUDE.md"
+printf '@../../shared/AGENTS.md\nuser memory\n' >"$user/CLAUDE.md"
 
-# The repo: a memory file importing a second one, its own skill, its own server
-printf '@../shared/AGENTS.md\n\nproject memory\n' >"$TMP/repo/CLAUDE.md"
-printf 'shared instructions\n' >"$TMP/shared/AGENTS.md"
+# The repo: a memory file importing others, its own skill, its own server
+# shellcheck disable=SC2016 # Markdown backticks and @paths are literal fixtures
+printf '@../shared/AGENTS.md\n@../shared/hop1.md\nRead @../shared/inline.md for details.\nKeep `@../shared/inline-code.md` literal.\n```text\n@../shared/fenced.md\n```\n\nproject memory\n' >"$TMP/repo/CLAUDE.md"
+printf 'project dot-claude memory\n' >"$TMP/repo/.claude/CLAUDE.md"
+memory_fixture=$'---\nname: memory\n---\n<!-- hidden -->\nvisible memory\n'
+printf '%s' "$memory_fixture" >"$TMP/shared/AGENTS.md"
+printf 'inline import\n' >"$TMP/shared/inline.md"
+printf 'inline code literal\n' >"$TMP/shared/inline-code.md"
+printf 'fenced literal\n' >"$TMP/shared/fenced.md"
+printf '@hop2.md\nhop one\n' >"$TMP/shared/hop1.md"
+printf '@hop3.md\nhop two\n' >"$TMP/shared/hop2.md"
+printf '@hop4.md\nhop three\n' >"$TMP/shared/hop3.md"
+printf '@hop5.md\nhop four\n' >"$TMP/shared/hop4.md"
+printf 'hop five\n' >"$TMP/shared/hop5.md"
 skill "$TMP/repo/.claude/skills/proj" proj
+mkdir -p "$TMP/repo/.claude/skills/hidden"
+printf -- '---\nname: hidden\ndescription: %s\n%s\ndisable-model-invocation: true\n---\n\n# hidden\n' \
+  "$desc_line1" "$desc_line2" >"$TMP/repo/.claude/skills/hidden/SKILL.md"
 printf '{ "mcpServers": { "repo-server": { "command": "true" } } }\n' >"$TMP/repo/.mcp.json"
 
 run() { (cd "$TMP/repo" && HOME="$TMP/home" "$ROOT/home/bin/agent-ctx" "$@" | sed 's/\x1b\[[0-9;]*m//g'); }
 
 # The same repo seen by Codex: TOML config, its own memory file and plugin layout
 codex="$TMP/home/.codex"
-mkdir -p "$codex/plugins/cache/store/gamma/9f3c" "$codex/plugins/cache/store/delta/1a2b"
-printf 'codex memory\n' >"$codex/AGENTS.md"
-printf 'repo memory for codex\n' >"$TMP/repo/AGENTS.md"
+mkdir -p "$codex/plugins/cache/store/gamma/9f3c" "$codex/plugins/cache/store/delta/1a2b" \
+  "$codex/plugins/cache/gone/epsilon/7b8d"
+printf '%s' "$memory_fixture" >"$codex/AGENTS.md"
+printf '%s' "$memory_fixture" >"$TMP/repo/AGENTS.md"
+printf 'repo override for codex\n' >"$TMP/repo/AGENTS.override.md"
 skill "$codex/skills/local" local
 skill "$codex/plugins/cache/store/gamma/9f3c/skills/from-plugin" from-plugin
 skill "$codex/plugins/cache/store/delta/1a2b/skills/off" off
+skill "$codex/plugins/cache/gone/epsilon/7b8d/skills/orphaned" orphaned
 cat >"$codex/config.toml" <<'TOML'
 model = "gpt-5.6-sol"
 
@@ -103,34 +120,51 @@ enabled = true
 
 [plugins."delta@store"]
 enabled = false
+
+# Enabled, unpacked, and from a marketplace that is no longer registered below,
+# which is how a plugin stays on disk long after Codex stopped loading it
+[plugins."epsilon@gone"]
+enabled = true
+
+[marketplaces.store]
+source_type = "local"
+source = "/dev/null"
 TOML
 
 
-output=$(run)
+output=$(run -a claude)
+claude_output=$output
 
-# The description is the only part of a skill that ships every session
+# A disabled skill is still available on demand, but its description is not in
+# the listing sent every session
 desc_bytes=$(printf 'description: %s\n%s\n' "$desc_line1" "$desc_line2" | wc -c)
-skill_bytes=$(cat "$TMP/repo/.claude/skills/proj/SKILL.md" | wc -c)
-always=$((desc_bytes / 4))
-on_demand=$((skill_bytes / 4 - always))
+always=$((desc_bytes / 3))
 
-if ! grep -qE "^  project skills +$always +$on_demand +1$" <<<"$output"; then
-  fail "project skills should be $always always and $on_demand on demand"
-fi
+grep -qE "^  project skills +$always +[0-9,]+ +- +2$" <<<"$output" ||
+  fail 'a skill disabled for model invocation should add no description to always'
 
 memory_bytes=$(cat "$TMP/repo/CLAUDE.md" | wc -c)
-if ! grep -qE "^  CLAUDE.md +$((memory_bytes / 4)) +- +-$" <<<"$output"; then
+if ! grep -qE "^  CLAUDE.md +$((memory_bytes / 3)) +- +- +-$" <<<"$output"; then
   fail "the repo CLAUDE.md should be counted in full"
 fi
 
 grep -q 'shared/AGENTS.md' <<<"$output" || fail 'an @import in a memory file should be followed'
+[ "$(grep -c 'shared/AGENTS.md' <<<"$output")" -eq 1 ] ||
+  fail 'the same memory file imported twice should only be counted once'
+grep -q 'shared/inline.md' <<<"$output" || fail 'an inline @import should be followed'
+grep -q 'inline-code.md' <<<"$output" && fail 'an @path in inline code should stay literal'
+grep -q 'fenced.md' <<<"$output" && fail 'an @path in a fenced code block should stay literal'
+grep -q 'shared/hop4.md' <<<"$output" || fail 'memory imports should be followed for four hops'
+grep -q 'shared/hop5.md' <<<"$output" && fail 'memory imports should stop after four hops'
+grep -qE '^  \.claude/CLAUDE\.md ' <<<"$output" || fail 'claude should read project memory from .claude'
+grep -qE '^  AGENTS\.md ' <<<"$output" && fail 'claude should only read AGENTS.md through an @import'
 
 # The stale cached version and the disabled plugin are not in play
 grep -q '1.0.0' <<<"$output" && fail 'a stale plugin version in the cache should not be counted'
 grep -q 'plugin beta' <<<"$output" && fail 'a plugin disabled in settings should not be counted'
 
 # Two skills, and the loose file beside them is not a third
-if ! grep -qE "^  plugin alpha skills +$((always * 2)) +[0-9,]+ +2$" <<<"$output"; then
+if ! grep -qE "^  plugin alpha skills +$((always * 2)) +[0-9,]+ +[0-9,]+ +2$" <<<"$output"; then
   fail 'the installed plugin should show its two skills and their descriptions'
 fi
 
@@ -148,27 +182,48 @@ widths=$(sed 's/█/#/g; s/▌/+/g' <<<"$output" |
   fail 'the totals row should be as wide as the rows above it'
 
 # Ten cells over the window, clamped at both ends
-grep -qE '^  total  #{10}  100% of 100' <<<"$(run -w 100 | sed 's/█/#/g')" ||
+grep -qE '^  total  #{10}  100% of 10' <<<"$(run -a claude -w 10 | sed 's/█/#/g')" ||
   fail 'a window smaller than the total should fill the bar'
-grep -qE '^  total {14}0% of 9m' <<<"$(run -w 9m)" ||
+
+# Claude reserves one percent of the window for skill and command descriptions,
+# and never less than one token of it: a window too small to round up should
+# tighten the cap rather than turn it off
+grep -qE "^  ∟ $((always * 3)) in skill and command descriptions, capped at 1 by the listing budget$" <<<"$(run -a claude -w 10)" ||
+  fail 'a window too small for one percent should still cap the listing'
+grep -qE '^  total {14}0% of 9m' <<<"$(run -a claude -w 9m)" ||
   fail 'a window far larger than the total should leave the bar empty'
 (cd "$TMP/repo" && HOME="$TMP/home" "$ROOT/home/bin/agent-ctx" -w 1.5m) >/dev/null 2>&1 &&
   fail 'a window that is not a token count should be rejected'
 
-# The skill carrying references is the heavier one to open
-output=$(run alpha)
-if [ "$(grep -c '^  ' <<<"$output")" -ne 2 ] || [[ "$(grep '^  ' <<<"$output" | head -1)" != *one* ]]; then
-  fail 'drilling into a group should list its skills, heaviest to open first'
-fi
+# A filtered group uses the same resident-first weight order as the verbose
+# table: proj has a listed description, while hidden has none
+output=$(run 'project skills')
+[[ "$(grep '^  ' <<<"$output" | head -1)" == *proj* ]] ||
+  fail 'a filtered group should order items by resident weight first'
 
 output=$(run -a codex)
 
-grep -qE '^  AGENTS.md ' <<<"$output" || fail 'codex should count the repo AGENTS.md'
+grep -qE '^  AGENTS\.override\.md +8 +- +- +-$' <<<"$output" ||
+  fail 'codex should use AGENTS.override.md instead of AGENTS.md in one directory'
+memory_costs=$(
+  sed -nE 's/^  .*shared\/AGENTS\.md +([0-9]+).*/\1/p' <<<"$claude_output"
+  sed -nE 's/^  ~\/\.codex\/AGENTS\.md +([0-9]+).*/\1/p' <<<"$output"
+)
+grep -qE $'^5\n17$' <<<"$memory_costs" ||
+  fail 'claude should strip memory metadata and comments that codex keeps'
 grep -q 'CLAUDE.md' <<<"$output" && fail 'codex does not read CLAUDE.md'
 grep -q 'plugin gamma skills' <<<"$output" || fail 'an enabled codex plugin should be counted'
 grep -q 'plugin delta' <<<"$output" && fail 'a codex plugin disabled in config.toml should not be counted'
+grep -q 'plugin epsilon' <<<"$output" &&
+  fail 'a codex plugin whose marketplace is no longer registered should not be counted'
 grep -qE 'mcp servers|live' <<<"$output" || fail 'a server in config.toml should be named'
 grep -q 'parked' <<<"$output" && fail 'a server disabled in config.toml should not be named'
 grep -q 'live.env' <<<"$output" && fail 'a nested TOML table is not a server'
+
+# Without -a, a line for each harness installed and neither one's table
+output=$(run)
+grep -qE '^  claude ' <<<"$output" || fail 'the summary should carry a claude row'
+grep -qE '^  codex ' <<<"$output" || fail 'the summary should carry a codex row'
+grep -q 'plugin alpha' <<<"$output" && fail 'the summary should not open a table'
 
 echo " ✔ agent-ctx reports what each directory puts in context, for claude and codex"
