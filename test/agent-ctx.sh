@@ -69,10 +69,20 @@ JSON
 
 printf '@../../shared/AGENTS.md\nuser memory\n' >"$user/CLAUDE.md"
 
-# The repo: a memory file importing a second one, its own skill, its own server
-printf '@../shared/AGENTS.md\n\nproject memory\n' >"$TMP/repo/CLAUDE.md"
+# The repo: a memory file importing others, its own skill, its own server
+# shellcheck disable=SC2016 # Markdown backticks and @paths are literal fixtures
+printf '@../shared/AGENTS.md\n@../shared/hop1.md\nRead @../shared/inline.md for details.\nKeep `@../shared/inline-code.md` literal.\n```text\n@../shared/fenced.md\n```\n\nproject memory\n' >"$TMP/repo/CLAUDE.md"
+printf 'project dot-claude memory\n' >"$TMP/repo/.claude/CLAUDE.md"
 memory_fixture=$'---\nname: memory\n---\n<!-- hidden -->\nvisible memory\n'
 printf '%s' "$memory_fixture" >"$TMP/shared/AGENTS.md"
+printf 'inline import\n' >"$TMP/shared/inline.md"
+printf 'inline code literal\n' >"$TMP/shared/inline-code.md"
+printf 'fenced literal\n' >"$TMP/shared/fenced.md"
+printf '@hop2.md\nhop one\n' >"$TMP/shared/hop1.md"
+printf '@hop3.md\nhop two\n' >"$TMP/shared/hop2.md"
+printf '@hop4.md\nhop three\n' >"$TMP/shared/hop3.md"
+printf '@hop5.md\nhop four\n' >"$TMP/shared/hop4.md"
+printf 'hop five\n' >"$TMP/shared/hop5.md"
 skill "$TMP/repo/.claude/skills/proj" proj
 mkdir -p "$TMP/repo/.claude/skills/hidden"
 printf -- '---\nname: hidden\ndescription: %s\n%s\ndisable-model-invocation: true\n---\n\n# hidden\n' \
@@ -141,6 +151,13 @@ fi
 grep -q 'shared/AGENTS.md' <<<"$output" || fail 'an @import in a memory file should be followed'
 [ "$(grep -c 'shared/AGENTS.md' <<<"$output")" -eq 1 ] ||
   fail 'the same memory file imported twice should only be counted once'
+grep -q 'shared/inline.md' <<<"$output" || fail 'an inline @import should be followed'
+grep -q 'inline-code.md' <<<"$output" && fail 'an @path in inline code should stay literal'
+grep -q 'fenced.md' <<<"$output" && fail 'an @path in a fenced code block should stay literal'
+grep -q 'shared/hop4.md' <<<"$output" || fail 'memory imports should be followed for four hops'
+grep -q 'shared/hop5.md' <<<"$output" && fail 'memory imports should stop after four hops'
+grep -qE '^  \.claude/CLAUDE\.md ' <<<"$output" || fail 'claude should read project memory from .claude'
+grep -qE '^  AGENTS\.md ' <<<"$output" && fail 'claude should only read AGENTS.md through an @import'
 
 # The stale cached version and the disabled plugin are not in play
 grep -q '1.0.0' <<<"$output" && fail 'a stale plugin version in the cache should not be counted'

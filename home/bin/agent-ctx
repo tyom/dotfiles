@@ -136,23 +136,91 @@ memory_tokens() { # file
   ' "$1"
 }
 
-# A memory file is resident in full, and an @path line in one pulls that file in
-# too. One level of import is as far as this looks
-add_memory() { # section file
+# Paths prefixed with @ are imports except inside Markdown code spans and fences.
+memory_imports() { # file
+  awk '
+    function run_length(s, pos, char,    n) {
+      n = 0
+      while (substr(s, pos + n, 1) == char) n++
+      return n
+    }
+    {
+      line = $0
+      trimmed = line
+      sub(/^[ \t]*/, "", trimmed)
+
+      first = substr(trimmed, 1, 1)
+      if (fence != "") {
+        if (first == fence && run_length(trimmed, 1, fence) >= fence_len) {
+          fence = ""
+          fence_len = 0
+        }
+        next
+      }
+      if ((first == "`" || first == "~") && run_length(trimmed, 1, first) >= 3) {
+        fence = first
+        fence_len = run_length(trimmed, 1, first)
+        next
+      }
+
+      for (i = 1; i <= length(line);) {
+        char = substr(line, i, 1)
+        if (char == "`") {
+          ticks = run_length(line, i, "`")
+          if (!code_ticks) code_ticks = ticks
+          else if (ticks == code_ticks) code_ticks = 0
+          i += ticks
+          continue
+        }
+        if (!code_ticks && char == "@") {
+          path = ""
+          for (j = i + 1; j <= length(line); j++) {
+            char = substr(line, j, 1)
+            if (char ~ /[[:space:]`]/) break
+            path = path char
+          }
+          if (path != "") print path
+          i = j
+          continue
+        }
+        i++
+      }
+    }
+  ' "$1"
+}
+
+resolve_memory_import() { # importing file imported path
+  local path=$2 dir
+  case $path in
+    \~/*) path=$HOME/${path#\~/} ;;
+    /*) ;;
+    *) path=$(dirname "$1")/$path ;;
+  esac
+  dir=$(cd "$(dirname "$path")" 2>/dev/null && pwd -P) || return 1
+  printf '%s/%s\n' "$dir" "$(basename "$path")"
+}
+
+# A memory file is resident in full, and its imports are resident with it.
+add_memory() { # section file [import depth]
   [[ -f $2 ]] || return 0
-  local import seen
-  for seen in "${memory[@]}"; do
-    [[ ${seen#*|} -ef $2 ]] && return 0
+  local depth=${3:-0} found=0 import index
+  for ((index = 0; index < ${#memory[@]}; index++)); do
+    [[ ${memory[index]#*|} -ef $2 ]] || continue
+    ((depth >= memory_depth[index])) && return 0
+    memory_depth[index]=$depth
+    found=1
+    break
   done
-  memory+=("$1|$2")
+  if ((found == 0)); then
+    memory+=("$1|$2")
+    memory_depth+=("$depth")
+  fi
+  ((depth >= 4)) && return 0
   while read -r import; do
-    import=$(cd "$(dirname "$2")" && cd "$(dirname "$import")" 2>/dev/null && pwd)/$(basename "$import")
+    import=$(resolve_memory_import "$2" "$import") || continue
     [[ -f $import ]] || continue
-    for seen in "${memory[@]}"; do
-      [[ ${seen#*|} -ef $import ]] && continue 2
-    done
-    memory+=("$1|$import")
-  done < <(grep -o '^@[^ ]*' "$2" 2>/dev/null | cut -c2-)
+    add_memory "$1" "$import" "$((depth + 1))"
+  done < <(memory_imports "$2")
   return 0
 }
 
@@ -200,16 +268,16 @@ discover_claude() {
   ((listing_cap)) || listing_cap=1
   add_tree 1 project "$repo/.claude"
 
-  # CLAUDE.md, its .local companion and AGENTS.md are discovered together, in
-  # every directory from the cwd up to just below /. One above the repo loads in
-  # every project under it, which makes it inherited rather than this repo's
+  # CLAUDE.md and its .local companion are discovered in every directory from
+  # the cwd up to just below /. One above the repo loads in every project under
+  # it, which makes it inherited rather than this repo's
   while read -r dir; do
     section=2
     [[ $dir == "$root" || $dir == "$root"/* ]] && section=1
     add_memory "$section" "$dir/CLAUDE.md"
     add_memory "$section" "$dir/CLAUDE.local.md"
-    add_memory "$section" "$dir/AGENTS.md"
   done < <(memory_dirs "$cwd" "")
+  add_memory 1 "$root/.claude/CLAUDE.md"
   [[ -f "$repo/.mcp.json" ]] && mcp_files+=("$repo/.mcp.json")
   for f in "$repo/.claude/settings.json" "$repo/.claude/settings.local.json" "$user/settings.json"; do
     [[ -f $f ]] || continue
@@ -327,6 +395,7 @@ installed() { # agent
 collect() { # agent
 targets=()
 memory=()
+memory_depth=()
 hook_files=()
 extra_events=()
 servers=
