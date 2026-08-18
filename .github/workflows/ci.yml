@@ -21,7 +21,9 @@ jobs:
           persist-credentials: false
 
       - name: Run tests in Docker
-        run: make docker-test
+        run: |
+          make docker-test
+          docker run --rm dotfiles make test-scripts
 
   minimal-test:
     runs-on: ubuntu-latest
@@ -32,23 +34,6 @@ jobs:
 
       - name: Test setup without Homebrew
         run: make docker-test VARIANT=minimal
-
-  # The Docker tests install into a clean container, so they never meet a
-  # conflicting file at a link target. That branch is the one with prompts and
-  # backups in it, and test/link.sh is what covers it — nothing was running it.
-  link-tests:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v5
-        with:
-          persist-credentials: false
-
-      - name: Install Zsh
-        run: |
-          sudo apt-get update
-          sudo apt-get install --yes zsh
-
-      - run: make test-scripts
 
   macos-bootstrap:
     runs-on: macos-latest
