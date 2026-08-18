@@ -338,29 +338,43 @@ What a coding agent loads when it opens a repo, and where that comes from. Run
 it in any directory:
 
 ```text
-this repo                           always  on trigger     on read  items
-  CLAUDE.md                            450           -           -      -
+this repo                              always  on trigger     on read  items
+  CLAUDE.md                               601           -           -      -
 
-inherited                           always  on trigger     on read  items
-  user skills                        2,178      50,990     825,150     34
-  plugin vercel skills               2,036      94,651     222,111     30
-  plugin figma skills                1,477      48,972     330,228     12
-  plugin impeccable skills             716      29,812       7,772     18
-  ───────────────────────────────────────────────────────────────────────
-  total  ▌           5% of 200k     10,359     294,003   1,462,906    155
+inherited                              always  on trigger     on read  items
+  plugin vercel skills                  2,725     126,199     296,152     30
+  user skills                           1,999      68,901   1,100,203     34
+  plugin figma skills                   1,974      65,292     440,308     12
+  ~/.codex/AGENTS.md                      973           -           -      -
+  ──────────────────────────────────────────────────────────────────────────
+  total  ▌           2% of 200k         4,935     392,922   1,932,435    141
+  of 9,802 in skill and command descriptions only 2,000 fits the listing
 ```
 
 Three columns, because a skill costs its context in three stages. **always** is
 what is resident before you type: memory files, and the `description` of every
 skill, command and agent. A memory file counts for what survives its load, which
 under Claude means without its frontmatter or any HTML comment standing on its
-own, and under Codex means every byte. **on trigger** is the rest of that entry file,
+own, and under Codex means every byte. A skill the model cannot invoke is left
+out, because its description never reaches the listing. **on trigger** is the rest of that entry file,
 what one skill costs when it actually fires. **on read** is everything below it,
 the references the agent only pays for if it opens them. All three are estimates
 at four bytes a token.
 
 The gap between the last two is the point: most trees are mostly **on read**, so
 a large group is far cheaper in practice than one number would suggest.
+
+Skills and commands share one budget, and it is small: Claude reserves one
+percent of the window for the whole listing and shortens descriptions once they
+run over. The line under the total says how much of the listing survives that,
+which is why 141 items adding up to 9,802 tokens of description cost 2,000 on a
+200k model. Codex enforces a budget of its own but does not publish its size, so
+its listing is shown in full.
+
+Three bytes a token, not the four usually quoted: description prose is denser
+than that. Measured against `/context` over seventeen skills whose descriptions
+ship whole, 5,420 bytes for 1,790 real tokens. Individual rows land within a few
+percent — `fallow` reads 336 against a real 340.
 
 The totals row draws **always** as the [status line](#status-line) does, ten
 cells over the window and the same colours by absolute count, so the two read
@@ -377,10 +391,10 @@ Pass part of a group name to open it up, biggest first:
 
 ```text
 $ agent-ctx 'user skills'
-user skills                         always  on trigger     on read
-  fallow                               252       9,185      42,627
-  improve                              130       3,643       7,288
-  explainer                             20       3,250         735
+user skills                             always  on trigger     on read
+  fallow                                   336      12,247      56,836
+  improve                                  174       4,856       9,717
+  explainer                                  0       4,361         981
 ```
 
 `-a` picks the agent, Claude Code by default:

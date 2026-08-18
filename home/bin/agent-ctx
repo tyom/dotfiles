@@ -6,6 +6,11 @@
 
 set -e
 
+# Three bytes a token, measured against /context over seventeen skills whose
+# descriptions ship in full: 1,790 real tokens against 5,420 bytes. Description
+# prose is denser than the four bytes a token usually quoted
+BYTES_PER_TOKEN=3
+
 # Byte counts, not character counts, and awk that does not choke on a binary
 # asset sitting in a skill directory
 export LC_ALL=C
@@ -91,12 +96,17 @@ add_tree() { # section label_prefix dir
 # prompt-input. An inline comment mid-paragraph survives either way
 strip_memory=0
 
+# Claude reserves one percent of the window for the skill listing, in characters
+# against its own four bytes a token, and shortens descriptions to fit once the
+# listing runs over. Codex has a budget of its own but does not say how large
+listing_cap=0
+
 memory_tokens() { # file
   ((strip_memory)) || {
-    printf '%d\n' "$(($(wc -c <"$1") / 4))"
+    printf '%d\n' "$(($(wc -c <"$1") / BYTES_PER_TOKEN))"
     return 0
   }
-  awk '
+  awk -v b="$BYTES_PER_TOKEN" '
     NR == 1 && /^---[ \t]*$/ { fm = 1; next }
     fm { if (/^---[ \t]*$/) fm = 0; next }
     /^[ \t]*<!--/ { open = 1 }
@@ -107,7 +117,7 @@ memory_tokens() { # file
       if (/^[ \t]*$/) next
     }
     { n += length($0) + 1 }
-    END { print int(n / 4) }
+    END { print int(n / b) }
   ' "$1"
 }
 
@@ -160,6 +170,7 @@ discover_claude() {
   local user="$HOME/.claude" f style dir name disabled root section settings=() mcp_files=()
 
   strip_memory=1
+  listing_cap=$((window / 100))
   add_tree 1 project "$repo/.claude"
 
   # CLAUDE.md, its .local companion and AGENTS.md are discovered together, in
@@ -227,7 +238,7 @@ discover_claude() {
 }
 
 discover_codex() {
-  local user="${CODEX_HOME:-$HOME/.codex}" entry name market dir root
+  local user="${CODEX_HOME:-$HOME/.codex}" entry name market dir root markets
 
   add_tree 1 project "$repo/.codex"
 
@@ -247,14 +258,21 @@ discover_codex() {
   done < <(memory_dirs "$dir" "$root")
 
   add_tree 2 user "$user"
+  # skills kept for whatever agent is running, which Codex reads directly and
+  # Claude reaches through symlinks in its own skills directory
+  add_tree 2 shared "$HOME/.agents"
   add_memory 2 "$user/AGENTS.md"
   [[ -f "$user/hooks.json" ]] && hook_files+=("${user/#$HOME/\~}/hooks.json|$user/hooks.json")
 
   # A plugin is enabled in config.toml and unpacked under a content hash, so the
-  # newest directory is the one in use
+  # newest directory is the one in use. Its marketplace has to still be
+  # registered: an entry naming one that is gone is stale and loads nothing,
+  # cache directory or no cache directory
+  markets=$(toml_sections 'marketplaces.' "$user/config.toml")
   while read -r entry; do
     name=${entry%@*}
     market=${entry#*@}
+    grep -qxF "$market" <<<"$markets" || continue
     # shellcheck disable=SC2012 # a content hash sorts by nothing useful, newest wins
     dir=$(ls -td "$user/plugins/cache/$market/$name"/*/ 2>/dev/null | head -1) || true
     [[ -n $dir ]] && add_tree 2 "plugin $name" "${dir%/}"
@@ -302,16 +320,22 @@ rows=$(
     label=${path#"$base"/}
     printf '%s\t%s\t-\t%d\t0\t0\n' "${entry%%|*}" "${label/#$HOME/\~}" "$(memory_tokens "$path")"
   done
-  if ((${#files[@]})); then awk -v targets="$(printf '%s;' "${targets[@]}")" '
+  if ((${#files[@]})); then awk -v b="$BYTES_PER_TOKEN" -v targets="$(printf '%s;' "${targets[@]}")" '
     # An item is a skill directory, or a single command or agent file. Only its
     # entry file carries the description that ships on every session
-    function classify(path,   i, rest, cut) {
+    function classify(path,   i, rest, cut, tail) {
       for (i = 1; i <= n; i++) {
         if (index(path, dir[i] "/") != 1) continue
         rest = substr(path, length(dir[i]) + 2)
         if (kind[i] == "skills") {
           cut = rest
           sub(/\/.*/, "", cut)
+          # a hidden directory in a skills root holds skills rather than being
+          # one, which is how Codex keeps the skills it ships itself
+          if (substr(cut, 1, 1) == ".") {
+            tail = substr(rest, length(cut) + 2)
+            if (index(tail, "/")) cut = cut "/" substr(tail, 1, index(tail, "/") - 1)
+          }
           is_entry = (rest == cut "/SKILL.md")
           return sect[i] SUBSEP lab[i] SUBSEP cut
         }
@@ -344,9 +368,9 @@ rows=$(
     END {
       for (key in bytes) {
         split(key, p, SUBSEP)
-        always = off[key] ? 0 : int(desc[key] / 4)
+        always = off[key] ? 0 : int(desc[key] / b)
         printf "%s\t%s\t%s\t%d\t%d\t%d\n", p[1], p[2], p[3], always,
-          int(ent[key] / 4) - always, int((bytes[key] - ent[key]) / 4)
+          int(ent[key] / b) - always, int((bytes[key] - ent[key]) / b)
       }
     }
   ' "${files[@]}"; fi
@@ -392,7 +416,7 @@ if [[ -n $filter ]]; then
   exit 0
 fi
 
-printf '%s%s%s %s(%s)%s\n%sestimated tokens at 4 bytes each. On trigger is the rest of the entry file,%s\n%son read a ceiling: every byte in the files it can open%s\n\n' \
+printf '%s%s%s %s(%s)%s\n%sestimated tokens at 3 bytes each. On trigger is the rest of the entry file,%s\n%son read a ceiling: every byte in the files it can open%s\n\n' \
   "$BRIGHT" "$repo" "$RESET" "$GRAY" "$agent" "$RESET" "$GRAY" "$RESET" "$GRAY" "$RESET"
 
 # A repo that adds nothing still deserves the line saying so
@@ -404,6 +428,7 @@ awk -F'\t' 'NF < 6 { next }
   sort -t$'\t' -k1,1 -k3,3nr -k4,4nr -k5,5nr |
   awk -F'\t' -v b="$BRIGHT" -v g="$GRAY" -v gr="$GREEN" -v y="$YELLOW" -v r="$RESET" -v note="$repo_note" \
     -v w=30 -v rd="$RED" -v bg="$BG" -v window="$window" -v wlabel="$window_label" \
+    -v cap="$listing_cap" \
     "$commify$width"'
     { n++; sec[n] = $1; lab[n] = $2; va[n] = $3; vt[n] = $4; vd[n] = $5; vi[n] = $6
       if ($2 != "-") w = width($2) }
@@ -417,11 +442,17 @@ awk -F'\t' 'NF < 6 { next }
             "always", "on trigger", "on read", "items", r
         }
         if (lab[i] == "-") { print "  " note; continue }
-        always += va[i]; trigger += vt[i]; demand += vd[i]; items += vi[i]
+        # skills and commands share one budget, everything else is resident
+        # whatever else is loaded
+        if (lab[i] ~ /(skills|commands)$/) listing += va[i]; else always += va[i]
+        trigger += vt[i]; demand += vd[i]; items += vi[i]
         printf "  %-*s %s%9s%s  %s%10s%s  %s%10s%s  %5s\n", w, fit(lab[i]),
           gr, commify(va[i]), r, y, (vt[i] ? commify(vt[i]) : "-"), r,
           y, (vd[i] ? commify(vd[i]) : "-"), r, (vi[i] ? vi[i] : "-")
       }
+
+      shown = (cap && listing > cap) ? cap : listing
+      always += shown
 
       for (i = 0; i < w + 41; i++) rule = rule "─"
       printf "  %s%s%s\n", g, rule, r
@@ -447,6 +478,10 @@ awk -F'\t' 'NF < 6 { next }
         color, bg, bar, r, g, fill, r, pad, "",
         b color, commify(always), r, b y, commify(trigger), r,
         b y, commify(demand), r, items + 0
+
+      if (shown < listing)
+        printf "  %sof %s in skill and command descriptions only %s fits the listing%s\n",
+          g, commify(listing), commify(shown), r
     }
   '
 
