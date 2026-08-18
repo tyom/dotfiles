@@ -9,6 +9,13 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 TMP=$(mktemp -d)
 trap 'rm -rf "$TMP"' EXIT
 
+# agent-ctx exits early without jq, and every assertion below would then fail
+# with a wrong number rather than the reason
+command -v jq >/dev/null || {
+  echo " ✖ agent-ctx needs jq, which is not on PATH"
+  exit 1
+}
+
 fail() {
   echo " ✖ $1"
   echo "$output" | sed 's/\x1b\[[0-9;]*m//g'
@@ -127,7 +134,10 @@ if ! grep -qE "^  plugin alpha skills +$((always * 2)) +[0-9,]+ +2$" <<<"$output
   fail 'the installed plugin should show its two skills and their descriptions'
 fi
 
-grep -q 'Stop' <<<"$output" || fail 'a hook in settings should be listed by its event'
+# Event and source, not just the event: they travel as one tab-separated line, so
+# a separator that is not a real tab leaves the whole row in the event column
+grep -qE '^  Stop +~/\.claude/settings\.json$' <<<"$output" ||
+  fail 'a hook in settings should be listed by its event and the file it came from'
 grep -q 'repo-server' <<<"$output" || fail 'a server in the repo .mcp.json should be named'
 
 # The bar goes in the label column, so the totals row has to stay as wide as the

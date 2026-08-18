@@ -356,7 +356,10 @@ awk -F'\t' 'NF < 5 { next }
 
 events=$(
   for entry in "${hook_files[@]}"; do
-    jq -r '.hooks // {} | keys[]' "${entry#*|}" 2>/dev/null | sed "s|\$|\t${entry%%|*}|"
+    # @tsv rather than a sed replacement: the separator is a real tab whatever
+    # sed is on the box, and the source is jq data rather than something an & or
+    # a backslash in a plugin name could rewrite
+    jq -r --arg s "${entry%%|*}" '.hooks // {} | keys[] | [., $s] | @tsv' "${entry#*|}" 2>/dev/null
   done
   if ((${#extra_events[@]})); then printf '%s\n' "${extra_events[@]}"; fi
 ) || true
