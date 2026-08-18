@@ -104,13 +104,13 @@ fi
 
 if [ "$platform" = macos ]; then
   grep -qxF "eval \"\$($TMP/bin/brew shellenv)\"" "$TMP/home/.zprofile"
-  package_command='install bat fzf git-delta herdr scmpuff tree wget tyom/tap/ungit coreutils findutils tyom/tap/kcm'
+  package_command='install bat fzf git-delta herdr jq scmpuff tree wget tyom/tap/ungit coreutils findutils tyom/tap/kcm'
 else
   if [ -s "$GIT_LOG" ]; then
     echo ' ✖ Linux used an unverified Git clone for Homebrew'
     exit 1
   fi
-  package_command='install bat fzf git-delta herdr scmpuff tree wget tyom/tap/ungit'
+  package_command='install bat fzf git-delta herdr jq scmpuff tree wget tyom/tap/ungit'
 fi
 
 for command in update "$package_command" cleanup; do

@@ -512,4 +512,4 @@ reading does not change meaning between a 200k and a 1M window:
 | > 600k    | red    |
 
 Before the first response there is nothing to measure, so only the model and
-branch are drawn. Requires `jq`.
+branch are drawn. Requires `jq`, which the Homebrew step installs.
