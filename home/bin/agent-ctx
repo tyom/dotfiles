@@ -33,11 +33,12 @@ BG=$'\033[48;5;236m'
 
 usage() {
   cat <<'USAGE'
-usage: agent-ctx [-a claude|codex] [-w window] [--prompt] [group]
+usage: agent-ctx [-a claude|codex] [-w window] [-v] [--prompt] [group]
 
   no argument   one line per harness installed here
   -a            that harness in full: what each directory puts in context
   group         part of a group name from that table, to list its items
+  -v            list the items inside every group of that table
   -w            window the always total is drawn against, default 200k
   --prompt      block by block, what codex would send from here
 USAGE
@@ -49,18 +50,21 @@ window=200k
 # getopts is short options only, so this one is taken out of the way first
 show_prompt=0
 agent_set=0
+verbose=0
 args=()
 for arg in "$@"; do
   case $arg in
     --prompt) show_prompt=1 ;;
+    --verbose) verbose=1 ;;
     *) args+=("$arg") ;;
   esac
 done
 set -- ${args[@]+"${args[@]}"}
 
-while getopts ':a:w:h' opt; do
+while getopts ':a:w:hv' opt; do
   case $opt in
     a) agent=$OPTARG agent_set=1 ;;
+    v) verbose=1 ;;
     w) window=$OPTARG ;;
     h)
       usage
@@ -453,7 +457,8 @@ totals() { # listing_cap
 # plugin name widens the table instead of shifting its row. Between 30 and 44,
 # past which an absolute path outside $HOME keeps its tail and loses its head
 width='function width(s,   n) { n = length(s) > 44 ? 44 : length(s); return n > w ? n : w }
-function fit(s) { return length(s) <= w ? s : "..." substr(s, length(s) - w + 4) }'
+function fit(s, m) { if (!m) m = w
+  return length(s) <= m ? s : "..." substr(s, length(s) - m + 4) }'
 
 # Ten cells over the window, a half block from 5% of a cell, coloured by absolute
 # tokens the way the status line does: green to 100k, then yellow, then red past
@@ -593,56 +598,81 @@ printf '%s%s%s %s(%s)%s\n%sestimated tokens at 3 bytes each. On trigger is the r
 # A repo that adds nothing still deserves the line saying so
 grep -q '^1	' <<<"$rows" || rows=$'1\t-\t-\t0\t0\t0\n'$rows
 
-awk -F'\t' 'NF < 6 { next }
-  { a[$1 "\t" $2] += $4; t[$1 "\t" $2] += $5; d[$1 "\t" $2] += $6; if ($3 != "-") n[$1 "\t" $2]++ }
-  END { for (k in a) printf "%s\t%d\t%d\t%d\t%d\n", k, a[k], t[k], d[k], n[k] }' <<<"$rows" |
-  sort -t$'\t' -k1,1 -k3,3nr -k4,4nr -k5,5nr |
-  awk -F'\t' -v b="$BRIGHT" -v g="$GRAY" -v gr="$GREEN" -v y="$YELLOW" -v r="$RESET" -v note="$repo_note" \
-    -v w=30 -v rd="$RED" -v bg="$BG" -v window="$window" -v wlabel="$window_label" \
-    -v cap="$listing_cap" \
-    "$commify$width$bar"'
-    { n++; sec[n] = $1; lab[n] = $2; va[n] = $3; vt[n] = $4; vd[n] = $5; vi[n] = $6
-      if ($2 != "-") w = width($2) }
-    END {
-      for (i = 1; i <= n; i++) {
-        if (sec[i] != section) {
-          if (section != "") print ""
-          section = sec[i]
-          name = (section == 1 ? "this repo" : "inherited")
-          printf "%s%-*s%s%s%9s  %10s  %10s  %5s%s\n", b, w + 3, name, r, g,
-            "always", "on trigger", "on read", "items", r
-        }
-        if (lab[i] == "-") { print "  " note; continue }
-        # skills and commands share one budget, everything else is resident
-        # whatever else is loaded
-        if (lab[i] ~ /(skills|commands)$/) listing += va[i]; else always += va[i]
-        trigger += vt[i]; demand += vd[i]; items += vi[i]
-        printf "  %-*s %s%9s%s  %s%10s%s  %s%10s%s  %5s\n", w, fit(lab[i]),
-          gr, commify(va[i]), r, y, (vt[i] ? commify(vt[i]) : "-"), r,
-          y, (vd[i] ? commify(vd[i]) : "-"), r, (vi[i] ? vi[i] : "-")
+# With -v a group also lists what is in it, heaviest first, so the table says
+# which skill the tokens went to rather than only which directory. The count of
+# items is what the items themselves are standing in for, so that column goes
+detail=$(awk -F'\t' 'NF >= 6 && $3 != "-"' <<<"$rows" |
+  sort -t$'\t' -k1,1 -k2,2 -k4,4nr -k5,5nr)
+
+awk -F'\t' -v b="$BRIGHT" -v g="$GRAY" -v gr="$GREEN" -v y="$YELLOW" -v r="$RESET" -v note="$repo_note" \
+  -v w=30 -v rd="$RED" -v bg="$BG" -v window="$window" -v wlabel="$window_label" \
+  -v cap="$listing_cap" -v verbose="$verbose" \
+  "$commify$width$bar"'
+  # first file is the items, kept in print order under the row they belong to
+  FNR == NR {
+    if (NF < 4 || !verbose) next
+    item[$1 SUBSEP $2] = item[$1 SUBSEP $2] $3 "\t" $4 "\t" $5 "\t" $6 "\n"
+    w = width("  " $3)
+    next
+  }
+  { n++; sec[n] = $1; lab[n] = $2; va[n] = $3; vt[n] = $4; vd[n] = $5; vi[n] = $6
+    if ($2 != "-") w = width($2) }
+  END {
+    for (i = 1; i <= n; i++) {
+      if (sec[i] != section) {
+        if (section != "") print ""
+        section = sec[i]
+        name = (section == 1 ? "this repo" : "inherited")
+        printf "%s%-*s%s%s%9s  %10s  %10s%s%s\n", b, w + 3, name, r, g,
+          "always", "on trigger", "on read", (verbose ? "" : sprintf("  %5s", "items")), r
       }
-
-      shown = (cap && listing > cap) ? cap : listing
-      always += shown
-
-      for (i = 0; i < w + 41; i++) rule = rule "─"
-      printf "  %s%s%s\n", g, rule, r
-
-      fill = sprintf("%.0f%% of %s", pct(always), wlabel)
-
-      # Padded by cells rather than by %-38s: under LC_ALL=C a block is three
-      # bytes, so awk would count the bar as thirty columns wide
-      pad = w - 18 - length(fill); if (pad < 1) pad = 1
-      printf "  total  %s%s%s%s  %s%s%s%*s%s%9s%s  %s%10s%s  %s%10s%s  %5s\n",
-        heat(always), bg, bar(always), r, g, fill, r, pad, "",
-        b heat(always), commify(always), r, b y, commify(trigger), r,
-        b y, commify(demand), r, items + 0
-
-      if (shown < listing)
-        printf "  %s∟ %s in skill and command descriptions, capped at %s by the listing budget%s\n",
-          g, commify(listing), commify(shown), r
+      if (lab[i] == "-") { print "  " note; continue }
+      # skills and commands share one budget, everything else is resident
+      # whatever else is loaded
+      if (lab[i] ~ /(skills|commands)$/) listing += va[i]; else always += va[i]
+      trigger += vt[i]; demand += vd[i]; items += vi[i]
+      printf "  %-*s %s%9s%s  %s%10s%s  %s%10s%s%s\n", w, fit(lab[i]),
+        gr, commify(va[i]), r, y, (vt[i] ? commify(vt[i]) : "-"), r,
+        y, (vd[i] ? commify(vd[i]) : "-"), r,
+        (verbose ? "" : sprintf("  %5s", vi[i] ? vi[i] : "-"))
+      if (!verbose) continue
+      m = split(item[sec[i] SUBSEP lab[i]], it, "\n")
+      for (j = 1; j < m; j++) {
+        split(it[j], c, "\t")
+        # the connector is printed outside the padded field: under LC_ALL=C it
+        # is three bytes, and awk would pad it as three columns
+        printf "  %s%s %-*s%s %s%9s%s  %s%10s%s  %s%10s%s\n",
+          g, (j == m - 1 ? "└" : "├"), w - 2, fit(c[1], w - 2), r,
+          gr, commify(c[2]), r, y, (c[3] ? commify(c[3]) : "-"), r,
+          y, (c[4] ? commify(c[4]) : "-"), r
+      }
     }
-  '
+
+    shown = (cap && listing > cap) ? cap : listing
+    always += shown
+
+    for (i = 0; i < w + (verbose ? 34 : 41); i++) rule = rule "─"
+    printf "  %s%s%s\n", g, rule, r
+
+    fill = sprintf("%.0f%% of %s", pct(always), wlabel)
+
+    # Padded by cells rather than by %-38s: under LC_ALL=C a block is three
+    # bytes, so awk would count the bar as thirty columns wide
+    pad = w - 18 - length(fill); if (pad < 1) pad = 1
+    printf "  total  %s%s%s%s  %s%s%s%*s%s%9s%s  %s%10s%s  %s%10s%s%s\n",
+      heat(always), bg, bar(always), r, g, fill, r, pad, "",
+      b heat(always), commify(always), r, b y, commify(trigger), r,
+      b y, commify(demand), r, (verbose ? "" : sprintf("  %5s", items + 0))
+
+    if (shown < listing)
+      printf "  %s∟ %s in skill and command descriptions, capped at %s by the listing budget%s\n",
+        g, commify(listing), commify(shown), r
+  }
+' <(printf '%s\n' "$detail") \
+  <(awk -F'\t' 'NF < 6 { next }
+    { a[$1 "\t" $2] += $4; t[$1 "\t" $2] += $5; d[$1 "\t" $2] += $6; if ($3 != "-") n[$1 "\t" $2]++ }
+    END { for (k in a) printf "%s\t%d\t%d\t%d\t%d\n", k, a[k], t[k], d[k], n[k] }' <<<"$rows" |
+    sort -t$'\t' -k1,1 -k3,3nr -k4,4nr -k5,5nr)
 
 events=$(
   for entry in "${hook_files[@]}"; do
