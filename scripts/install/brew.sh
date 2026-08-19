@@ -18,6 +18,7 @@ packages=(
   'tree|Display directories as trees'
   'wget|Internet file retriever'
   'tyom/tap/ungit|Download a repo/dir/file from GitHub'
+  'tyom/tap/agent-ctx|What a coding agent loads when it opens a repo'
   # 'httpie|Command line HTTP client'
   # 'gh|GitHub command-line tool'
   # 'fx|Command-line JSON processing tool'
