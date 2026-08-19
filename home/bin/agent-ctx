@@ -445,7 +445,7 @@ rows=$(
   for entry in "${memory[@]}"; do
     path=${entry#*|}
     label=${path#"$root"/}
-    printf '%s\t%s\t-\t%d\t0\t0\t%s\n' "${entry%%|*}" "${label/#$HOME/\~}" \
+    printf '%s\t%s\t-\t%d\t0\t0\t%s\t\n' "${entry%%|*}" "${label/#$HOME/\~}" \
       "$(memory_tokens "$path")" "$path"
   done
   if ((${#files[@]})); then awk -v b="$BYTES_PER_TOKEN" -v locator="$skill_locator" \
@@ -482,6 +482,7 @@ rows=$(
           }
           key = sect[i] SUBSEP lab[i] SUBSEP cut
           loc[key] = dir[i] "/" cut
+          gdir[key] = dir[i]
           return key
         }
         is_entry = (rest ~ /\.md$/)
@@ -489,10 +490,10 @@ rows=$(
         sub(/\.md$/, "", rest)
         key = sect[i] SUBSEP lab[i] SUBSEP rest
         loc[key] = full
+        gdir[key] = dir[i]
         return key
       }
       is_entry = 0
-      loc["" SUBSEP "other" SUBSEP path] = path
       return "" SUBSEP "other" SUBSEP path
     }
     BEGIN {
@@ -523,9 +524,10 @@ rows=$(
         # the listing costs the description and the line it sits on, the entry
         # file costs whatever is left of itself
         shown = off[key] ? 0 : int(desc[key] / b)
-        printf "%s\t%s\t%s\t%d\t%d\t%d\t%s\n", p[1], p[2], p[3],
+        printf "%s\t%s\t%s\t%d\t%d\t%d\t%s\t%s\n", p[1], p[2], p[3],
           shown ? shown + int(over[key] / b) : 0,
-          int(ent[key] / b) - shown, int((bytes[key] - ent[key]) / b), loc[key]
+          int(ent[key] / b) - shown, int((bytes[key] - ent[key]) / b),
+          loc[key], gdir[key]
       }
     }
   ' "${files[@]}"; fi
@@ -568,14 +570,6 @@ bar='function bar(v,   p, full, half, i, s) {
 }
 function pct(v) { return v * 100 / window > 100 ? 100 : v * 100 / window }
 function heat(v) { return v <= 100000 ? gr : (v <= 600000 ? y : rd) }'
-
-# Every item in a group sits in the same directory, so the group says where
-# that is once rather than each item repeating it
-itemdir='function itemdir(p, item,   n) {
-  n = length(p) - length(item) - 1
-  if (substr(p, length(p) - 2) == ".md") n -= 3
-  return substr(p, 1, n)
-}'
 
 # An item path is absolute in the rows, and shortened the way a label is: from
 # the repo root when it is inside the repo, with a tilde for $HOME otherwise
@@ -714,7 +708,7 @@ if [[ -n $filter ]]; then
   # One item on its own: where it is, what it says about itself, and what the on
   # read number is made of. Not its body, the path is there to open it with
   if [[ -n $item_rows ]]; then
-    while IFS=$'\t' read -r section group name always trigger demand path; do
+    while IFS=$'\t' read -r section group name always trigger demand path _; do
       [[ -n $path ]] || continue
       where=inherited
       ((section == 1)) && where='this repo'
@@ -732,29 +726,14 @@ if [[ -n $filter ]]; then
         printf ' %s->%s %s%s%s' "$GRAY" "$RESET" "$CYAN" "$(short_path "$real")" "$RESET"
       printf '\n'
 
-      # frontmatter as the agent reads it, wrapped rather than left to the
+      # frontmatter as the agent reads it, folded rather than left to the
       # terminal, since a description runs to several hundred characters
-      [[ -f $entry ]] && awk -v g="$GRAY" -v r="$RESET" '
-        function wrap(s,   out, i) {
-          while (length(s) > 74) {
-            i = 74
-            while (i > 20 && substr(s, i, 1) != " ") i--
-            if (i <= 20) i = 74
-            out = out substr(s, 1, i - 1) "\n      "
-            s = substr(s, i + 1)
-          }
-          return out s
-        }
-        NR == 1 { if (!/^---[ \t]*$/) exit; next }
-        /^---[ \t]*$/ { exit }
-        {
-          if (!shown++) print ""
-          out = wrap($0)
-          if (match(out, /^[A-Za-z_][A-Za-z0-9_-]*:/))
-            out = g substr(out, 1, RLENGTH) r substr(out, RLENGTH + 1)
-          print "  " out
-        }
-      ' "$entry"
+      front=$(awk 'NR == 1 { if (!/^---[ \t]*$/) exit; next } /^---[ \t]*$/ { exit } 1' "$entry")
+      [[ -n $front ]] && {
+        printf '\n'
+        fold -s -w 76 <<<"$front" |
+          sed "s/ *$//; s/^/  /; s/^  \([A-Za-z_][A-Za-z0-9_-]*:\)/  $GRAY\1$RESET/"
+      }
 
       printf '\n  %s%9s  %10s  %10s%s\n' "$GRAY" "always" "on trigger" "on read" "$RESET"
       awk -v a="$always" -v t="$trigger" -v d="$demand" \
@@ -794,9 +773,9 @@ if [[ -n $filter ]]; then
   }
   awk -F'\t' -v b="$BRIGHT" -v g="$GRAY" -v gr="$GREEN" -v y="$YELLOW" -v r="$RESET" -v w=30 \
     -v home="$HOME" -v root="$root" -v repo="$repo" \
-    "$commify$width$cols$shorten$itemdir"'
-    { n++; grp[n] = $2; lab[n] = $3; va[n] = $4; vt[n] = $5; vd[n] = $6
-      dr[n] = itemdir($7, $3); w = width($3) }
+    "$commify$width$cols$shorten"'
+    { n++; grp[n] = $2; lab[n] = $3; va[n] = $4; vt[n] = $5; vd[n] = $6; dr[n] = $8
+      w = width($3) }
     END {
       for (i = 1; i <= n; i++) {
         if (grp[i] != group) {
@@ -885,9 +864,9 @@ awk -F'\t' -v b="$BRIGHT" -v g="$GRAY" -v gr="$GREEN" -v y="$YELLOW" -v r="$RESE
     capnote(listing, shown)
   }
 ' <(printf '%s\n' "$detail") \
-  <(awk -F'\t' "$itemdir"'NF < 6 { next }
+  <(awk -F'\t' 'NF < 6 { next }
     { a[$1 "\t" $2] += $4; t[$1 "\t" $2] += $5; d[$1 "\t" $2] += $6
-      if ($3 != "-") { n[$1 "\t" $2]++; dir[$1 "\t" $2] = itemdir($7, $3) } }
+      if ($3 != "-") { n[$1 "\t" $2]++; dir[$1 "\t" $2] = $8 } }
     END { for (k in a) printf "%s\t%d\t%d\t%d\t%d\t%s\n", k, a[k], t[k], d[k], n[k], dir[k] }' <<<"$rows" |
     sort -t$'\t' -k1,1 -k3,3nr -k4,4nr -k5,5nr)
 
