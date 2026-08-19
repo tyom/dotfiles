@@ -7,7 +7,7 @@
 # only append it, so awk swaps the pair to put the refs above their commit. less
 # drops colour at every line break, so that line restarts its own colours, and
 # it eats the byte after a colour code, so no colour ever precedes the marker.
-marker='┌'
+marker='┍'
 white='%x1b[37m'
 green='%x1b[32m'
 
@@ -61,7 +61,7 @@ git log --color=always --abbrev=8 --date=format:'%d %b %Y' \
     }
     END { if (hold != "") print hold }
   ' |
-  sed $'s/\033\\[32mHEAD\033\\[37m -> \033\\[32m\\([^\033]*\\)\033\\[37m/\033[30;42m \\1 \033[m\033[37m/' |
+  sed $'s/\033\\[32mHEAD\033\\[37m -> \033\\[32m\\([^\033]*\\)\033\\[37m/\033[7m \\1 \033[m\033[37m/' |
   less -RFX --lesskey-content='#command;q quit x'
 
 statuses=("${PIPESTATUS[@]}")

@@ -30,7 +30,7 @@ LIGHT_GRAY=$'\033[38;5;246m'
 GREEN=$'\033[32m'
 YELLOW=$'\033[33m'
 WHITE=$'\033[37m'
-BLOCK=$'\033[30;42m'
+BLOCK=$'\033[7m'
 
 # Biggest first, then the byte count becomes KiB or MiB as git would write it.
 # A branch holding nothing the base lacks measures 0, and says more left blank
