@@ -1,0 +1,53 @@
+#!/usr/bin/env bash
+
+# git init a directory and drop in a standard .editorconfig
+
+set -e
+
+if [[ "$1" == -h || "$1" == --help ]]; then
+  cat <<'USAGE'
+ginit - start a git repo with a standard .editorconfig
+
+Usage: ginit [dir]
+
+Runs git init on dir (default: current directory), writes .editorconfig and
+commits it. Does nothing to an .editorconfig that is already there.
+USAGE
+  exit 0
+fi
+
+dir=${1:-.}
+mkdir -p "$dir"
+git init "$dir"
+
+if [[ -e "$dir/.editorconfig" ]]; then
+  printf '.editorconfig already exists, left alone\n'
+  exit 0
+fi
+
+cat >"$dir/.editorconfig" <<'EOF'
+# http://editorconfig.org
+
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+indent_style = space
+insert_final_newline = true
+trim_trailing_whitespace = true
+indent_size = 2
+
+[*.md]
+trim_trailing_whitespace = false
+
+[*.py]
+indent_size = 4
+
+[Makefile]
+indent_style = tab
+indent_size = 2
+EOF
+
+git -C "$dir" add .editorconfig
+git -C "$dir" commit -m 'Initial commit' --quiet
