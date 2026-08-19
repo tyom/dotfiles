@@ -388,15 +388,46 @@ play. Server tool schemas ship on every request and are usually the largest
 single cost, but nothing on disk records their size, so only a live session can
 add them up.
 
-Pass part of a group name to open it up, biggest first:
+Pass part of a group name to open it up, biggest first, with the directory it
+loads from on the header. `-v` does the same for every group at once:
 
 ```text
 $ agent-ctx 'user skills'
-user skills                             always  on trigger     on read
+user skills                             always  on trigger     on read  ~/.claude/skills
   fallow                                   336      12,247      56,836
   improve                                  174       4,856       9,717
   explainer                                  0       4,361         981
 ```
+
+Pass an item's own name instead and it opens that one item: where it is on disk,
+where a symlink really points, what its frontmatter says, and the files behind
+its **on read** number. The body is not printed, the path is there to open it
+with.
+
+```text
+$ agent-ctx improve
+improve inherited · user skills
+  ~/.claude/skills/improve -> ~/.agents/skills/improve
+
+  name: improve
+  description: Survey any codebase as a senior advisor and produce
+      prioritized, self-contained implementation plans for OTHER models/agents
+      to execute. ...
+  license: MIT
+  metadata:
+    author: shadcn
+
+     always  on trigger     on read
+        174       4,856       9,717
+
+  file                              tokens
+  SKILL.md                           5,030
+  references/audit-playbook.md       4,447
+  references/plan-template.md        2,831
+```
+
+A name given in full opens the item, so a skill whose name is part of a group
+name is still reachable; anything else is matched against the groups first.
 
 The table covers what your files put in context, never what an agent writes for
 itself. Codex will render the prompt it would send, which is the one place those

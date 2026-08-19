@@ -201,6 +201,37 @@ output=$(run 'project skills')
 [[ "$(grep '^  ' <<<"$output" | head -1)" == *proj* ]] ||
   fail 'a filtered group should order items by resident weight first'
 
+# An item opened on its own: where it is, where a symlink really points, what it
+# says about itself, and the files the on read number is a ceiling over
+output=$(run two)
+grep -qE '^  ~/\.claude/plugins/cache/market/alpha/2\.0\.0/skills/two -> .*/elsewhere/two$' <<<"$output" ||
+  fail 'an opened item should give its path and follow a symlink to where it is kept'
+grep -qE '^  name: two$' <<<"$output" || fail 'an opened item should print its frontmatter'
+grep -q 'body' <<<"$output" && fail 'an opened item should not print its body'
+grep -qE '^  file +tokens$' <<<"$output" &&
+  fail 'an item that is one file should not list that file again'
+
+# one carries a references directory, which is what its on read number is made of
+output=$(run one)
+grep -qE '^  references/big\.md +[0-9,]+$' <<<"$output" ||
+  fail 'an opened item should list the files below it, heaviest first'
+grep -qE '^  SKILL\.md +[0-9,]+$' <<<"$output" ||
+  fail 'an opened item should list its own entry file'
+
+# proj is an item, and part of the project skills group name. The item wins,
+# because a group is still reachable by a longer part of its own name
+grep -q '^proj this repo · project skills$' <<<"$(run proj)" ||
+  fail 'an item named in full should open even when a group name contains it'
+grep -q '^hidden this repo · project skills$' <<<"$(run hidde)" ||
+  fail 'part of an item name should open it when it matches no group'
+(cd "$TMP/repo" && HOME="$TMP/home" "$ROOT/home/bin/agent-ctx" nonesuch) >/dev/null 2>&1 &&
+  fail 'a name that is neither a group nor an item should be rejected'
+
+# shellcheck disable=SC2088 # a literal tilde in the output, not a path to expand
+cache_dir='~/\.claude/plugins/cache/market/alpha/2\.0\.0/skills'
+grep -qE "^  plugin alpha skills +[0-9,]+ +[0-9,]+ +[0-9,]+ +$cache_dir\$" <<<"$(run -a claude -v)" ||
+  fail 'the verbose table should say which directory a group loads from'
+
 output=$(run -a codex)
 
 grep -qE '^  AGENTS\.override\.md +8 +- +- +-$' <<<"$output" ||

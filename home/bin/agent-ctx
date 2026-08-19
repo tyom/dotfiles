@@ -33,11 +33,12 @@ BG=$'\033[48;5;236m'
 
 usage() {
   cat <<'USAGE'
-usage: agent-ctx [-a claude|codex] [-w window] [-v] [--prompt] [group]
+usage: agent-ctx [-a claude|codex] [-w window] [-v] [--prompt] [name]
 
   no argument   one line per harness installed here
   -a            that harness in full: what each directory puts in context
-  group         part of a group name from that table, to list its items
+  name          part of a group name from that table, to list its items, or an
+                item's own name, to open it where it lives on disk
   -v            list the items inside every group of that table
   -w            window the always total is drawn against, default 200k
   --prompt      block by block, what codex would send from here
@@ -444,13 +445,14 @@ rows=$(
   for entry in "${memory[@]}"; do
     path=${entry#*|}
     label=${path#"$root"/}
-    printf '%s\t%s\t-\t%d\t0\t0\n' "${entry%%|*}" "${label/#$HOME/\~}" "$(memory_tokens "$path")"
+    printf '%s\t%s\t-\t%d\t0\t0\t%s\n' "${entry%%|*}" "${label/#$HOME/\~}" \
+      "$(memory_tokens "$path")" "$path"
   done
   if ((${#files[@]})); then awk -v b="$BYTES_PER_TOKEN" -v locator="$skill_locator" \
     -v targets="$(printf '%s;' "${targets[@]}")" '
     # An item is a skill directory, or a single command or agent file. Only its
     # entry file carries the description that ships on every session
-    function classify(path,   i, rest, cut, tail, disp, plug) {
+    function classify(path,   i, rest, cut, tail, disp, plug, key, full) {
       for (i = 1; i <= n; i++) {
         if (index(path, dir[i] "/") != 1) continue
         rest = substr(path, length(dir[i]) + 2)
@@ -478,13 +480,19 @@ rows=$(
             }
             over[sect[i] SUBSEP lab[i] SUBSEP cut] = length(path) + length(disp) + 14
           }
-          return sect[i] SUBSEP lab[i] SUBSEP cut
+          key = sect[i] SUBSEP lab[i] SUBSEP cut
+          loc[key] = dir[i] "/" cut
+          return key
         }
         is_entry = (rest ~ /\.md$/)
+        full = dir[i] "/" rest
         sub(/\.md$/, "", rest)
-        return sect[i] SUBSEP lab[i] SUBSEP rest
+        key = sect[i] SUBSEP lab[i] SUBSEP rest
+        loc[key] = full
+        return key
       }
       is_entry = 0
+      loc["" SUBSEP "other" SUBSEP path] = path
       return "" SUBSEP "other" SUBSEP path
     }
     BEGIN {
@@ -515,9 +523,9 @@ rows=$(
         # the listing costs the description and the line it sits on, the entry
         # file costs whatever is left of itself
         shown = off[key] ? 0 : int(desc[key] / b)
-        printf "%s\t%s\t%s\t%d\t%d\t%d\n", p[1], p[2], p[3],
+        printf "%s\t%s\t%s\t%d\t%d\t%d\t%s\n", p[1], p[2], p[3],
           shown ? shown + int(over[key] / b) : 0,
-          int(ent[key] / b) - shown, int((bytes[key] - ent[key]) / b)
+          int(ent[key] / b) - shown, int((bytes[key] - ent[key]) / b), loc[key]
       }
     }
   ' "${files[@]}"; fi
@@ -560,6 +568,31 @@ bar='function bar(v,   p, full, half, i, s) {
 }
 function pct(v) { return v * 100 / window > 100 ? 100 : v * 100 / window }
 function heat(v) { return v <= 100000 ? gr : (v <= 600000 ? y : rd) }'
+
+# Every item in a group sits in the same directory, so the group says where
+# that is once rather than each item repeating it
+itemdir='function itemdir(p, item,   n) {
+  n = length(p) - length(item) - 1
+  if (substr(p, length(p) - 2) == ".md") n -= 3
+  return substr(p, 1, n)
+}'
+
+# An item path is absolute in the rows, and shortened the way a label is: from
+# the repo root when it is inside the repo, with a tilde for $HOME otherwise
+shorten='function shorten(p) {
+  if (index(p, repo "/") == 1) return substr(p, length(repo) + 2)
+  if (index(p, root "/") == 1) return substr(p, length(root) + 2)
+  if (index(p, home "/") == 1) return "~" substr(p, length(home) + 1)
+  return p
+}'
+
+# the same rule, for the lines the shell prints rather than awk
+short_path() { # path
+  local p=$1
+  [[ $p == "$repo"/* ]] && p=${p#"$repo"/}
+  [[ $p == "$root"/* ]] && p=${p#"$root"/}
+  printf '%s\n' "${p/#$HOME/\~}"
+}
 
 commify='function commify(n,   s, out) {
   s = sprintf("%d", n); out = ""
@@ -664,23 +697,113 @@ fi
 collect "$agent"
 
 if [[ -n $filter ]]; then
-  # a filter can match several groups, so keep each one together and labelled
-  matched=$(awk -F'\t' -v f="$filter" 'index($2, f) && $3 != "-"' <<<"$rows" |
-    sort -t$'\t' -k2,2 -k4,4nr -k5,5nr)
-  if [[ -z $matched ]]; then
-    printf 'no %s group matching %s. Run agent-ctx with no argument to list them\n' "$agent" "$filter" >&2
-    exit 1
+  # An item named in full wins, so an item whose name is also part of a group
+  # name can still be opened. Otherwise a group, and failing that a part of an
+  # item name
+  item_rows=$(awk -F'\t' -v f="$filter" '$3 == f' <<<"$rows")
+  matched=
+  if [[ -z $item_rows ]]; then
+    # a filter can match several groups, so keep each one together and labelled
+    matched=$(awk -F'\t' -v f="$filter" 'index($2, f) && $3 != "-"' <<<"$rows" |
+      sort -t$'\t' -k2,2 -k4,4nr -k5,5nr)
+    [[ -n $matched ]] ||
+      item_rows=$(awk -F'\t' -v f="$filter" 'index($3, f) && $3 != "-"' <<<"$rows" |
+        sort -t$'\t' -k4,4nr -k5,5nr)
   fi
+
+  # One item on its own: where it is, what it says about itself, and what the on
+  # read number is made of. Not its body, the path is there to open it with
+  if [[ -n $item_rows ]]; then
+    while IFS=$'\t' read -r section group name always trigger demand path; do
+      [[ -n $path ]] || continue
+      where=inherited
+      ((section == 1)) && where='this repo'
+      # a skill is a directory and describes itself in the SKILL.md below it,
+      # everything else is the file itself
+      entry=$path
+      [[ -d $path ]] && entry=$path/SKILL.md
+      real=$(readlink -f "$path" 2>/dev/null) || real=$path
+
+      printf '\n%s%s%s %s%s · %s%s\n  %s%s%s' \
+        "$BRIGHT" "$name" "$RESET" "$GRAY" "$where" "$group" "$RESET" \
+        "$CYAN" "$(short_path "$path")" "$RESET"
+      # where a skill is really kept, when it is symlinked in from elsewhere
+      [[ -n $real && $real != "$path" ]] &&
+        printf ' %s->%s %s%s%s' "$GRAY" "$RESET" "$CYAN" "$(short_path "$real")" "$RESET"
+      printf '\n'
+
+      # frontmatter as the agent reads it, wrapped rather than left to the
+      # terminal, since a description runs to several hundred characters
+      [[ -f $entry ]] && awk -v g="$GRAY" -v r="$RESET" '
+        function wrap(s,   out, i) {
+          while (length(s) > 74) {
+            i = 74
+            while (i > 20 && substr(s, i, 1) != " ") i--
+            if (i <= 20) i = 74
+            out = out substr(s, 1, i - 1) "\n      "
+            s = substr(s, i + 1)
+          }
+          return out s
+        }
+        NR == 1 { if (!/^---[ \t]*$/) exit; next }
+        /^---[ \t]*$/ { exit }
+        {
+          if (!shown++) print ""
+          out = wrap($0)
+          if (match(out, /^[A-Za-z_][A-Za-z0-9_-]*:/))
+            out = g substr(out, 1, RLENGTH) r substr(out, RLENGTH + 1)
+          print "  " out
+        }
+      ' "$entry"
+
+      printf '\n  %s%9s  %10s  %10s%s\n' "$GRAY" "always" "on trigger" "on read" "$RESET"
+      awk -v a="$always" -v t="$trigger" -v d="$demand" \
+        -v gr="$GREEN" -v y="$YELLOW" -v r="$RESET" \
+        "$commify$cols"'BEGIN { print "  " cols(a, t, d) }'
+
+      # what on read is a ceiling over: the heaviest files first, the rest
+      # counted rather than listed. An item that is a single file has already
+      # had that file's number printed above
+      find -L "$path" -type f -exec wc -c {} + 2>/dev/null | sort -rn |
+        awk -v b="$BYTES_PER_TOKEN" -v base="$path" -v g="$GRAY" -v y="$YELLOW" -v r="$RESET" \
+          "$commify"'
+          {
+            name = $0
+            sub(/^[ \t]*[0-9]+[ \t]+/, "", name)
+            # wc prints a total of its own once it is given more than one file
+            if (name == "total") next
+            if (index(name, base "/") == 1) name = substr(name, length(base) + 2)
+            else sub(/^.*\//, "", name)
+            if (++n <= 6) line[n] = sprintf("  %-30s %s%9s%s", name, y, commify(int($1 / b)), r)
+          }
+          END {
+            if (n < 2) exit
+            printf "\n  %s%-30s %9s%s\n", g, "file", "tokens", r
+            for (i = 1; i <= (n > 6 ? 6 : n); i++) print line[i]
+            if (n > 6) printf "  %s+%d more%s\n", g, n - 6, r
+          }
+        '
+    done <<<"$item_rows"
+    exit 0
+  fi
+
+  [[ -n $matched ]] || {
+    printf 'no %s group or item matching %s. Run agent-ctx with no argument to list them\n' \
+      "$agent" "$filter" >&2
+    exit 1
+  }
   awk -F'\t' -v b="$BRIGHT" -v g="$GRAY" -v gr="$GREEN" -v y="$YELLOW" -v r="$RESET" -v w=30 \
-    "$commify$width$cols"'
-    { n++; grp[n] = $2; lab[n] = $3; va[n] = $4; vt[n] = $5; vd[n] = $6; w = width($3) }
+    -v home="$HOME" -v root="$root" -v repo="$repo" \
+    "$commify$width$cols$shorten$itemdir"'
+    { n++; grp[n] = $2; lab[n] = $3; va[n] = $4; vt[n] = $5; vd[n] = $6
+      dr[n] = itemdir($7, $3); w = width($3) }
     END {
       for (i = 1; i <= n; i++) {
         if (grp[i] != group) {
           if (group != "") print ""
           group = grp[i]
-          printf "%s%-*s%s%s%9s  %10s  %10s%s\n", b, w + 3, group, r, g,
-            "always", "on trigger", "on read", r
+          printf "%s%-*s%s%s%9s  %10s  %10s%s  %s%s\n", b, w + 3, group, r, g,
+            "always", "on trigger", "on read", r, g, shorten(dr[i]) r
         }
         printf "  %-*s %s\n", w, fit(lab[i]), cols(va[i], vt[i], vd[i])
       }
@@ -709,7 +832,8 @@ awk -F'\t' -v b="$BRIGHT" -v g="$GRAY" -v gr="$GREEN" -v y="$YELLOW" -v r="$RESE
   -v w=30 -v rd="$RED" -v bg="$BG" -v window="$window" -v wlabel="$window_label" \
   -v verbose="$verbose" -v always="$always" -v trigger="$trigger" -v demand="$demand" \
   -v items="$items" -v listing="$listing" -v shown="$shown" \
-  "$commify$width$bar$cols$capnote"'
+  -v home="$HOME" -v root="$root" -v repo="$repo" \
+  "$commify$width$bar$cols$capnote$shorten"'
   # first file is the items, kept in print order under the row they belong to
   FNR == NR {
     if (NF < 4 || !verbose) next
@@ -718,6 +842,7 @@ awk -F'\t' -v b="$BRIGHT" -v g="$GRAY" -v gr="$GREEN" -v y="$YELLOW" -v r="$RESE
     next
   }
   { n++; sec[n] = $1; lab[n] = $2; va[n] = $3; vt[n] = $4; vd[n] = $5; vi[n] = $6
+    dr[n] = $7
     if ($2 != "-") w = width($2) }
   END {
     for (i = 1; i <= n; i++) {
@@ -729,8 +854,9 @@ awk -F'\t' -v b="$BRIGHT" -v g="$GRAY" -v gr="$GREEN" -v y="$YELLOW" -v r="$RESE
           "always", "on trigger", "on read", (verbose ? "" : sprintf("  %5s", "items")), r
       }
       if (lab[i] == "-") { print "  " note; continue }
-      printf "  %-*s %s%s\n", w, fit(lab[i]), cols(va[i], vt[i], vd[i]),
-        (verbose ? "" : sprintf("  %5s", vi[i] ? vi[i] : "-"))
+      printf "  %-*s %s%s%s\n", w, fit(lab[i]), cols(va[i], vt[i], vd[i]),
+        (verbose ? "" : sprintf("  %5s", vi[i] ? vi[i] : "-")),
+        (verbose && dr[i] != "" ? "  " g shorten(dr[i]) r : "")
       if (!verbose) continue
       m = split(item[sec[i] SUBSEP lab[i]], it, "\n")
       for (j = 1; j < m; j++) {
@@ -759,9 +885,10 @@ awk -F'\t' -v b="$BRIGHT" -v g="$GRAY" -v gr="$GREEN" -v y="$YELLOW" -v r="$RESE
     capnote(listing, shown)
   }
 ' <(printf '%s\n' "$detail") \
-  <(awk -F'\t' 'NF < 6 { next }
-    { a[$1 "\t" $2] += $4; t[$1 "\t" $2] += $5; d[$1 "\t" $2] += $6; if ($3 != "-") n[$1 "\t" $2]++ }
-    END { for (k in a) printf "%s\t%d\t%d\t%d\t%d\n", k, a[k], t[k], d[k], n[k] }' <<<"$rows" |
+  <(awk -F'\t' "$itemdir"'NF < 6 { next }
+    { a[$1 "\t" $2] += $4; t[$1 "\t" $2] += $5; d[$1 "\t" $2] += $6
+      if ($3 != "-") { n[$1 "\t" $2]++; dir[$1 "\t" $2] = itemdir($7, $3) } }
+    END { for (k in a) printf "%s\t%d\t%d\t%d\t%d\t%s\n", k, a[k], t[k], d[k], n[k], dir[k] }' <<<"$rows" |
     sort -t$'\t' -k1,1 -k3,3nr -k4,4nr -k5,5nr)
 
 events=$(
