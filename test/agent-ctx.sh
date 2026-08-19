@@ -248,7 +248,11 @@ grep -q 'plugin delta' <<<"$output" && fail 'a codex plugin disabled in config.t
 grep -q 'plugin epsilon' <<<"$output" &&
   fail 'a codex plugin whose marketplace is no longer registered should not be counted'
 grep -qE 'mcp servers|live' <<<"$output" || fail 'a server in config.toml should be named'
-grep -q 'parked' <<<"$output" && fail 'a server disabled in config.toml should not be named'
+grep -q 'parked' <<<"$output" || fail 'a server disabled in config.toml should still be named'
+# Named but dimmed, so the colour is the whole assertion and run() has stripped it
+raw=$(cd "$TMP/repo" && HOME="$TMP/home" "$ROOT/home/bin/agent-ctx" -a codex)
+grep -q $'\033\[90mparked' <<<"$raw" || fail 'a disabled server should be dimmed, not coloured like a live one'
+grep -q $'\033\[36mlive' <<<"$raw" || fail 'a live server should keep its colour'
 grep -q 'live.env' <<<"$output" && fail 'a nested TOML table is not a server'
 
 # Without -a, a line for each harness installed and neither one's table

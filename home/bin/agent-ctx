@@ -238,13 +238,14 @@ memory_dirs() { # innermost outermost
   printf '%s\n' "${out[@]}"
 }
 
-# TOML section names under a prefix, dropping any the file switches off. Codex
-# uses these for both its servers and its plugins
-toml_sections() { # prefix file
+# TOML section names under a prefix, the ones the file leaves on or, with a
+# third argument, the ones it switches off. Codex uses these for both its
+# servers and its plugins
+toml_sections() { # prefix file [want-disabled]
   [[ -f $2 ]] || return 0
-  awk -v p="$1" '
+  awk -v p="$1" -v want="${3:-0}" '
     /^[ \t]*\[/ {
-      if (name != "" && !off) print name
+      if (name != "" && off == want) print name
       name = ""; off = 0
       if (index($0, "[" p) == 1) {
         name = substr($0, length(p) + 2)
@@ -254,7 +255,7 @@ toml_sections() { # prefix file
       next
     }
     /^[ \t]*enabled[ \t]*=[ \t]*false/ { off = 1 }
-    END { if (name != "" && !off) print name }
+    END { if (name != "" && off == want) print name }
   ' "$2"
 }
 
@@ -328,6 +329,18 @@ discover_claude() {
         '[.mcpServers, .projects[$repo].mcpServers] | add // {} | keys[]' "$f" 2>/dev/null
     done
   ) || true
+
+  # A server switched off is still configured, so it is listed and dimmed. One
+  # off in /mcp is named there as plugin:<plugin>:<server>, the plugin file that
+  # declares it names it on its own
+  disabled_servers=$(
+    for f in "${settings[@]}" "$HOME/.claude.json"; do
+      [[ -f $f ]] || continue
+      jq -r --arg repo "$repo" '[.disabledMcpServers, .disabledMcpjsonServers,
+        .projects[$repo].disabledMcpServers, .projects[$repo].disabledMcpjsonServers] |
+        add // [] | .[] | split(":")[-1]' "$f" 2>/dev/null
+    done
+  ) || true
 }
 
 discover_codex() {
@@ -369,8 +382,14 @@ discover_codex() {
     [[ -n $dir ]] && add_tree 2 "plugin $name" "${dir%/}"
   done < <(toml_sections 'plugins."' "$user/config.toml")
 
-  # A nested table such as [mcp_servers.x.env] configures a server, it is not one
-  servers=$(toml_sections 'mcp_servers.' "$user/config.toml" | grep -v '\.') || true
+  # A nested table such as [mcp_servers.x.env] configures a server, it is not one.
+  # One switched off is still configured, so it belongs in both lists, listed
+  # among the servers and dimmed
+  disabled_servers=$(toml_sections 'mcp_servers.' "$user/config.toml" 1 | grep -v '\.') || true
+  servers=$(
+    toml_sections 'mcp_servers.' "$user/config.toml" | grep -v '\.'
+    printf '%s\n' "$disabled_servers"
+  ) || true
 }
 
 # Where a harness keeps its own files, written down once so the summary and the
@@ -400,6 +419,7 @@ memory_depth=()
 hook_files=()
 extra_events=()
 servers=
+disabled_servers=
 strip_memory=0
 listing_cap=0
 skill_locator=0
@@ -885,8 +905,20 @@ fi
 
 # Tool schemas are the one eager cost nothing on disk knows: no transcript records
 # them, so only a live session can add them up
-servers=$(sort -u <<<"$servers" | tr '\n' ' ')
-if [[ -n ${servers// /} ]]; then
-  printf '\n%s%s%s %sschemas ship every session, size only in /context%s\n  %s%s%s\n' \
-    "$BRIGHT" "mcp servers" "$RESET" "$GRAY" "$RESET" "$CYAN" "${servers% }" "$RESET"
+line=
+off=0
+while read -r server; do
+  [[ -n $server ]] || continue
+  if grep -qxF "$server" <<<"$disabled_servers"; then
+    line+="$GRAY$server$RESET "
+    off=1
+  else
+    line+="$CYAN$server$RESET "
+  fi
+done < <(sort -u <<<"$servers")
+if [[ -n $line ]]; then
+  note='schemas ship every session, size only in /context'
+  ((off)) && note+=', dim is switched off'
+  printf '\n%s%s%s %s%s%s\n  %s\n' \
+    "$BRIGHT" "mcp servers" "$RESET" "$GRAY" "$note" "$RESET" "${line% }"
 fi
