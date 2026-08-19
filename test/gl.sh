@@ -46,6 +46,9 @@ remote_branch=$'\033[32morigin/topic\033[37m'
   "$output" != *"$unmerged_branch"* && "$output" == *"$remote_branch"* ]] ||
   fail 'gl branch decorations are wrong'
 
+# The refs of the newest commit head the output, so they sit above it
+[[ "${output%%$'\n'*}" == '┌ '* ]] || fail 'gl refs are not above their commit'
+
 git -C "$TMP/repo" checkout -q --detach
 output=$(cd "$TMP/repo" && PATH="$TMP/bin:/usr/bin:/bin" "$ROOT/home/bin/gl" --max-count=1)
 detached_head=$'\033[32mHEAD\033[37m'
