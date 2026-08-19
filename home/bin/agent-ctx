@@ -452,7 +452,7 @@ rows=$(
     -v targets="$(printf '%s;' "${targets[@]}")" '
     # An item is a skill directory, or a single command or agent file. Only its
     # entry file carries the description that ships on every session
-    function classify(path,   i, rest, cut, tail, disp, plug, key, full) {
+    function classify(path,   i, rest, cut, tail, disp, plug, key) {
       for (i = 1; i <= n; i++) {
         if (index(path, dir[i] "/") != 1) continue
         rest = substr(path, length(dir[i]) + 2)
@@ -486,10 +486,9 @@ rows=$(
           return key
         }
         is_entry = (rest ~ /\.md$/)
-        full = dir[i] "/" rest
         sub(/\.md$/, "", rest)
         key = sect[i] SUBSEP lab[i] SUBSEP rest
-        loc[key] = full
+        loc[key] = path
         gdir[key] = dir[i]
         return key
       }
@@ -695,7 +694,6 @@ if [[ -n $filter ]]; then
   # name can still be opened. Otherwise a group, and failing that a part of an
   # item name
   item_rows=$(awk -F'\t' -v f="$filter" '$3 == f' <<<"$rows")
-  matched=
   if [[ -z $item_rows ]]; then
     # a filter can match several groups, so keep each one together and labelled
     matched=$(awk -F'\t' -v f="$filter" 'index($2, f) && $3 != "-"' <<<"$rows" |
@@ -709,7 +707,6 @@ if [[ -n $filter ]]; then
   # read number is made of. Not its body, the path is there to open it with
   if [[ -n $item_rows ]]; then
     while IFS=$'\t' read -r section group name always trigger demand path _; do
-      [[ -n $path ]] || continue
       where=inherited
       ((section == 1)) && where='this repo'
       # a skill is a directory and describes itself in the SKILL.md below it,
@@ -722,7 +719,7 @@ if [[ -n $filter ]]; then
         "$BRIGHT" "$name" "$RESET" "$GRAY" "$where" "$group" "$RESET" \
         "$CYAN" "$(short_path "$path")" "$RESET"
       # where a skill is really kept, when it is symlinked in from elsewhere
-      [[ -n $real && $real != "$path" ]] &&
+      [[ $real != "$path" ]] &&
         printf ' %s->%s %s%s%s' "$GRAY" "$RESET" "$CYAN" "$(short_path "$real")" "$RESET"
       printf '\n'
 
