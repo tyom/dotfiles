@@ -3,9 +3,11 @@
 # Git log, one line per commit, refs on a continuation line
 # Usage: gl [git log options]
 
-# %+ emits the ref line, prefix and all, only when the commit has refs. less
+# %+ emits the ref line, prefix and all, only when the commit has refs. git can
+# only append it, so awk swaps the pair to put the refs above their commit. less
 # drops colour at every line break, so that line restarts its own colours, and
-# it eats the byte after a colour code, so no colour ever precedes ∟ or a dash.
+# it eats the byte after a colour code, so no colour ever precedes the marker.
+marker='┍'
 white='%x1b[37m'
 green='%x1b[32m'
 
@@ -16,9 +18,9 @@ merged_branches=$(git for-each-ref --merged=HEAD \
 # The date column arrives between two %x1f markers as timestamp|stamp|relative,
 # git cannot pick between them itself
 git log --color=always --abbrev=8 --date=format:'%d %b %Y' \
-  --pretty=format:"%C(yellow)%h %C(59)%x1f%ct|%cd|%cr%x1f%C(white)%an → %C(245)%s%+(decorate:prefix=       ∟ $green,pointer=$white -> $green,separator=$white%x2C $green,suffix=$white ————————————————————)%C(auto)" \
+  --pretty=format:"%C(yellow)%h %C(59)%x1f%ct|%cd|%cr%x1f%C(white)%an → %C(245)%s%+(decorate:prefix=$marker $green,pointer=$white -> $green,separator=$white%x2C $green,suffix=$white)%C(auto)" \
   "$@" |
-  awk -v now="$(date +%s)" \
+  awk -v now="$(date +%s)" -v marker="$marker" \
     -v merged="$merged_branches" -v current="$current_branch" '
     # (days + 15) / 30 is how git itself rounds months, so the two agree
     BEGIN {
@@ -26,6 +28,8 @@ git log --color=always --abbrev=8 --date=format:'%d %b %Y' \
       esc = sprintf("%c", 27)
       green = esc "[32m"
       white = esc "[37m"
+      yellow = esc "[33m"
+      bright = esc "[1m"
       branch_count = split(merged, branches, sprintf("%c", 28))
     }
     {
@@ -46,10 +50,28 @@ git log --color=always --abbrev=8 --date=format:'%d %b %Y' \
           }
         }
       }
-      print
+      # The ref line is the only one starting with the marker, and it arrives
+      # after its commit, so hold each commit until the next line decides
+      if (index($0, marker) == 1) {
+        # HEAD -> marks the current branch, so its commit takes the bright
+        # sha gb uses, bold cleared again before the columns after it
+        if (index($0, green "HEAD" white " -> ") &&
+            substr(hold, 1, length(yellow)) == yellow) {
+          rest = substr(hold, length(yellow) + 1)
+          at = index(rest, esc)
+          hold = bright substr(rest, 1, at - 1) esc "[22m" substr(rest, at)
+        }
+        print
+        if (hold != "") print hold
+        hold = ""
+        next
+      }
+      if (hold != "") print hold
+      hold = $0
     }
+    END { if (hold != "") print hold }
   ' |
-  sed $'s/\033\\[32mHEAD\033\\[37m -> \033\\[32m\\([^\033]*\\)\033\\[37m/\033[30;42m \\1 \033[m\033[37m/' |
+  sed $'s/\033\\[32mHEAD\033\\[37m -> \033\\[32m\\([^\033]*\\)\033\\[37m/\033[7m \\1 \033[m\033[37m/' |
   less -RFX --lesskey-content='#command;q quit x'
 
 statuses=("${PIPESTATUS[@]}")
