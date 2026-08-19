@@ -136,12 +136,12 @@ while IFS="$sep" read -r symref branch sha author timeago ts stamp message; do
   message_trunc=$(truncate "$message" 60)
 
   # Use %b to interpret escape sequences in format string
-  printf '%s %s %b%s%b  %b%-15s%b  %b%s%b → %b%s%b\n' \
+  printf '%s %s %b%s%b  %b%-15s%b  %b%s → %b%s%b\n' \
     "$marker" \
     "$branch_field" \
     "$sha_color" "$sha" "$RESET" \
     "$GRAY" "$timeago" "$RESET" \
-    "$WHITE" "$author_trunc" "$RESET" \
+    "$WHITE" "$author_trunc" \
     "$LIGHT_GRAY" "$message_trunc" "$RESET"
   # -F skips the pager when it all fits on one screen, -X keeps it on screen
 done <<<"$sorted_data" | by_size | less -RFX

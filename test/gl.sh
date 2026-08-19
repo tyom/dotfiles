@@ -50,8 +50,8 @@ remote_branch=$'\033[32morigin/topic\033[37m'
 marker=$(sed -n "s/^marker='\(.*\)'$/\1/p" "$ROOT/home/bin/gl")
 [[ "${output%%$'\n'*}" == "$marker "* ]] || fail 'gl refs are not above their commit'
 
-# The current branch heads the log, so its commit carries the bright sha
-[[ "$(printf '%s\n' "$output" | sed -n 2p)" == $'\033[1m'* ]] ||
+# The commit right below the current branch carries the bright sha
+[[ "$(printf '%s\n' "$output" | grep -A1 -F "$current_block" | sed -n 2p)" == $'\033[1m'* ]] ||
   fail 'gl does not brighten the current commit'
 
 git -C "$TMP/repo" checkout -q --detach
