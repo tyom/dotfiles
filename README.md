@@ -48,11 +48,11 @@ How it behaves:
 - **Node**: Volta, and Node installed through it. Bun if you tick it.
 - **[Scripts on your PATH](#scripts-on-your-path)**: `gl`, `gb`, `gw` and
   `git who` for logs, branches, worktrees and line ownership,
-  [`agent-ctx`](#agent-ctx) for what an agent loads in a repo, plus
-  `color-test` and two of my tools from Homebrew:
-  [`ungit`](https://github.com/tyom/ungit) reads a GitHub repo or subdirectory
-  as text, and [`repo-intel`](https://github.com/tyom/repo-intel) builds a
-  contributor dashboard for any git repo
+  plus `color-test` and three of my tools from Homebrew:
+  [`agent-ctx`](https://github.com/tyom/agent-ctx) shows what an agent loads in
+  a repo, [`ungit`](https://github.com/tyom/ungit) reads a GitHub repo or
+  subdirectory as text, and [`repo-intel`](https://github.com/tyom/repo-intel)
+  builds a contributor dashboard for any git repo
 - **Claude Code plugin**: one `Stop` hook that lints, type checks, formats and
   tests what the agent edited before it stops. Codex runs the same file
 
@@ -287,9 +287,8 @@ Git configuration is handled separately (not symlinked):
 
 ## Scripts on your PATH
 
-Five scripts, installed with the rest of `home/`. The first four are about the
-repository you are in, the last about the agent reading it. `git who`, `gb`,
-`gw` and `agent-ctx` explain themselves with `-h`.
+Four scripts, installed with the rest of `home/`, all about the repository you
+are in. `git who`, `gb` and `gw` explain themselves with `-h`.
 
 ### `git who`
 
@@ -331,145 +330,6 @@ Worktrees mapped to their branches, newest first. `gw switch <branch|sha>`
 changes to one, by branch name or by sha prefix, which is how a detached
 worktree is reached. `gw prune` removes the worktrees whose branches are
 merged, asking first and treating locked ones separately.
-
-### `agent-ctx`
-
-What a coding agent loads when it opens a repo, and where that comes from. Run
-it in any directory:
-
-```text
-this repo                              always  on trigger     on read  items
-  nothing: no CLAUDE.md, .claude/ or .mcp.json
-
-inherited                              always  on trigger     on read  items
-  plugin vercel skills                  2,725     126,199     296,152     30
-  user skills                           1,999      68,901   1,100,203     34
-  plugin figma skills                   1,974      65,292     440,308     12
-  ~/.codex/AGENTS.md                      973           -           -      -
-  ...
-  ──────────────────────────────────────────────────────────────────────────
-  total  ▌           2% of 200k         4,334     392,922   1,932,435    141
-  ∟ 9,802 in skill and command descriptions, capped at 2,000 by the listing budget
-```
-
-Three columns, because a skill costs its context in three stages. **always** is
-what is resident before you type: memory files, and the `description` of every
-skill, command and agent. A memory file counts for what survives its load, which
-under Claude means without its frontmatter or any HTML comment standing on its
-own, and under Codex means every byte. A skill the model cannot invoke is left
-out, because its description never reaches the listing. **on trigger** is the
-rest of that entry file, what one skill costs when it actually fires. **on read**
-is everything below it, the references the agent only pays for if it opens them.
-All three are estimates at three bytes a token.
-
-The gap between the last two is the point: most trees are mostly **on read**, so
-a large group is far cheaper in practice than one number would suggest.
-
-Skills and commands share one budget, and it is small: Claude reserves one
-percent of the window for the whole listing and shortens descriptions once they
-run over. The line under the total says how much of the listing survives that,
-which is why 141 items adding up to 9,802 tokens of description cost 2,000 on a
-200k model. Codex enforces a budget of its own but does not publish its size, so
-its listing is shown in full.
-
-Three bytes a token, not the four usually quoted: description prose is denser
-than that. Measured against `/context` over seventeen skills whose descriptions
-ship whole, 5,420 bytes for 1,790 real tokens. Individual rows land within a few
-percent — `fallow` reads 336 against a real 340.
-
-The totals row draws **always** as the [status line](#status-line) does, ten
-cells over the window and the same colours by absolute count, so the two read
-the same way. `-w` sets the window, `200k` by default: `-w 1m` for a long
-context model, or any token count. Only **always** gets a bar, because the other
-two are ceilings nobody reaches.
-
-Below the table it names the hooks that fire per event and the MCP servers in
-play. Server tool schemas ship on every request and are usually the largest
-single cost, but nothing on disk records their size, so only a live session can
-add them up.
-
-Pass part of a group name to open it up, biggest first, with the directory it
-loads from on the header. `-v` does the same for every group at once:
-
-```text
-$ agent-ctx 'user skills'
-user skills                             always  on trigger     on read  ~/.claude/skills
-  fallow                                   336      12,247      56,836
-  improve                                  174       4,856       9,717
-  explainer                                  0       4,361         981
-```
-
-Pass an item's own name instead and it opens that one item: where it is on disk,
-where a symlink really points, what its frontmatter says, and the files behind
-its **on read** number. The body is not printed, the path is there to open it
-with.
-
-```text
-$ agent-ctx improve
-improve inherited · user skills
-  ~/.claude/skills/improve -> ~/.agents/skills/improve
-
-  name: improve
-  description: Survey any codebase as a senior advisor and produce
-      prioritized, self-contained implementation plans for OTHER models/agents
-      to execute. ...
-  license: MIT
-  metadata:
-    author: shadcn
-
-     always  on trigger     on read
-        174       4,856       9,717
-
-  file                              tokens
-  SKILL.md                           5,030
-  references/audit-playbook.md       4,447
-  references/plan-template.md        2,831
-```
-
-A name given in full opens the item, so a skill whose name is part of a group
-name is still reachable; anything else is matched against the groups first.
-
-The table covers what your files put in context, never what an agent writes for
-itself. Codex will render the prompt it would send, which is the one place those
-blocks can be counted, so `--prompt` asks it:
-
-```text
-$ agent-ctx --prompt
-block                                       chars      tokens
-  skills_instructions                       14,636       4,878
-  permissions instructions                   6,101       2,033
-  AGENTS.md instructions                     2,970         990
-  You are `/root`, the primary agent i       2,264         754
-  recommended_plugins                        1,896         632
-  ...
-  ────────────────────────────────────────────────────────────
-  total                                     30,640      10,213
-```
-
-Two of those come from disk and match the table: the skills block against the
-skill descriptions plus the `(file: …)` line under each, and `AGENTS.md`
-instructions against the memory row. The rest is Codex describing itself, and
-about half of that grows with the plugins you install. Claude Code has no
-equivalent outside a session, where `/context` breaks down the same thing.
-
-`-a` picks the agent, Claude Code by default:
-
-- `-a claude` reads `~/.claude` and the repo's `.claude` and `.mcp.json`, with
-  plugins from `installed_plugins.json` minus the ones turned off in
-  `settings.json`. `CLAUDE.md`, `CLAUDE.local.md` and `AGENTS.md` are found in
-  every directory from the cwd up to just below `/`, and one above the repo
-  counts as inherited, because it loads in every project under it
-- `-a codex` reads `$CODEX_HOME` or `~/.codex` and the repo's `.codex`, with
-  servers and plugins from `config.toml` minus anything marked `enabled = false`.
-  Codex reads an `AGENTS.md` from the repo root down to the directory it started
-  in, so every one of those counts, and `AGENTS.override.md` takes the place of
-  `AGENTS.md` in its own directory. Its listing names the file each skill came
-  from, so that line is counted with the description; a plugin whose marketplace
-  is no longer registered is not counted at all, because Codex does not load it
-
-Symlinked skills are followed, so a skill kept in another repo counts where it
-is used. Nothing is started and nothing is written. Requires `jq`, which the
-Homebrew step installs.
 
 ## Development
 
