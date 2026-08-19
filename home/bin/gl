@@ -28,6 +28,8 @@ git log --color=always --abbrev=8 --date=format:'%d %b %Y' \
       esc = sprintf("%c", 27)
       green = esc "[32m"
       white = esc "[37m"
+      yellow = esc "[33m"
+      bright = esc "[1m"
       branch_count = split(merged, branches, sprintf("%c", 28))
     }
     {
@@ -51,6 +53,14 @@ git log --color=always --abbrev=8 --date=format:'%d %b %Y' \
       # The ref line is the only one starting with the marker, and it arrives
       # after its commit, so hold each commit until the next line decides
       if (index($0, marker) == 1) {
+        # HEAD -> marks the current branch, so its commit takes the bright
+        # sha gb uses, bold cleared again before the columns after it
+        if (index($0, green "HEAD" white " -> ") &&
+            substr(hold, 1, length(yellow)) == yellow) {
+          rest = substr(hold, length(yellow) + 1)
+          at = index(rest, esc)
+          hold = bright substr(rest, 1, at - 1) esc "[22m" substr(rest, at)
+        }
         print
         if (hold != "") print hold
         hold = ""

@@ -50,6 +50,10 @@ remote_branch=$'\033[32morigin/topic\033[37m'
 marker=$(sed -n "s/^marker='\(.*\)'$/\1/p" "$ROOT/home/bin/gl")
 [[ "${output%%$'\n'*}" == "$marker "* ]] || fail 'gl refs are not above their commit'
 
+# The current branch heads the log, so its commit carries the bright sha
+[[ "$(printf '%s\n' "$output" | sed -n 2p)" == $'\033[1m'* ]] ||
+  fail 'gl does not brighten the current commit'
+
 git -C "$TMP/repo" checkout -q --detach
 output=$(cd "$TMP/repo" && PATH="$TMP/bin:/usr/bin:/bin" "$ROOT/home/bin/gl" --max-count=1)
 detached_head=$'\033[32mHEAD\033[37m'
