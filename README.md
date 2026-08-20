@@ -47,9 +47,10 @@ How it behaves:
   [scripts/install/brew.sh](./scripts/install/brew.sh)
 - **Node**: Volta, and Node installed through it. Bun if you tick it.
 - **[Scripts on your PATH](#scripts-on-your-path)**: `gl`, `gb` and `gw` for
-  logs, branches and worktrees, plus `color-test` and four of my tools from
-  Homebrew: [`git owns`](https://github.com/tyom/git-owns) says who owns which
-  part of a tree, [`agent-ctx`](https://github.com/tyom/agent-ctx) shows what an
+  logs, branches and worktrees, `ginit` to start a repo, plus `color-test` and
+  four of my tools from Homebrew:
+  [`git owns`](https://github.com/tyom/git-owns) says who owns which part of a
+  tree, [`agent-ctx`](https://github.com/tyom/agent-ctx) shows what an
   agent loads in a repo, [`ungit`](https://github.com/tyom/ungit) reads a GitHub
   repo or subdirectory as text, and
   [`repo-intel`](https://github.com/tyom/repo-intel) builds a contributor
@@ -200,7 +201,30 @@ its own. Run `/context` in a Claude session to confirm both files loaded.
 
 ### Homebrew Packages (optional)
 
-See [scripts/install/brew.sh](./scripts/install/brew.sh) for the full list.
+| Package                                          | What it is                                         |
+| ------------------------------------------------ | -------------------------------------------------- |
+| [bat](https://github.com/sharkdp/bat)            | `cat` with syntax highlighting and git integration |
+| [fzf](https://github.com/junegunn/fzf)           | Fuzzy finder for files, history and the rest       |
+| [git-delta](https://github.com/dandavison/delta) | Syntax highlighter for git and diff output         |
+| [herdr](https://herdr.dev/)                      | Several coding agents in one terminal              |
+| [jq](https://jqlang.org/)                        | JSON on the command line, used by the status line  |
+| [scmpuff](https://github.com/mroth/scmpuff)      | Numbered shortcuts for common git commands         |
+| [tree](https://formulae.brew.sh/formula/tree)    | Directories as trees                               |
+| [wget](https://www.gnu.org/software/wget/)       | Internet file retriever                            |
+
+Mine, from [tyom/tap](https://github.com/tyom/homebrew-tap):
+
+| Package                                          | What it is                                           |
+| ------------------------------------------------ | ---------------------------------------------------- |
+| [ungit](https://github.com/tyom/ungit)           | Reads a GitHub repo, directory or file as text       |
+| [agent-ctx](https://github.com/tyom/agent-ctx)   | Shows what a coding agent loads when it opens a repo |
+| [git-owns](https://github.com/tyom/git-owns)     | Who owns which part of a tree                        |
+| [repo-intel](https://github.com/tyom/repo-intel) | Contributor dashboard for any git repo               |
+| [kcm](https://github.com/tyom/kcm)               | Keychain-based secrets manager (macOS only)          |
+
+macOS also gets `coreutils` and `findutils`, the GNU versions of tools BSD ships
+a different flavour of. [scripts/install/brew.sh](./scripts/install/brew.sh) is
+the source of truth, and has a few more commented out.
 
 ### Shell
 
@@ -288,9 +312,9 @@ Git configuration is handled separately (not symlinked):
 
 ## Scripts on your PATH
 
-Three scripts, installed with the rest of `home/`, all about the repository you
-are in. `gb` and `gw` explain themselves with `-h`. On a repo with more than
-three recent contributors, `gl` and `gb` give each author their own
+Four scripts, installed with the rest of `home/`, all about the repository you
+are in. `gb`, `gw` and `ginit` explain themselves with `-h`. On a repo with
+more than three recent contributors, `gl` and `gb` give each author their own
 colour, the same one in both, so the author column groups at a glance. The
 colour a name has been given is kept in `.git/author-colors`, so it does not
 move when a new author turns up or when someone has a busy week. There are two
@@ -316,89 +340,15 @@ changes to one, by branch name or by sha prefix, which is how a detached
 worktree is reached. `gw prune` removes the worktrees whose branches are
 merged, asking first and treating locked ones separately.
 
+### `ginit`
+
+`git init` on a directory (default: the current one), then writes a standard
+`.editorconfig` and commits it. An `.editorconfig` already there is left alone.
+
 ## Development
 
-Run the fast tests, or install into a container instead of your machine:
-
-```bash
-# Fast installer, shell, PATH-script and Stop-hook tests
-make check
-
-# Run setup and validation
-make docker-test
-
-# Interactive shell (persistent state)
-make docker-shell
-
-# Run setup and drop into shell
-make docker-setup
-
-# Clean up persistent containers
-make docker-clean
-```
-
-### Minimal Setup (No Homebrew/Bun)
-
-Add `VARIANT=minimal` to install without Homebrew or Bun:
-
-```bash
-# Run minimal setup and validation
-make docker-test VARIANT=minimal
-
-# Interactive shell with minimal setup (persistent state)
-make docker-shell VARIANT=minimal
-
-# Run minimal setup and drop into shell
-make docker-setup VARIANT=minimal
-```
-
-That variant builds on `ubuntu:24.04` rather than `homebrew/brew`, so it covers
-the paths taken when `brew` and `bun` are missing. CI runs both.
-
-### Testing Remote Install
-
-```bash
-# Test local changes via HTTP server (before deployment)
-make docker-test-remote-local
-
-# Smoke test the deployed URL (after merge to master)
-make docker-test-remote
-```
-
-### Repinning Bootstrap Dependencies
-
-`scripts/versions.sh` records the reviewed Bun and Volta releases, the Oh My Zsh
-commit, and the Homebrew installer commit, with SHA-256 checksums for downloaded
-scripts. Refresh all of them explicitly:
-
-```bash
-make repin
-git diff -- scripts/versions.sh
-make check
-```
-
-Review the diff before committing it. Installation never changes these pins.
-
-## Makefile Commands
-
-Run `make` to see all available commands:
-
-| Command                         | Description                               |
-| ------------------------------- | ----------------------------------------- |
-| `make install`                  | Install dotfiles on local machine         |
-| `make uninstall`                | Remove dotfiles symlinks                  |
-| `make check`                    | Run the fast local tests                  |
-| `make repin`                    | Refresh bootstrap versions and checksums  |
-| `make brew`                     | Install Homebrew packages                 |
-| `make docker-build`             | Build Docker test image                   |
-| `make docker-test`              | Run setup and validation in Docker        |
-| `make docker-setup`             | Run setup and drop into shell             |
-| `make docker-shell`             | Start persistent shell in Docker          |
-| `make docker-clean`             | Remove persistent Docker containers       |
-| `make docker-test-remote`       | Smoke test remote install (deployed URL)  |
-| `make docker-test-remote-local` | Test remote install via local HTTP server |
-
-Docker commands support `VARIANT=minimal` for testing without Homebrew/Bun (e.g., `make docker-test VARIANT=minimal`).
+Tests, Docker installs, `make` targets and repinning the bootstrap versions
+are in [DEVELOPMENT.md](./DEVELOPMENT.md).
 
 ## Claude Code
 
