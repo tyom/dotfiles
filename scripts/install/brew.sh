@@ -19,6 +19,7 @@ packages=(
   'wget|Internet file retriever'
   'tyom/tap/ungit|Download a repo/dir/file from GitHub'
   'tyom/tap/agent-ctx|What a coding agent loads when it opens a repo'
+  'tyom/tap/git-owns|Line ownership per directory, top contributors first'
   # 'httpie|Command line HTTP client'
   # 'gh|GitHub command-line tool'
   # 'fx|Command-line JSON processing tool'

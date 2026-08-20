@@ -21,8 +21,6 @@
   show-stat = show --name-only
   push = push -u
   loc = ! git ls-files | grep -Ev 'ios/Pods|.jpg|.png|.lock|.jar|.bat|.otf|.woff' | xargs wc -l
-  # who: no alias, `git who` picks up bin/git-who from PATH. lc below is the
-  # commit-count shortlog the alias used to be
 
   # Stash
 #  st = stash

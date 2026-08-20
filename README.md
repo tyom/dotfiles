@@ -34,7 +34,7 @@ How it behaves:
 
 - **Shell**: Zsh and Oh My Zsh, with a prompt that shows git status, the Node
   version in use, and the active conda environment
-- **Git**: short aliases (`git c`, `git co`, `git unstage`, `git who`), a global
+- **Git**: short aliases (`git c`, `git co`, `git unstage`), a global
   ignore file, and a config you include rather than replace
 - **Terminal**: Ghostty set to a translucent black window, tabs in the titlebar,
   no traffic lights, and 16pt thickened text
@@ -46,13 +46,14 @@ How it behaves:
   several coding agents in one terminal, and the rest of
   [scripts/install/brew.sh](./scripts/install/brew.sh)
 - **Node**: Volta, and Node installed through it. Bun if you tick it.
-- **[Scripts on your PATH](#scripts-on-your-path)**: `gl`, `gb`, `gw` and
-  `git who` for logs, branches, worktrees and line ownership,
-  plus `color-test` and three of my tools from Homebrew:
-  [`agent-ctx`](https://github.com/tyom/agent-ctx) shows what an agent loads in
-  a repo, [`ungit`](https://github.com/tyom/ungit) reads a GitHub repo or
-  subdirectory as text, and [`repo-intel`](https://github.com/tyom/repo-intel)
-  builds a contributor dashboard for any git repo
+- **[Scripts on your PATH](#scripts-on-your-path)**: `gl`, `gb` and `gw` for
+  logs, branches and worktrees, plus `color-test` and four of my tools from
+  Homebrew: [`git owns`](https://github.com/tyom/git-owns) says who owns which
+  part of a tree, [`agent-ctx`](https://github.com/tyom/agent-ctx) shows what an
+  agent loads in a repo, [`ungit`](https://github.com/tyom/ungit) reads a GitHub
+  repo or subdirectory as text, and
+  [`repo-intel`](https://github.com/tyom/repo-intel) builds a contributor
+  dashboard for any git repo
 - **Claude Code plugin**: one `Stop` hook that lints, type checks, formats and
   tests what the agent edited before it stops. Codex runs the same file
 
@@ -287,34 +288,13 @@ Git configuration is handled separately (not symlinked):
 
 ## Scripts on your PATH
 
-Four scripts, installed with the rest of `home/`, all about the repository you
-are in. `git who`, `gb` and `gw` explain themselves with `-h`. On a repo with
-more than three recent contributors, `gl` and `gb` give each author their own
+Three scripts, installed with the rest of `home/`, all about the repository you
+are in. `gb` and `gw` explain themselves with `-h`. On a repo with more than
+three recent contributors, `gl` and `gb` give each author their own
 colour, the same one in both, so the author column groups at a glance. The
 colour a name has been given is kept in `.git/author-colors`, so it does not
 move when a new author turns up or when someone has a busy week. There are two
 dozen, and on a crowded repo the rest of the names stay plain.
-
-### `git who`
-
-Who owns which part of the tree. Runs `git blame` over every tracked text file
-at HEAD, ignoring whitespace-only changes, so the shares say who wrote the code
-that is there now rather than who committed most.
-
-- default: a tree, each directory with its top authors
-- `-t, --top [n]`: the other way round, top authors first and where their lines
-  sit
-- `-i, --is [name]`: a page about a person instead of a table, with their
-  addresses, lines, commits and how many of those were merges, the span they
-  worked over with a bar of their activity month by month, and where their lines
-  sit. With no name it reports the biggest contributors instead: as many as `-t`
-  asks for, or ten if `-t` is absent. With `gh` installed and logged in to a
-  GitHub remote it adds their profile, pull requests and reviews
-- `-d, --depth n` sets the depth, `-v` writes names out in full, and a path
-  roots the tree somewhere else
-
-Counts are cached in `.git/git-who.cache`, so a second run only blames what
-changed. `-c` starts the cache over.
 
 ### `gl`
 
