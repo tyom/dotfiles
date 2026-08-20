@@ -33,6 +33,7 @@ test-scripts: test-links test-brew ## Check installers and shell tools against t
 	./test/zsh.sh
 	./test/gw.sh
 	./test/gl.sh
+	./test/author-colors.sh
 	./test/repin.sh
 
 test-plugin: ## Check the Stop hook

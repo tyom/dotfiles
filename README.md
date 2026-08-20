@@ -288,7 +288,12 @@ Git configuration is handled separately (not symlinked):
 ## Scripts on your PATH
 
 Four scripts, installed with the rest of `home/`, all about the repository you
-are in. `git who`, `gb` and `gw` explain themselves with `-h`.
+are in. `git who`, `gb` and `gw` explain themselves with `-h`. On a repo with
+more than three recent contributors, `gl` and `gb` give each author their own
+colour, the same one in both, so the author column groups at a glance. The
+colour a name has been given is kept in `.git/author-colors`, so it does not
+move when a new author turns up or when someone has a busy week. There are two
+dozen, and on a crowded repo the rest of the names stay plain.
 
 ### `git who`
 
