@@ -50,8 +50,10 @@ How it behaves:
   logs, branches and worktrees, `ginit` to start a repo, plus `color-test` and
   four of my tools from Homebrew:
   [`git owns`](https://github.com/tyom/git-owns) says who owns which part of a
-  tree, [`agent-ctx`](https://github.com/tyom/agent-ctx) shows what an
-  agent loads in a repo, [`ungit`](https://github.com/tyom/ungit) reads a GitHub
+  tree, and `git owns --code` says it again without the lockfiles and other
+  generated files, which is usually the answer you wanted,
+  [`agent-ctx`](https://github.com/tyom/agent-ctx) shows what an agent loads in
+  a repo, [`ungit`](https://github.com/tyom/ungit) reads a GitHub
   repo or subdirectory as text, and
   [`repo-intel`](https://github.com/tyom/repo-intel) builds a contributor
   dashboard for any git repo
