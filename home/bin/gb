@@ -18,7 +18,10 @@ Options:
   -h  show this help and exit
 
 The current branch is shown as a block, a tick marks the branches already
-merged into HEAD.
+merged into HEAD. On a repo with more than three recent contributors each
+author gets their own colour, the same one gl gives them and the same one
+tomorrow: the assignment is kept in .git. Two dozen colours, so on a crowded
+repo the rest of the names stay plain.
 USAGE
 }
 
@@ -31,6 +34,60 @@ GREEN=$'\033[32m'
 YELLOW=$'\033[33m'
 WHITE=$'\033[37m'
 BLOCK=$'\033[7m'
+
+# Author colours, kept: the colour a name has been given stays with it, so the
+# one you have learned does not move when a new author turns up or when someone
+# has a busy week. .git/author-colors holds the assignment and both gb and gl
+# read it and top it up, which is what makes the two agree. The palette skips
+# commit yellow and branch green, so a name never reads as a sha or a branch,
+# and its twenty four are picked for distance in CIELAB
+AUTHOR_COLORS=(208 165 215 99 196 45 197 31 198 75 209 69 180 171 167 134 217 199 110 213 104 211 183 169)
+AUTHOR_MIN=3       # at or below this the column reads fine in one colour
+AUTHOR_SAMPLE=1000 # commits to take the names from
+
+# Prints "name<TAB>colour" a line for the names that hold a colour. Latest
+# first, so where there are more people than colours the names at the top of
+# the log are served first, and a colour only ever comes back from a name the
+# sample no longer holds
+author_colors() {
+  local common store sample name changed='' i held=()
+
+  common=$(git rev-parse --git-common-dir 2>/dev/null) || return 0
+  store=$common/author-colors
+  sample=$(git log -n "$AUTHOR_SAMPLE" --format='%an' 2>/dev/null | awk '!seen[$0]++')
+  (($(printf '%s\n' "$sample" | grep -c .) > AUTHOR_MIN)) || return 0
+
+  if [[ -r "$store" ]]; then
+    while IFS=$'\t' read -r i name; do
+      [[ "$i" =~ ^[0-9]+$ && -n "$name" ]] && held[i]=$name
+    done <"$store"
+  fi
+
+  while IFS= read -r name; do
+    [[ -n "$name" ]] || continue
+    for i in "${!AUTHOR_COLORS[@]}"; do
+      [[ "${held[i]}" == "$name" ]] && continue 2
+    done
+    for i in "${!AUTHOR_COLORS[@]}"; do
+      [[ -n "${held[i]}" && $'\n'"$sample"$'\n' == *$'\n'"${held[i]}"$'\n'* ]] && continue
+      held[i]=$name
+      changed=1
+      continue 2
+    done
+  done <<<"$sample"
+
+  # A repo that cannot be written to still gets its colours, just not kept ones
+  if [[ -n "$changed" && -w "$common" ]]; then
+    for i in "${!AUTHOR_COLORS[@]}"; do
+      [[ -n "${held[i]}" ]] && printf '%s\t%s\n' "$i" "${held[i]}"
+    done >"$store"
+  fi
+
+  for i in "${!AUTHOR_COLORS[@]}"; do
+    [[ -n "${held[i]}" ]] && printf '%s\t%s\n' "${held[i]}" "${AUTHOR_COLORS[i]}"
+  done
+  return 0
+}
 
 # Biggest first, then the byte count becomes KiB or MiB as git would write it.
 # A branch holding nothing the base lacks measures 0, and says more left blank
@@ -59,6 +116,16 @@ while getopts :rsh opt; do
     *) echo "gb: unknown option -$OPTARG" >&2 && usage >&2 && exit 2 ;;
   esac
 done
+
+# -s prints no names, so it does none of this
+author_names=()
+author_codes=()
+if [[ -z "$sizes" ]]; then
+  while IFS=$'\t' read -r name code; do
+    author_names+=("$name")
+    author_codes+=("$code")
+  done < <(author_colors)
+fi
 
 # What a branch is measured against: what origin calls default, else this branch
 if [[ -n "$sizes" ]]; then
@@ -133,6 +200,15 @@ while IFS="$sep" read -r symref branch sha author timeago ts stamp message; do
 
   # Truncate fields. timeago needs none, %-15s already pads its longest form
   author_trunc=$(truncate "$author" 20)
+  # The whole name, not the truncated one, so gl agrees on the colour. A name
+  # without one, because the repo is small or the colours are all spoken for,
+  # stays the plain white it always was
+  author_col="$WHITE"
+  for i in "${!author_names[@]}"; do
+    [[ "$author" == "${author_names[i]}" ]] || continue
+    author_col=$'\033[38;5;'${author_codes[i]}m
+    break
+  done
   message_trunc=$(truncate "$message" 60)
 
   # Use %b to interpret escape sequences in format string
@@ -141,7 +217,7 @@ while IFS="$sep" read -r symref branch sha author timeago ts stamp message; do
     "$branch_field" \
     "$sha_color" "$sha" "$RESET" \
     "$GRAY" "$timeago" "$RESET" \
-    "$WHITE" "$author_trunc" \
+    "$author_col" "$author_trunc" \
     "$LIGHT_GRAY" "$message_trunc" "$RESET"
   # -F skips the pager when it all fits on one screen, -X keeps it on screen
 done <<<"$sorted_data" | by_size |

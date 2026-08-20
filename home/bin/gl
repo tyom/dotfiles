@@ -11,16 +11,73 @@ marker='┍'
 white='%x1b[37m'
 green='%x1b[32m'
 
+# Author colours, kept: the colour a name has been given stays with it, so the
+# one you have learned does not move when a new author turns up or when someone
+# has a busy week. .git/author-colors holds the assignment and both gb and gl
+# read it and top it up, which is what makes the two agree. The palette skips
+# commit yellow and branch green, so a name never reads as a sha or a branch,
+# and its twenty four are picked for distance in CIELAB
+AUTHOR_COLORS=(208 165 215 99 196 45 197 31 198 75 209 69 180 171 167 134 217 199 110 213 104 211 183 169)
+AUTHOR_MIN=3       # at or below this the column reads fine in one colour
+AUTHOR_SAMPLE=1000 # commits to take the names from
+
+# Prints "name<TAB>colour" a line for the names that hold a colour. Latest
+# first, so where there are more people than colours the names at the top of
+# the log are served first, and a colour only ever comes back from a name the
+# sample no longer holds
+author_colors() {
+  local common store sample name changed='' i held=()
+
+  common=$(git rev-parse --git-common-dir 2>/dev/null) || return 0
+  store=$common/author-colors
+  sample=$(git log -n "$AUTHOR_SAMPLE" --format='%an' 2>/dev/null | awk '!seen[$0]++')
+  (($(printf '%s\n' "$sample" | grep -c .) > AUTHOR_MIN)) || return 0
+
+  if [[ -r "$store" ]]; then
+    while IFS=$'\t' read -r i name; do
+      [[ "$i" =~ ^[0-9]+$ && -n "$name" ]] && held[i]=$name
+    done <"$store"
+  fi
+
+  while IFS= read -r name; do
+    [[ -n "$name" ]] || continue
+    for i in "${!AUTHOR_COLORS[@]}"; do
+      [[ "${held[i]}" == "$name" ]] && continue 2
+    done
+    for i in "${!AUTHOR_COLORS[@]}"; do
+      [[ -n "${held[i]}" && $'\n'"$sample"$'\n' == *$'\n'"${held[i]}"$'\n'* ]] && continue
+      held[i]=$name
+      changed=1
+      continue 2
+    done
+  done <<<"$sample"
+
+  # A repo that cannot be written to still gets its colours, just not kept ones
+  if [[ -n "$changed" && -w "$common" ]]; then
+    for i in "${!AUTHOR_COLORS[@]}"; do
+      [[ -n "${held[i]}" ]] && printf '%s\t%s\n' "$i" "${held[i]}"
+    done >"$store"
+  fi
+
+  for i in "${!AUTHOR_COLORS[@]}"; do
+    [[ -n "${held[i]}" ]] && printf '%s\t%s\n' "${held[i]}" "${AUTHOR_COLORS[i]}"
+  done
+  return 0
+}
+
+authors=$(author_colors)
+
 current_branch=$(git symbolic-ref -q --short HEAD 2>/dev/null)
 merged_branches=$(git for-each-ref --merged=HEAD \
   --format='%(refname:short)' refs/heads 2>/dev/null | tr '\n' '\034')
 
-# The date column arrives between two %x1f markers as timestamp|stamp|relative,
-# git cannot pick between them itself
+# The date and the author arrive between two %x1f markers, split on %x1e: git
+# can pick neither the date to show nor a colour per author name itself
 git log --color=always --abbrev=8 --date=format:'%d %b %Y' \
-  --pretty=format:"%C(yellow)%h %C(59)%x1f%ct|%cd|%cr%x1f%C(white)%an → %C(245)%s%+(decorate:prefix=$marker $green,pointer=$white -> $green,separator=$white%x2C $green,suffix=$white)%C(auto)" \
+  --pretty=format:"%C(yellow)%h %C(59)%x1f%ct%x1e%cd%x1e%cr%x1e%an%x1f → %C(245)%s%+(decorate:prefix=$marker $green,pointer=$white -> $green,separator=$white%x2C $green,suffix=$white)%C(auto)" \
   "$@" |
-  awk -v now="$(date +%s)" -v marker="$marker" \
+  gl_authors="${authors//$'\n'/$'\034'}" \
+    awk -v now="$(date +%s)" -v marker="$marker" \
     -v merged="$merged_branches" -v current="$current_branch" '
     # (days + 15) / 30 is how git itself rounds months, so the two agree
     BEGIN {
@@ -31,15 +88,30 @@ git log --color=always --abbrev=8 --date=format:'%d %b %Y' \
       yellow = esc "[33m"
       bright = esc "[1m"
       branch_count = split(merged, branches, sprintf("%c", 28))
+      fsep = sprintf("%c", 30)
+      # Name and colour a line, as git-author-colors prints them. A name it
+      # gives none, because the repo is small or the colours are all spoken
+      # for, has no entry here and stays plain white.
+      # ENVIRON, not -v: awk reads an escape sequence out of a -v value, and a
+      # backslash in a name would stop it matching the one gb colours
+      count = split(ENVIRON["gl_authors"], lines, sprintf("%c", 28))
+      for (i = 1; i <= count; i++) {
+        t = index(lines[i], "\t")
+        if (t)
+          author_color[substr(lines[i], 1, t - 1)] = \
+            esc "[38;5;" substr(lines[i], t + 1) "m"
+      }
     }
     {
       a = index($0, sep)
       if (a) {
         b = index(substr($0, a + 1), sep) + a
-        split(substr($0, a + 1, b - a - 1), f, "|")
+        split(substr($0, a + 1, b - a - 1), f, fsep)
         days = int((now - f[1]) / 86400)
         when = days > 730 ? f[2] : (days >= 30 ? int((days + 15) / 30) " months ago" : f[3])
-        $0 = substr($0, 1, a - 1) sprintf("%-15s", when) substr($0, b + 1)
+        color = author_color[f[4]]
+        $0 = substr($0, 1, a - 1) sprintf("%-15s", when) white \
+          (color == "" ? f[4] : color f[4] white) substr($0, b + 1)
       }
       for (i = 1; i <= branch_count; i++) {
         if (branches[i] != "" && branches[i] != current) {
