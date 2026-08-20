@@ -51,8 +51,9 @@ read -ra palette < <(sed -n 's/^AUTHOR_COLORS=(\(.*\))$/\1/p' "$ROOT/home/bin/gb
 # would otherwise build four authors and pass
 ((${#palette[@]} == 24)) || fail "the palette holds ${#palette[@]}, not 24"
 # A backslash is what awk reads an escape sequence out of, so gl has to carry
-# this name to its colour by a route that does not
-authors=('José Ñuñez' 'Back\bslash')
+# this name to its colour by a route that does not. A tab is what the colours
+# are written out with, so a name holding one has to survive the round trip
+authors=('José Ñuñez' 'Back\bslash' $'Tab\tAuthor')
 while ((${#authors[@]} < ${#palette[@]})); do
   # Zero padded so no name is a prefix of another and the grep below cannot
   # read one author colour off another author line

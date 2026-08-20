@@ -52,15 +52,20 @@ author_colors() {
     done
   done <<<"$sample"
 
+  # Written beside the store and moved onto it, so a second gb or gl reading
+  # while this one writes sees the old file or the new one, never half of each.
   # A repo that cannot be written to still gets its colours, just not kept ones
   if [[ -n "$changed" && -w "$common" ]]; then
     for i in "${!AUTHOR_COLORS[@]}"; do
       [[ -n "${held[i]}" ]] && printf '%s\t%s\n' "$i" "${held[i]}"
-    done >"$store"
+    done >"$store.$$"
+    mv -f "$store.$$" "$store" 2>/dev/null || rm -f "$store.$$"
   fi
 
+  # Colour first: a name is free to hold a tab of its own, and everything
+  # after the first one is the name
   for i in "${!AUTHOR_COLORS[@]}"; do
-    [[ -n "${held[i]}" ]] && printf '%s\t%s\n' "${held[i]}" "${AUTHOR_COLORS[i]}"
+    [[ -n "${held[i]}" ]] && printf '%s\t%s\n' "${AUTHOR_COLORS[i]}" "${held[i]}"
   done
   return 0
 }
@@ -98,8 +103,8 @@ git log --color=always --abbrev=8 --date=format:'%d %b %Y' \
       for (i = 1; i <= count; i++) {
         t = index(lines[i], "\t")
         if (t)
-          author_color[substr(lines[i], 1, t - 1)] = \
-            esc "[38;5;" substr(lines[i], t + 1) "m"
+          author_color[substr(lines[i], t + 1)] = \
+            esc "[38;5;" substr(lines[i], 1, t - 1) "m"
       }
     }
     {
