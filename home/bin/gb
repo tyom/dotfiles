@@ -144,4 +144,12 @@ while IFS="$sep" read -r symref branch sha author timeago ts stamp message; do
     "$WHITE" "$author_trunc" \
     "$LIGHT_GRAY" "$message_trunc" "$RESET"
   # -F skips the pager when it all fits on one screen, -X keeps it on screen
-done <<<"$sorted_data" | by_size | less -RFX
+done <<<"$sorted_data" | by_size |
+  less -RFX --lesskey-content='#command;q quit x' || pager=$?
+
+# q returns 120 so the next prompt can replace one whole entry instead of
+# scrolling the first entry away. -F still leaves short output untouched.
+# The || above also keeps set -e from ending the script on that 120
+if ((pager == 120)); then printf '\033[2A\r\033[J'; fi
+
+exit 0
