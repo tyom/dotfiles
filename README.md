@@ -371,7 +371,8 @@ Prompts and agents are not here. Most reusable skills live in
 built in (`/code-review`, `/simplify`) is not worth reimplementing. The few kept
 here sit in `home/.agents/skills/`, which OpenCode and Pi read directly;
 `make link` links each one into `~/.claude/skills` and `~/.codex/skills` as
-well, since Claude and Codex read only their own directory.
+well, since Claude and Codex read only their own directory. The exception is a
+name Claude Code already ships, `simplify`, which only Codex gets.
 
 ### Status line
 

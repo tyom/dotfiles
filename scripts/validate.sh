@@ -102,7 +102,10 @@ for skill in "$REPO"/home/.agents/skills/*/; do
   [ -d "$skill" ] || continue
   SKILL_NAME=$(basename "$skill")
   if [ -L "$HOME/.agents/skills/$SKILL_NAME/SKILL.md" ]; then
-    check_symlink "$HOME/.claude/skills/$SKILL_NAME" "claude $SKILL_NAME skill"
+    # link.sh leaves out the claude link for a name Claude Code ships built in.
+    if [ "$SKILL_NAME" != simplify ]; then
+      check_symlink "$HOME/.claude/skills/$SKILL_NAME" "claude $SKILL_NAME skill"
+    fi
     check_symlink "$HOME/.codex/skills/$SKILL_NAME" "codex $SKILL_NAME skill"
   else
     print_skip "$SKILL_NAME skill not installed, skipping"

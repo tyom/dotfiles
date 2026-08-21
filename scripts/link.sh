@@ -119,8 +119,13 @@ done < <(find "$SRC_DIR" -type f ! -name .DS_Store)
 if [ "$SKIP_AGENTS" != true ]; then
   for skill in "$SRC_DIR"/.agents/skills/*/; do
     [ -d "$skill" ] || continue
+    skill_name=$(basename "$skill")
     for skills_dir in .claude/skills .codex/skills; do
-      target="$HOME/$skills_dir/$(basename "$skill")"
+      # Claude Code ships its own /simplify and two skills of one name collide.
+      # Codex has no built-in by that name, so it still gets ours. Keep this in
+      # step with the same exclusion in validate.sh.
+      case "$skills_dir/$skill_name" in .claude/skills/simplify) continue ;; esac
+      target="$HOME/$skills_dir/$skill_name"
       # ln -sfn drops the link inside a real directory, and deletes a real file
       # outright. Neither is ours to touch, so only a symlink is replaced here.
       if [ -e "$target" ] && [ ! -L "$target" ]; then
