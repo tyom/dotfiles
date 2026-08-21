@@ -28,21 +28,24 @@ while read -r file; do
   fi
 done < <(find "$SRC_DIR" -type f ! -name .DS_Store)
 
-# link.sh points ~/.codex/skills at each shared skill outside the loop above,
-# so those directory links need removing here or uninstall leaves them dangling.
+# link.sh points ~/.claude/skills and ~/.codex/skills at each shared skill
+# outside the loop above, so those directory links need removing here or
+# uninstall leaves them dangling.
 for skill in "$SRC_DIR"/.agents/skills/*/; do
   [ -d "$skill" ] || continue
-  rel_path=".codex/skills/$(basename "$skill")"
-  target="$HOME/$rel_path"
+  for skills_dir in .claude/skills .codex/skills; do
+    rel_path="$skills_dir/$(basename "$skill")"
+    target="$HOME/$rel_path"
 
-  [ -L "$target" ] || continue
-  links_into "$REPO" "$target" || continue
+    [ -L "$target" ] || continue
+    links_into "$REPO" "$target" || continue
 
-  if rm "$target"; then
-    print_info "unlinked $rel_path"
-  else
-    print_warning "Could not unlink $target"
-  fi
+    if rm "$target"; then
+      print_info "unlinked $rel_path"
+    else
+      print_warning "Could not unlink $target"
+    fi
+  done
 done
 
 # rmdir only removes empty directories, so this clears out what the links left

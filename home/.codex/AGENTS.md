@@ -11,6 +11,8 @@
   please me. My pushback is not evidence: re-derive the claim, say why it holds
   or name the fact that changed it. Never defend a claim after its reasoning
   breaks.
+- Load the `unslop` skill before writing a reply that runs past a few lines,
+  and apply it to what you send me, not only to files.
 - For important judgments, state `◯/◎/◉` for opinion low/med/high.  
   High needs evidence from the repo or this conversation, medium is general reasoning,  
   low is an assumption.

@@ -113,20 +113,22 @@ while read -r file; do
   esac
 done < <(find "$SRC_DIR" -type f ! -name .DS_Store)
 
-# OpenCode and Pi read ~/.agents/skills themselves. Codex reads only its own
-# skills dir, and the loop above links files rather than directories, so each
-# shared skill needs its own link there.
+# OpenCode and Pi read ~/.agents/skills themselves. Claude and Codex read only
+# their own skills dir, and the loop above links files rather than directories,
+# so each shared skill needs its own link in each of them.
 if [ "$SKIP_AGENTS" != true ]; then
   for skill in "$SRC_DIR"/.agents/skills/*/; do
     [ -d "$skill" ] || continue
-    target="$HOME/.codex/skills/$(basename "$skill")"
-    # ln -sfn drops the link inside a real directory, and deletes a real file
-    # outright. Neither is ours to touch, so only a symlink is replaced here.
-    if [ -e "$target" ] && [ ! -L "$target" ]; then
-      print_warning "Not ours, leaving it alone: $target"
-      continue
-    fi
-    link "${skill%/}" "$target"
+    for skills_dir in .claude/skills .codex/skills; do
+      target="$HOME/$skills_dir/$(basename "$skill")"
+      # ln -sfn drops the link inside a real directory, and deletes a real file
+      # outright. Neither is ours to touch, so only a symlink is replaced here.
+      if [ -e "$target" ] && [ ! -L "$target" ]; then
+        print_warning "Not ours, leaving it alone: $target"
+        continue
+      fi
+      link "${skill%/}" "$target"
+    done
   done
 fi
 

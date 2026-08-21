@@ -95,13 +95,14 @@ else
 fi
 
 # Shared skills are opt-in as well. OpenCode and Pi read ~/.agents/skills, which
-# link.sh fills file by file like everything else. The Codex link is the one
-# worth checking: it is a directory link made outside that loop, and a skill
-# Codex cannot see fails by simply never being offered.
+# link.sh fills file by file like everything else. The Claude and Codex links
+# are the ones worth checking: they are directory links made outside that loop,
+# and a skill an agent cannot see fails by simply never being offered.
 for skill in "$REPO"/home/.agents/skills/*/; do
   [ -d "$skill" ] || continue
   SKILL_NAME=$(basename "$skill")
   if [ -L "$HOME/.agents/skills/$SKILL_NAME/SKILL.md" ]; then
+    check_symlink "$HOME/.claude/skills/$SKILL_NAME" "claude $SKILL_NAME skill"
     check_symlink "$HOME/.codex/skills/$SKILL_NAME" "codex $SKILL_NAME skill"
   else
     print_skip "$SKILL_NAME skill not installed, skipping"

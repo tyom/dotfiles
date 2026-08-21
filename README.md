@@ -366,10 +366,12 @@ It is a plugin because that is how a hook gets registered. `make install` runs
 build or install: the hook is plain JavaScript on `node:` builtins, so `node`,
 `deno` and `bun` all run it as-is.
 
-Prompts and agents are not here. Reusable skills live in
-[tyom/skills](https://github.com/tyom/skills) so Codex gets them too, and
-anything Claude Code ships built in (`/code-review`, `/simplify`) is not worth
-reimplementing.
+Prompts and agents are not here. Most reusable skills live in
+[tyom/skills](https://github.com/tyom/skills), and anything Claude Code ships
+built in (`/code-review`, `/simplify`) is not worth reimplementing. The few kept
+here sit in `home/.agents/skills/`, which OpenCode and Pi read directly;
+`make link` links each one into `~/.claude/skills` and `~/.codex/skills` as
+well, since Claude and Codex read only their own directory.
 
 ### Status line
 
