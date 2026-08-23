@@ -106,6 +106,28 @@ function prettierFixture() {
   return dir;
 }
 
+// A bun project, so the hook picks `bun test`. No package-lock.json: the
+// lockfile is what names the package manager.
+/** @param {Record<string, string>} files */
+function bunFixture(files = {}) {
+  const dir = realpathSync(mkdtempSync(join(tmpdir(), "stop-hook-")));
+  writeFileSync(join(dir, "package.json"), JSON.stringify({ name: "fixture" }));
+  writeFileSync(join(dir, "bun.lock"), "");
+  for (const [name, body] of Object.entries(files)) {
+    writeFileSync(join(dir, name), body);
+  }
+  return dir;
+}
+
+// Skips rather than fails where bun is absent, the way the fixtures above avoid
+// depending on anything that has to be downloaded.
+/** @param {{ skip: (reason: string) => void }} t */
+function needsBun(t) {
+  if (spawnSync("bun", ["--version"]).status === 0) return true;
+  t.skip("bun is not installed");
+  return false;
+}
+
 // A vitest project that is also a git repo with one commit, so the working tree
 // is clean until a test dirties it.
 function gitFixture() {
@@ -333,4 +355,25 @@ test("a read-only turn checks nothing, however dirty the tree", () => {
   });
   assert.equal(proc.status, 0);
   assert.equal(proc.stdout.trim(), "");
+});
+
+// `bun test` exits 1 when its glob matches nothing, so a bun project that keeps
+// its checks elsewhere would be blocked for having no bun tests to fail.
+test("a bun project with no test files is not a failure", (t) => {
+  if (!needsBun(t)) return;
+  assert.equal(runHook(bunFixture(), ["src/thing.ts"]), "");
+});
+
+// The other side of that guard: an empty run is excused by what bun prints, so
+// a run that found tests and failed them has to still block.
+test("a failing bun test still blocks", (t) => {
+  if (!needsBun(t)) return;
+  const dir = bunFixture({
+    "thing.test.ts":
+      'import { test, expect } from "bun:test";\ntest("x", () => expect(1).toBe(2));\n',
+  });
+  assert.match(
+    JSON.parse(runHook(dir, ["src/thing.ts"])).reason,
+    /Tests failed/,
+  );
 });

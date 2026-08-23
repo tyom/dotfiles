@@ -539,6 +539,25 @@ function buildTestCommand(setup, c, projectRoot) {
   return setup.fullSuiteCommand;
 }
 
+// `bun test` exits 1 when its glob matches nothing. vitest and jest are handed
+// --passWithNoTests for the same case; bun has no such flag, so an empty run is
+// recognised by what it prints. A project whose checks live elsewhere, or one
+// whose tests are not bun's to find, has no failure to report here.
+const BUN_NO_TESTS = /^error: 0 test files matching/m;
+
+/**
+ * @param {string[]} command
+ * @param {{ status: number | null; output: string }} r
+ */
+function ranNoTests(command, r) {
+  return (
+    command[0] === "bun" &&
+    command[1] === "test" &&
+    r.status === 1 &&
+    BUN_NO_TESTS.test(r.output)
+  );
+}
+
 /**
  * @param {string} reason
  * @returns {never}
@@ -617,7 +636,7 @@ async function main() {
         ? setup.fullSuiteCommand
         : buildTestCommand(setup, c, projectRoot);
       const r = runCommand(command, projectRoot, budget(120_000));
-      if (!r.success) {
+      if (!r.success && !ranNoTests(command, r)) {
         block(
           `Tests failed. Please fix the failing tests before stopping.\n\n$ ${command.join(
             " ",
