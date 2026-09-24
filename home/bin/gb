@@ -17,7 +17,7 @@ Options:
       nothing of its own is left blank
   -h  show this help and exit
 
-A white arrow marks the current branch, a tick marks the branches already
+A bright arrow marks the current branch, a tick marks the branches already
 merged into HEAD. On a repo with more than three recent contributors each
 author gets their own colour, the same one gl gives them and the same one
 tomorrow: the assignment is kept in .git. Two dozen colours, so on a crowded
@@ -173,14 +173,14 @@ while IFS="$sep" read -r symref branch sha author timeago ts stamp message; do
   # Determine marker
   marker=" "
   [[ -n "$is_present" ]] && marker="${GREEN}✓${RESET}"
-  [[ -n "$is_current" ]] && marker="${WHITE}→${RESET}"
+  [[ -n "$is_current" ]] && marker="${BRIGHT}→${RESET}"
 
   # Determine SHA color
   sha_color="$YELLOW"
   [[ -n "$is_current" ]] && sha_color="$BRIGHT"
 
   branch_color="$GREEN"
-  [[ -n "$is_current" ]] && branch_color="$WHITE"
+  [[ -n "$is_current" ]] && branch_color="$BRIGHT"
   branch_field=$(printf '%s %s %s%*s' \
     "$branch_color" "$branch" "$RESET" $((max_branch_len - ${#branch})) '')
 
