@@ -17,7 +17,7 @@ Options:
       nothing of its own is left blank
   -h  show this help and exit
 
-The current branch is shown as a block, a tick marks the branches already
+A white arrow marks the current branch, a tick marks the branches already
 merged into HEAD. On a repo with more than three recent contributors each
 author gets their own colour, the same one gl gives them and the same one
 tomorrow: the assignment is kept in .git. Two dozen colours, so on a crowded
@@ -33,7 +33,6 @@ LIGHT_GRAY=$'\033[38;5;246m'
 GREEN=$'\033[32m'
 YELLOW=$'\033[33m'
 WHITE=$'\033[37m'
-BLOCK=$'\033[7m'
 
 # Author colours, kept: the colour a name has been given stays with it, so the
 # one you have learned does not move when a new author turns up or when someone
@@ -171,20 +170,17 @@ while IFS="$sep" read -r symref branch sha author timeago ts stamp message; do
   is_current=""
   [[ "$branch" == "$current_branch" ]] && is_current="1"
 
-  # Determine marker. The current branch needs none, its block says so
+  # Determine marker
   marker=" "
-  [[ -n "$is_present" && -z "$is_current" ]] && marker="${GREEN}✓${RESET}"
+  [[ -n "$is_present" ]] && marker="${GREEN}✓${RESET}"
+  [[ -n "$is_current" ]] && marker="${WHITE}→${RESET}"
 
   # Determine SHA color
   sha_color="$YELLOW"
   [[ -n "$is_current" ]] && sha_color="$BRIGHT"
 
-  # The current branch gets a block. Every name carries the same space each side
-  # so the block has room without shifting the columns
-  branch_color="$GREEN"
-  [[ -n "$is_current" ]] && branch_color="$BLOCK"
   branch_field=$(printf '%s %s %s%*s' \
-    "$branch_color" "$branch" "$RESET" $((max_branch_len - ${#branch})) '')
+    "$GREEN" "$branch" "$RESET" $((max_branch_len - ${#branch})) '')
 
   # Months read better than "1 year, 4 months", a date is better than either.
   # (days + 15) / 30 is how git itself rounds months, so the two agree
