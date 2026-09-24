@@ -179,8 +179,10 @@ while IFS="$sep" read -r symref branch sha author timeago ts stamp message; do
   sha_color="$YELLOW"
   [[ -n "$is_current" ]] && sha_color="$BRIGHT"
 
+  branch_color="$GREEN"
+  [[ -n "$is_current" ]] && branch_color="$WHITE"
   branch_field=$(printf '%s %s %s%*s' \
-    "$GREEN" "$branch" "$RESET" $((max_branch_len - ${#branch})) '')
+    "$branch_color" "$branch" "$RESET" $((max_branch_len - ${#branch})) '')
 
   # Months read better than "1 year, 4 months", a date is better than either.
   # (days + 15) / 30 is how git itself rounds months, so the two agree
