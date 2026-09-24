@@ -36,7 +36,7 @@ git -C "$TMP/repo" -c user.name=test -c user.email=test@example.com \
 git -C "$TMP/repo" switch -q topic
 
 output=$(cd "$TMP/repo" && PATH="$TMP/bin:/usr/bin:/bin" "$ROOT/home/bin/gl" --all --max-count=2)
-current_block=$'\033[7m topic \033[m'
+current_block=$'\033[32mtopic\033[37m'
 merged_branch=$'\033[32m✓ merged\033[37m'
 unmerged_branch=$'\033[32m✓ pending\033[37m'
 remote_branch=$'\033[32morigin/topic\033[37m'
@@ -50,9 +50,9 @@ remote_branch=$'\033[32morigin/topic\033[37m'
 marker=$(sed -n "s/^marker='\(.*\)'$/\1/p" "$ROOT/home/bin/gl")
 [[ "${output%%$'\n'*}" == "$marker "* ]] || fail 'gl refs are not above their commit'
 
-# The commit right below the current branch carries the bright sha
-[[ "$(printf '%s\n' "$output" | grep -A1 -F "$current_block" | sed -n 2p)" == $'\033[1m'* ]] ||
-  fail 'gl does not brighten the current commit'
+# The commit right below the current branch keeps the plain yellow sha
+[[ "$(printf '%s\n' "$output" | grep -A1 -F "$current_block" | sed -n 2p)" == $'\033[33m'* ]] ||
+  fail 'gl colours the current commit sha differently'
 
 git -C "$TMP/repo" checkout -q --detach
 output=$(cd "$TMP/repo" && PATH="$TMP/bin:/usr/bin:/bin" "$ROOT/home/bin/gl" --max-count=1)
