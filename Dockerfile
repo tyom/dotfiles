@@ -5,7 +5,8 @@ ENV TERM=xterm-256color
 
 # Install additional packages via apt (run as root temporarily)
 USER root
-RUN apt-get update -qq && \
+RUN rm -f /etc/apt/sources.list.d/github-cli.list && \
+  apt-get update -qq && \
   apt-get install -y vim locales zsh && \
   apt-get clean && \
   rm -rf /var/lib/apt/lists/* && \
